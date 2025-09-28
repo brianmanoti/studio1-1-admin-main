@@ -74,12 +74,9 @@ export const useAuthStore = create<AuthState>()((set) => {
       },
 
       setAccessToken: (token: string) => {
-        if (token) setCookie(ACCESS_TOKEN, JSON.stringify(token))
+        if (token) setCookie(ACCESS_TOKEN, token) 
         else removeCookie(ACCESS_TOKEN)
-        set((state) => ({
-          ...state,
-          auth: { ...state.auth, accessToken: token, token }, // ✅ update both
-        }))
+        set((state) => ({ ...state, auth: { ...state.auth, accessToken: token } }))
       },
 
       resetAccessToken: () => {
