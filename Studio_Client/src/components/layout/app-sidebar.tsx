@@ -18,7 +18,7 @@ export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { data: projects, isLoading, isError } = useProjects()
 
-  const user = useAuthStore((state) => state.auth.user)
+  const user = useAuthStore((state) => state.auth?.user)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
