@@ -74,6 +74,7 @@ export function UserAuthForm({
     setTimeout(() => {
       navigate({ to: redirectTo || "/", replace: true })
     }, 150)
+    localStorage.setItem('auth_token', data.token)
     
     },
     onError: (error: any) => {
