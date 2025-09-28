@@ -70,7 +70,11 @@ export function UserAuthForm({
 
       toast.success(data.message || "Login successful")
 
+    // ✅ wait briefly to allow cookie to persist before redirect
+    setTimeout(() => {
       navigate({ to: redirectTo || "/", replace: true })
+    }, 150)
+    
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.message || "Login failed ")
