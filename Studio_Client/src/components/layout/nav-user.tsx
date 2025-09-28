@@ -38,6 +38,18 @@ type NavUserProps = {
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
+
+    if (!user) {
+    return (
+      <div className="flex items-center gap-2 p-4 text-gray-500 text-sm">
+        <Avatar>
+          <AvatarImage src="/default-avatar.png" alt="Guest" />
+          <AvatarFallback>G</AvatarFallback>
+        </Avatar>
+        <span>Guest</span>
+      </div>
+    )
+  }
   
   return (
     <>
