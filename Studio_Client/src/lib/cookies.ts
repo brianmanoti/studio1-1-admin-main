@@ -21,7 +21,7 @@ export function getCookie(name: string): string | undefined {
 }
 
 /**
- * Set a cookie with name, value, and optional max age
+ * Set a cookie with proper security attributes
  */
 export function setCookie(
   name: string,
@@ -30,14 +30,11 @@ export function setCookie(
 ): void {
   if (typeof document === 'undefined') return
 
-  document.cookie = `${name}=${value}; path=/; max-age=${maxAge}`
-}
+  // ✅ Always secure in production
+  const secureFlag = window.location.protocol === 'https:' ? '; Secure' : ''
 
-/**
- * Remove a cookie by setting its max age to 0
- */
-export function removeCookie(name: string): void {
-  if (typeof document === 'undefined') return
+  // ✅ Use SameSite=Lax for app-only cookies (or None for cross-site APIs)
+  const sameSite = '; SameSite=Lax'
 
-  document.cookie = `${name}=; path=/; max-age=0`
+  document.cookie = `${name}=${value}; path=/; max-age=${maxAge}${sameSite}${secureFlag}`
 }
