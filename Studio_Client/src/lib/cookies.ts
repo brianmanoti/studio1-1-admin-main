@@ -2,12 +2,8 @@ const DEFAULT_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
 export function getCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-  if (parts.length === 2) {
-    return parts.pop()?.split(';').shift()
-  }
-  return undefined
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'))
+  return match ? decodeURIComponent(match[2]) : undefined
 }
 
 export function setCookie(
@@ -17,15 +13,19 @@ export function setCookie(
 ): void {
   if (typeof document === 'undefined') return
 
-  const secureFlag = window.location.protocol === 'https:' ? '; Secure' : ''
-  const sameSite = '; SameSite=Lax'
+  // ✅ encode value for safety
+  const encodedValue = encodeURIComponent(value)
+  const isSecure = window.location.protocol === 'https:'
+  const secure = isSecure ? '; Secure' : ''
+  const sameSite = isSecure ? '; SameSite=None' : '; SameSite=Lax'
 
-  document.cookie = `${name}=${value}; path=/; max-age=${maxAge}${sameSite}${secureFlag}`
+  document.cookie = `${name}=${encodedValue}; path=/; max-age=${maxAge}${sameSite}${secure}`
 }
 
 export function removeCookie(name: string): void {
   if (typeof document === 'undefined') return
-  const secureFlag = window.location.protocol === 'https:' ? '; Secure' : ''
-  const sameSite = '; SameSite=Lax'
-  document.cookie = `${name}=; path=/; max-age=0${sameSite}${secureFlag}`
+  const isSecure = window.location.protocol === 'https:'
+  const secure = isSecure ? '; Secure' : ''
+  const sameSite = isSecure ? '; SameSite=None' : '; SameSite=Lax'
+  document.cookie = `${name}=; path=/; max-age=0${sameSite}${secure}`
 }
