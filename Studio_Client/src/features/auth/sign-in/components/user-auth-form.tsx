@@ -64,7 +64,7 @@ export function UserAuthForm({
       return response.data
     },
     onSuccess: (data) => {
-      // Example structure: { token, user, message }
+      //  Update auth store
       auth.setUser(data.user)
       auth.setAccessToken(data.token)
 

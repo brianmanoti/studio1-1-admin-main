@@ -19,15 +19,18 @@ export interface AuthUser {
   preferences: UserPreferences
 }
 
+interface Auth {
+  user: AuthUser | null
+  accessToken: string
+  token: string // ✅ alias for backward compatibility
+  setUser: (user: AuthUser | null) => void
+  setAccessToken: (token: string) => void
+  resetAccessToken: () => void
+  reset: () => void
+}
+
 interface AuthState {
-  auth: {
-    user: AuthUser | null
-    accessToken: string
-    setUser: (user: AuthUser | null) => void
-    setAccessToken: (token: string) => void
-    resetAccessToken: () => void
-    reset: () => void
-  }
+  auth: Auth
 }
 
 export const useAuthStore = create<AuthState>()((set) => {
@@ -59,24 +62,41 @@ export const useAuthStore = create<AuthState>()((set) => {
     auth: {
       user: initUser,
       accessToken: initToken,
+      token: initToken, // ✅ keep both keys in sync
+
       setUser: (user: AuthUser | null) => {
         if (user) setCookie(USER_DATA, JSON.stringify(user))
         else removeCookie(USER_DATA)
-        set((state) => ({ ...state, auth: { ...state.auth, user } }))
+        set((state) => ({
+          ...state,
+          auth: { ...state.auth, user },
+        }))
       },
+
       setAccessToken: (token: string) => {
         if (token) setCookie(ACCESS_TOKEN, JSON.stringify(token))
         else removeCookie(ACCESS_TOKEN)
-        set((state) => ({ ...state, auth: { ...state.auth, accessToken: token } }))
+        set((state) => ({
+          ...state,
+          auth: { ...state.auth, accessToken: token, token }, // ✅ update both
+        }))
       },
+
       resetAccessToken: () => {
         removeCookie(ACCESS_TOKEN)
-        set((state) => ({ ...state, auth: { ...state.auth, accessToken: '' } }))
+        set((state) => ({
+          ...state,
+          auth: { ...state.auth, accessToken: '', token: '' },
+        }))
       },
+
       reset: () => {
         removeCookie(ACCESS_TOKEN)
         removeCookie(USER_DATA)
-        set((state) => ({ ...state, auth: { ...state.auth, user: null, accessToken: '' } }))
+        set((state) => ({
+          ...state,
+          auth: { ...state.auth, user: null, accessToken: '', token: '' },
+        }))
       },
     },
   }
