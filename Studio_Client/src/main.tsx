@@ -13,16 +13,22 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
-// Generated Routes
 import { routeTree } from './routeTree.gen'
-// Styles
 import './styles/index.css'
 
+// ✅ Initialize router first
+const router = createRouter({
+  routeTree,
+  context: {}, // We'll inject queryClient later
+  defaultPreload: 'intent',
+  defaultPreloadStaleTime: 0,
+})
+
+// ✅ Create QueryClient
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error) => {
-        // eslint-disable-next-line no-console
         if (import.meta.env.DEV) console.log({ failureCount, error })
 
         if (failureCount >= 0 && import.meta.env.DEV) return false
@@ -50,41 +56,52 @@ const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (error) => {
-      if (error instanceof AxiosError) {
-        if (error.response?.status === 401) {
-          toast.error('Session expired!')
-          useAuthStore.getState().auth.reset()
-          const redirect = `${router.history.location.href}`
-          router.navigate({ to: '/sign-in', search: { redirect } })
+      if (!(error instanceof AxiosError)) return
+
+      const status = error.response?.status
+      const auth = useAuthStore.getState().auth
+
+      // ✅ Only handle real expired sessions — not early 401s
+      if (status === 401) {
+        if (auth.accessToken) {
+          toast.error('Session expired! Please log in again.')
+
+          // Clear auth only once safely
+          auth.reset()
+
+          // Delay redirect slightly to avoid race conditions
+          setTimeout(() => {
+            const redirect = `${window.location.pathname}${window.location.search}`
+            router.navigate({ to: '/sign-in', search: { redirect } })
+          }, 300)
         }
-        if (error.response?.status === 500) {
-          toast.error('Internal Server Error!')
-          router.navigate({ to: '/500' })
-        }
-        if (error.response?.status === 403) {
-          // router.navigate("/forbidden", { replace: true });
-        }
+      }
+
+      if (status === 500) {
+        toast.error('Internal Server Error!')
+        router.navigate({ to: '/500' })
+      }
+
+      if (status === 403) {
+        // router.navigate({ to: '/forbidden', replace: true })
       }
     },
   }),
 })
 
-// Create a new router instance
-const router = createRouter({
-  routeTree,
+// ✅ Inject queryClient into router context properly
+router.update({
   context: { queryClient },
-  defaultPreload: 'intent',
-  defaultPreloadStaleTime: 0,
 })
 
-// Register the router instance for type safety
+// Type registration for TanStack Router
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
   }
 }
 
-// Render the app
+// ✅ Render app
 const rootElement = document.getElementById('root')!
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
