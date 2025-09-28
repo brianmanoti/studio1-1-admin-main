@@ -1,0 +1,255 @@
+import {
+  Construction,
+  LayoutDashboard,
+  Monitor,
+  Bug,
+  ListTodo,
+  FileX,
+  HelpCircle,
+  Lock,
+  Bell,
+  Package,
+  Palette,
+  ServerOff,
+  Settings,
+  Wrench,
+  UserCog,
+  UserX,
+  Users,
+  MessagesSquare,
+  ShieldCheck,
+  AudioWaveform,
+  Command,
+  GalleryVerticalEnd,
+  TrendingUpDownIcon,
+  PieChartIcon,
+  DollarSignIcon,
+  CreditCardIcon,
+  ListOrderedIcon,
+} from 'lucide-react'
+import { ClerkLogo } from '@/assets/clerk-logo'
+import { type SidebarData } from '../types'
+
+export const sidebarData: SidebarData = {
+
+  navGroups: [
+    {
+      title: 'General',
+      items: [
+        {
+          title: 'Dashboard',
+          url: '/',
+          icon: LayoutDashboard,
+        },
+        {
+          title: 'Budget',
+          url: '/budget',
+          icon: PieChartIcon,
+        },
+        {
+          title: 'Estimates',
+          icon: ShieldCheck,
+          items: [
+            {
+              title: 'Estimate',
+              url: '/sign-in',
+            },
+            {
+              title: 'Variations',
+              url: '/sign-in-2',
+            },
+          ],
+        },
+        {
+          title: 'Purchase Orders',
+          url: '/tasks',
+          icon: ListTodo,
+        },
+        {
+          title: 'Wages',
+          url: '/apps',
+          icon: ListOrderedIcon,
+        },
+        {
+          title: 'Subcontractors',
+          url: '/apps',
+          icon: Package,
+        },
+        {
+          title: 'Expenses',
+          url: '/chats',
+          badge: '3',
+          icon: DollarSignIcon,
+        },
+                {
+          title: 'Subcontactors',
+          icon: ShieldCheck,
+          items: [
+            {
+              title: 'Wages',
+              url: '/sign-in',
+            },
+            {
+              title: 'Purchase Orders',
+              url: '/sign-in-2',
+            },
+            {
+              title: 'Expenses',
+              url: '/sign-up',
+            },
+          ],
+        },
+        {
+          title: 'Payroll',
+          url: '/chats',
+          badge: '3',
+          icon: CreditCardIcon,
+        },
+        {
+          title: 'Users',
+          url: '/users',
+          icon: Users,
+        },
+        {
+          title: 'Admin',
+          icon: ClerkLogo,
+          items: [
+            {
+              title: 'Sign In',
+              url: '/clerk/sign-in',
+            },
+            {
+              title: 'Sign Up',
+              url: '/clerk/sign-up',
+            },
+            {
+              title: 'User Management',
+              url: '/clerk/user-management',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Pages',
+      items: [
+        {
+          title: 'Subcontactors',
+          icon: ShieldCheck,
+          items: [
+            {
+              title: 'Wages',
+              url: '/sign-in',
+            },
+            {
+              title: 'Purchase Orders',
+              url: '/sign-in-2',
+            },
+            {
+              title: 'Expenses',
+              url: '/sign-up',
+            },
+          ],
+        },
+        {
+          title: 'Auth',
+          icon: ShieldCheck,
+          items: [
+            {
+              title: 'Sign In',
+              url: '/sign-in',
+            },
+            {
+              title: 'Sign In (2 Col)',
+              url: '/sign-in-2',
+            },
+            {
+              title: 'Sign Up',
+              url: '/sign-up',
+            },
+            {
+              title: 'Forgot Password',
+              url: '/forgot-password',
+            },
+            {
+              title: 'OTP',
+              url: '/otp',
+            },
+          ],
+        },
+        {
+          title: 'Errors',
+          icon: Bug,
+          items: [
+            {
+              title: 'Unauthorized',
+              url: '/errors/unauthorized',
+              icon: Lock,
+            },
+            {
+              title: 'Forbidden',
+              url: '/errors/forbidden',
+              icon: UserX,
+            },
+            {
+              title: 'Not Found',
+              url: '/errors/not-found',
+              icon: FileX,
+            },
+            {
+              title: 'Internal Server Error',
+              url: '/errors/internal-server-error',
+              icon: ServerOff,
+            },
+            {
+              title: 'Maintenance Error',
+              url: '/errors/maintenance-error',
+              icon: Construction,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Other',
+      items: [
+        {
+          title: 'Settings',
+          icon: Settings,
+          items: [
+            {
+              title: 'Profile',
+              url: '/settings',
+              icon: UserCog,
+            },
+            {
+              title: 'Account',
+              url: '/settings/account',
+              icon: Wrench,
+            },
+            {
+              title: 'Appearance',
+              url: '/settings/appearance',
+              icon: Palette,
+            },
+            {
+              title: 'Notifications',
+              url: '/settings/notifications',
+              icon: Bell,
+            },
+            {
+              title: 'Display',
+              url: '/settings/display',
+              icon: Monitor,
+            },
+          ],
+        },
+        {
+          title: 'Help Center',
+          url: '/help-center',
+          icon: HelpCircle,
+        },
+      ],
+    },
+  ],
+}
