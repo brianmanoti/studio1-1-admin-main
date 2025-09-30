@@ -38,12 +38,8 @@ export const useAuthStore = create<AuthState>()((set) => {
   let initToken = ''
   const cookieToken = getCookie(ACCESS_TOKEN)
   if (cookieToken) {
-    try {
-      initToken = JSON.parse(cookieToken)
-    } catch {
-      removeCookie(ACCESS_TOKEN)
-      initToken = ''
-    }
+    // ✅ store tokens as plain strings (no JSON.parse)
+    initToken = cookieToken
   }
 
   // initialize user
@@ -74,9 +70,13 @@ export const useAuthStore = create<AuthState>()((set) => {
       },
 
       setAccessToken: (token: string) => {
-        if (token) setCookie(ACCESS_TOKEN, token) 
+        if (token) setCookie(ACCESS_TOKEN, token)
         else removeCookie(ACCESS_TOKEN)
-        set((state) => ({ ...state, auth: { ...state.auth, accessToken: token } }))
+        set((state) => ({
+          ...state,
+          // ✅ keep both accessToken and token in sync
+          auth: { ...state.auth, accessToken: token, token },
+        }))
       },
 
       resetAccessToken: () => {

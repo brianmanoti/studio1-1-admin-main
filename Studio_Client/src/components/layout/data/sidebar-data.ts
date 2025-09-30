@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Lock,
   Bell,
-  Package,
   Palette,
   ServerOff,
   Settings,
@@ -16,18 +15,14 @@ import {
   UserCog,
   UserX,
   Users,
-  MessagesSquare,
   ShieldCheck,
-  AudioWaveform,
-  Command,
-  GalleryVerticalEnd,
-  TrendingUpDownIcon,
   PieChartIcon,
   DollarSignIcon,
   CreditCardIcon,
   ListOrderedIcon,
+  HardHatIcon,
+  TrendingDownIcon,
 } from 'lucide-react'
-import { ClerkLogo } from '@/assets/clerk-logo'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -48,7 +43,7 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Estimates',
-          icon: ShieldCheck,
+          icon: TrendingDownIcon,
           items: [
             {
               title: 'Estimate',
@@ -71,19 +66,14 @@ export const sidebarData: SidebarData = {
           icon: ListOrderedIcon,
         },
         {
-          title: 'Subcontractors',
-          url: '/apps',
-          icon: Package,
-        },
-        {
           title: 'Expenses',
           url: '/chats',
           badge: '3',
           icon: DollarSignIcon,
         },
-                {
+          {
           title: 'Subcontactors',
-          icon: ShieldCheck,
+          icon: HardHatIcon,
           items: [
             {
               title: 'Wages',
@@ -112,7 +102,7 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Admin',
-          icon: ClerkLogo,
+          icon: ShieldCheck,
           items: [
             {
               title: 'Sign In',
@@ -133,24 +123,6 @@ export const sidebarData: SidebarData = {
     {
       title: 'Pages',
       items: [
-        {
-          title: 'Subcontactors',
-          icon: ShieldCheck,
-          items: [
-            {
-              title: 'Wages',
-              url: '/sign-in',
-            },
-            {
-              title: 'Purchase Orders',
-              url: '/sign-in-2',
-            },
-            {
-              title: 'Expenses',
-              url: '/sign-up',
-            },
-          ],
-        },
         {
           title: 'Auth',
           icon: ShieldCheck,
