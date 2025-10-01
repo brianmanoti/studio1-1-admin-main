@@ -45,6 +45,8 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSubcontractorsWagesIndexRouteImport } from './routes/_authenticated/subcontractors/wages/index'
 import { Route as AuthenticatedSubcontractorsPurchaseOrdersIndexRouteImport } from './routes/_authenticated/subcontractors/purchase-orders/index'
 import { Route as AuthenticatedSubcontractorsExpensesIndexRouteImport } from './routes/_authenticated/subcontractors/expenses/index'
+import { Route as AuthenticatedEstimatesVariationsIndexRouteImport } from './routes/_authenticated/estimates/variations/index'
+import { Route as AuthenticatedEstimatesEstimateIndexRouteImport } from './routes/_authenticated/estimates/estimate/index'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -237,6 +239,18 @@ const AuthenticatedSubcontractorsExpensesIndexRoute =
     path: '/subcontractors/expenses/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEstimatesVariationsIndexRoute =
+  AuthenticatedEstimatesVariationsIndexRouteImport.update({
+    id: '/estimates/variations/',
+    path: '/estimates/variations/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedEstimatesEstimateIndexRoute =
+  AuthenticatedEstimatesEstimateIndexRouteImport.update({
+    id: '/estimates/estimate/',
+    path: '/estimates/estimate/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/clerk': typeof ClerkAuthenticatedRouteRouteWithChildren
@@ -270,6 +284,8 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wages': typeof AuthenticatedWagesIndexRoute
+  '/estimates/estimate': typeof AuthenticatedEstimatesEstimateIndexRoute
+  '/estimates/variations': typeof AuthenticatedEstimatesVariationsIndexRoute
   '/subcontractors/expenses': typeof AuthenticatedSubcontractorsExpensesIndexRoute
   '/subcontractors/purchase-orders': typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
   '/subcontractors/wages': typeof AuthenticatedSubcontractorsWagesIndexRoute
@@ -304,6 +320,8 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wages': typeof AuthenticatedWagesIndexRoute
+  '/estimates/estimate': typeof AuthenticatedEstimatesEstimateIndexRoute
+  '/estimates/variations': typeof AuthenticatedEstimatesVariationsIndexRoute
   '/subcontractors/expenses': typeof AuthenticatedSubcontractorsExpensesIndexRoute
   '/subcontractors/purchase-orders': typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
   '/subcontractors/wages': typeof AuthenticatedSubcontractorsWagesIndexRoute
@@ -343,6 +361,8 @@ export interface FileRoutesById {
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wages/': typeof AuthenticatedWagesIndexRoute
+  '/_authenticated/estimates/estimate/': typeof AuthenticatedEstimatesEstimateIndexRoute
+  '/_authenticated/estimates/variations/': typeof AuthenticatedEstimatesVariationsIndexRoute
   '/_authenticated/subcontractors/expenses/': typeof AuthenticatedSubcontractorsExpensesIndexRoute
   '/_authenticated/subcontractors/purchase-orders/': typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
   '/_authenticated/subcontractors/wages/': typeof AuthenticatedSubcontractorsWagesIndexRoute
@@ -381,6 +401,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/users'
     | '/wages'
+    | '/estimates/estimate'
+    | '/estimates/variations'
     | '/subcontractors/expenses'
     | '/subcontractors/purchase-orders'
     | '/subcontractors/wages'
@@ -415,6 +437,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/users'
     | '/wages'
+    | '/estimates/estimate'
+    | '/estimates/variations'
     | '/subcontractors/expenses'
     | '/subcontractors/purchase-orders'
     | '/subcontractors/wages'
@@ -453,6 +477,8 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
     | '/_authenticated/wages/'
+    | '/_authenticated/estimates/estimate/'
+    | '/_authenticated/estimates/variations/'
     | '/_authenticated/subcontractors/expenses/'
     | '/_authenticated/subcontractors/purchase-orders/'
     | '/_authenticated/subcontractors/wages/'
@@ -727,6 +753,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSubcontractorsExpensesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/estimates/variations/': {
+      id: '/_authenticated/estimates/variations/'
+      path: '/estimates/variations'
+      fullPath: '/estimates/variations'
+      preLoaderRoute: typeof AuthenticatedEstimatesVariationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/estimates/estimate/': {
+      id: '/_authenticated/estimates/estimate/'
+      path: '/estimates/estimate'
+      fullPath: '/estimates/estimate'
+      preLoaderRoute: typeof AuthenticatedEstimatesEstimateIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -765,6 +805,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWagesIndexRoute: typeof AuthenticatedWagesIndexRoute
+  AuthenticatedEstimatesEstimateIndexRoute: typeof AuthenticatedEstimatesEstimateIndexRoute
+  AuthenticatedEstimatesVariationsIndexRoute: typeof AuthenticatedEstimatesVariationsIndexRoute
   AuthenticatedSubcontractorsExpensesIndexRoute: typeof AuthenticatedSubcontractorsExpensesIndexRoute
   AuthenticatedSubcontractorsPurchaseOrdersIndexRoute: typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
   AuthenticatedSubcontractorsWagesIndexRoute: typeof AuthenticatedSubcontractorsWagesIndexRoute
@@ -782,6 +824,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWagesIndexRoute: AuthenticatedWagesIndexRoute,
+  AuthenticatedEstimatesEstimateIndexRoute:
+    AuthenticatedEstimatesEstimateIndexRoute,
+  AuthenticatedEstimatesVariationsIndexRoute:
+    AuthenticatedEstimatesVariationsIndexRoute,
   AuthenticatedSubcontractorsExpensesIndexRoute:
     AuthenticatedSubcontractorsExpensesIndexRoute,
   AuthenticatedSubcontractorsPurchaseOrdersIndexRoute:

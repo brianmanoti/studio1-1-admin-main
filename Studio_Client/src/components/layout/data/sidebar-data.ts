@@ -47,11 +47,11 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Estimate',
-              url: '/sign-in',
+              url: '/estimates/estimate',
             },
             {
               title: 'Variations',
-              url: '/sign-in-2',
+              url: '/estimates/variations',
             },
           ],
         },
