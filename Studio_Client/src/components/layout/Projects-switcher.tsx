@@ -1,3 +1,4 @@
+// components/ProjectsSwitcher.tsx
 import * as React from 'react'
 import { ChevronsUpDown, Plus } from 'lucide-react'
 import {
@@ -14,6 +15,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { useNavigate, useParams } from '@tanstack/react-router'
 
 interface Project {
   _id: string
@@ -24,25 +26,30 @@ interface Project {
 }
 
 interface ProjectsSwitcherProps {
-  projects?: { _id: string; name: string }[]
+  projects?: Project[]
   isLoading?: boolean
   isError?: boolean
 }
 
 export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitcherProps) {
   const { isMobile } = useSidebar()
+  const navigate = useNavigate()
+  const params = useParams({ strict: false }) as { id?: string }
+
   const [activeTeam, setActiveTeam] = React.useState<Project | null>(null)
-  // Update activeTeam when projects prop changes
+
+  // Sync activeTeam with URL param
   React.useEffect(() => {
     if (projects && projects.length > 0) {
-      setActiveTeam(projects[0])
+      const found = params.id ? projects.find((p) => p._id === params.id) : null
+      setActiveTeam(found || projects[0])
     }
-  }, [projects])
+  }, [projects, params.id])
 
-if (isLoading) return <p>Loading...</p>
-if (isError) return <p>Failed to load projects</p>
-if (!projects || projects.length === 0)
-  return <p className="text-gray-500">No projects found. Start by creating one!</p>
+  if (isLoading) return <p>Loading...</p>
+  if (isError) return <p>Failed to load projects</p>
+  if (!projects || projects.length === 0)
+    return <p className="text-gray-500">No projects found. Start by creating one!</p>
 
   return (
     <SidebarMenu>
@@ -74,7 +81,10 @@ if (!projects || projects.length === 0)
             {projects.map((project) => (
               <DropdownMenuItem
                 key={project._id}
-                onClick={() => setActiveTeam(project)}
+                onClick={() => {
+                  setActiveTeam(project)
+                  navigate({ to: '$id', params: { id: project._id } }) // update URL
+                }}
                 className='gap-2 p-2'
               >
                 {project.name}
