@@ -62,30 +62,29 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Wages',
-          url: '/apps',
+          url: '/wages',
           icon: ListOrderedIcon,
         },
         {
           title: 'Expenses',
-          url: '/chats',
-          badge: '3',
+          url: '/expenses',
           icon: DollarSignIcon,
         },
           {
-          title: 'Subcontactors',
+          title: 'Subcontractors',
           icon: HardHatIcon,
           items: [
             {
               title: 'Wages',
-              url: '/sign-in',
+              url: '/subcontractors/wages',
             },
             {
               title: 'Purchase Orders',
-              url: '/sign-in-2',
+              url: '/subcontractors/purchase-orders',
             },
             {
               title: 'Expenses',
-              url: '/sign-up',
+              url: '/subcontractors/expenses',
             },
           ],
         },

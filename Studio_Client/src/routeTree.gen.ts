@@ -25,10 +25,12 @@ import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-p
 import { Route as ClerkAuthenticatedRouteRouteImport } from './routes/clerk/_authenticated/route'
 import { Route as ClerkauthRouteRouteImport } from './routes/clerk/(auth)/route'
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as AuthenticatedWagesIndexRouteImport } from './routes/_authenticated/wages/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
+import { Route as AuthenticatedExpensesIndexRouteImport } from './routes/_authenticated/expenses/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
 import { Route as AuthenticatedBudgetIndexRouteImport } from './routes/_authenticated/budget/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
@@ -40,6 +42,9 @@ import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedSubcontractorsWagesIndexRouteImport } from './routes/_authenticated/subcontractors/wages/index'
+import { Route as AuthenticatedSubcontractorsPurchaseOrdersIndexRouteImport } from './routes/_authenticated/subcontractors/purchase-orders/index'
+import { Route as AuthenticatedSubcontractorsExpensesIndexRouteImport } from './routes/_authenticated/subcontractors/expenses/index'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -119,6 +124,11 @@ const AuthenticatedSettingsRouteRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedWagesIndexRoute = AuthenticatedWagesIndexRouteImport.update({
+  id: '/wages/',
+  path: '/wages/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -139,6 +149,12 @@ const AuthenticatedHelpCenterIndexRoute =
   AuthenticatedHelpCenterIndexRouteImport.update({
     id: '/help-center/',
     path: '/help-center/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedExpensesIndexRoute =
+  AuthenticatedExpensesIndexRouteImport.update({
+    id: '/expenses/',
+    path: '/expenses/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
@@ -203,6 +219,24 @@ const AuthenticatedErrorsErrorRoute =
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSubcontractorsWagesIndexRoute =
+  AuthenticatedSubcontractorsWagesIndexRouteImport.update({
+    id: '/subcontractors/wages/',
+    path: '/subcontractors/wages/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSubcontractorsPurchaseOrdersIndexRoute =
+  AuthenticatedSubcontractorsPurchaseOrdersIndexRouteImport.update({
+    id: '/subcontractors/purchase-orders/',
+    path: '/subcontractors/purchase-orders/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSubcontractorsExpensesIndexRoute =
+  AuthenticatedSubcontractorsExpensesIndexRouteImport.update({
+    id: '/subcontractors/expenses/',
+    path: '/subcontractors/expenses/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/clerk': typeof ClerkAuthenticatedRouteRouteWithChildren
@@ -230,10 +264,15 @@ export interface FileRoutesByFullPath {
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/budget': typeof AuthenticatedBudgetIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/expenses': typeof AuthenticatedExpensesIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/wages': typeof AuthenticatedWagesIndexRoute
+  '/subcontractors/expenses': typeof AuthenticatedSubcontractorsExpensesIndexRoute
+  '/subcontractors/purchase-orders': typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
+  '/subcontractors/wages': typeof AuthenticatedSubcontractorsWagesIndexRoute
 }
 export interface FileRoutesByTo {
   '/clerk': typeof ClerkAuthenticatedRouteRouteWithChildren
@@ -259,10 +298,15 @@ export interface FileRoutesByTo {
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/budget': typeof AuthenticatedBudgetIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/expenses': typeof AuthenticatedExpensesIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/wages': typeof AuthenticatedWagesIndexRoute
+  '/subcontractors/expenses': typeof AuthenticatedSubcontractorsExpensesIndexRoute
+  '/subcontractors/purchase-orders': typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
+  '/subcontractors/wages': typeof AuthenticatedSubcontractorsWagesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -293,10 +337,15 @@ export interface FileRoutesById {
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/budget/': typeof AuthenticatedBudgetIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
+  '/_authenticated/expenses/': typeof AuthenticatedExpensesIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/wages/': typeof AuthenticatedWagesIndexRoute
+  '/_authenticated/subcontractors/expenses/': typeof AuthenticatedSubcontractorsExpensesIndexRoute
+  '/_authenticated/subcontractors/purchase-orders/': typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
+  '/_authenticated/subcontractors/wages/': typeof AuthenticatedSubcontractorsWagesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -326,10 +375,15 @@ export interface FileRouteTypes {
     | '/apps'
     | '/budget'
     | '/chats'
+    | '/expenses'
     | '/help-center'
     | '/settings/'
     | '/tasks'
     | '/users'
+    | '/wages'
+    | '/subcontractors/expenses'
+    | '/subcontractors/purchase-orders'
+    | '/subcontractors/wages'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/clerk'
@@ -355,10 +409,15 @@ export interface FileRouteTypes {
     | '/apps'
     | '/budget'
     | '/chats'
+    | '/expenses'
     | '/help-center'
     | '/settings'
     | '/tasks'
     | '/users'
+    | '/wages'
+    | '/subcontractors/expenses'
+    | '/subcontractors/purchase-orders'
+    | '/subcontractors/wages'
   id:
     | '__root__'
     | '/_authenticated'
@@ -388,10 +447,15 @@ export interface FileRouteTypes {
     | '/_authenticated/apps/'
     | '/_authenticated/budget/'
     | '/_authenticated/chats/'
+    | '/_authenticated/expenses/'
     | '/_authenticated/help-center/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
+    | '/_authenticated/wages/'
+    | '/_authenticated/subcontractors/expenses/'
+    | '/_authenticated/subcontractors/purchase-orders/'
+    | '/_authenticated/subcontractors/wages/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -523,6 +587,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/wages/': {
+      id: '/_authenticated/wages/'
+      path: '/wages'
+      fullPath: '/wages'
+      preLoaderRoute: typeof AuthenticatedWagesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
@@ -549,6 +620,13 @@ declare module '@tanstack/react-router' {
       path: '/help-center'
       fullPath: '/help-center'
       preLoaderRoute: typeof AuthenticatedHelpCenterIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/expenses/': {
+      id: '/_authenticated/expenses/'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof AuthenticatedExpensesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/chats/': {
@@ -628,6 +706,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/subcontractors/wages/': {
+      id: '/_authenticated/subcontractors/wages/'
+      path: '/subcontractors/wages'
+      fullPath: '/subcontractors/wages'
+      preLoaderRoute: typeof AuthenticatedSubcontractorsWagesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/subcontractors/purchase-orders/': {
+      id: '/_authenticated/subcontractors/purchase-orders/'
+      path: '/subcontractors/purchase-orders'
+      fullPath: '/subcontractors/purchase-orders'
+      preLoaderRoute: typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/subcontractors/expenses/': {
+      id: '/_authenticated/subcontractors/expenses/'
+      path: '/subcontractors/expenses'
+      fullPath: '/subcontractors/expenses'
+      preLoaderRoute: typeof AuthenticatedSubcontractorsExpensesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -661,9 +760,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedBudgetIndexRoute: typeof AuthenticatedBudgetIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
+  AuthenticatedExpensesIndexRoute: typeof AuthenticatedExpensesIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedWagesIndexRoute: typeof AuthenticatedWagesIndexRoute
+  AuthenticatedSubcontractorsExpensesIndexRoute: typeof AuthenticatedSubcontractorsExpensesIndexRoute
+  AuthenticatedSubcontractorsPurchaseOrdersIndexRoute: typeof AuthenticatedSubcontractorsPurchaseOrdersIndexRoute
+  AuthenticatedSubcontractorsWagesIndexRoute: typeof AuthenticatedSubcontractorsWagesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -673,9 +777,17 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedBudgetIndexRoute: AuthenticatedBudgetIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
+  AuthenticatedExpensesIndexRoute: AuthenticatedExpensesIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedWagesIndexRoute: AuthenticatedWagesIndexRoute,
+  AuthenticatedSubcontractorsExpensesIndexRoute:
+    AuthenticatedSubcontractorsExpensesIndexRoute,
+  AuthenticatedSubcontractorsPurchaseOrdersIndexRoute:
+    AuthenticatedSubcontractorsPurchaseOrdersIndexRoute,
+  AuthenticatedSubcontractorsWagesIndexRoute:
+    AuthenticatedSubcontractorsWagesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
