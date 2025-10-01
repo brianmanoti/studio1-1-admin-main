@@ -1,3 +1,4 @@
+import { WagesTable } from '@/features/wages/componets/wages-table'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/wages/')({
@@ -5,5 +6,5 @@ export const Route = createFileRoute('/_authenticated/wages/')({
 })
 
 function RouteComponent() {
-  return <div>This is the wages page</div>
+  return <div><WagesTable /></div>
 }

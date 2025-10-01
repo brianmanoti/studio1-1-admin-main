@@ -1,3 +1,4 @@
+import { VariationTable } from '@/features/estimates/variations/variations-table'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/estimates/variations/')({
@@ -5,5 +6,5 @@ export const Route = createFileRoute('/_authenticated/estimates/variations/')({
 })
 
 function RouteComponent() {
-  return <div>Hello "/_authenticated/estimates/variations/"!</div>
+  return <div><VariationTable /></div>
 }

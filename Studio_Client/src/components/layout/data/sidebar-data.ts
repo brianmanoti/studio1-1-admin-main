@@ -57,7 +57,7 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Purchase Orders',
-          url: '/tasks',
+          url: '/purchaseOrders',
           icon: ListTodo,
         },
         {
@@ -90,7 +90,7 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Payroll',
-          url: '/chats',
+          url: '/payslip',
           badge: '3',
           icon: CreditCardIcon,
         },
