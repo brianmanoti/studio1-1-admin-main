@@ -4,9 +4,10 @@ import { Main } from "@/components/layout/main"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Search } from "@/components/search"
 import { ThemeSwitch } from "@/components/theme-switch"
-import { PurchaseOrdersTable } from "../subcontractors/purchase-orders/components/purchaseOrders-table"
+import { ExpensesTable } from "@/features/expenses/components/expenses-table"
 
-const PurchaseOrders = () => {
+
+const SubExpenses = () => {
   return (
     <>
           <Header fixed>
@@ -18,11 +19,11 @@ const PurchaseOrders = () => {
             </div>
           </Header>
           <Main>
-            <PurchaseOrdersTable />
+            <ExpensesTable />
           </Main>
           
     </>
   )
 }
 
-export default PurchaseOrders
+export default SubExpenses

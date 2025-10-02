@@ -4,9 +4,10 @@ import { Main } from "@/components/layout/main"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Search } from "@/components/search"
 import { ThemeSwitch } from "@/components/theme-switch"
-import { PurchaseOrdersTable } from "../subcontractors/purchase-orders/components/purchaseOrders-table"
+import { PurchaseOrdersTable } from "./components/purchaseOrders-table"
 
-const PurchaseOrders = () => {
+
+const SubPurchases = () => {
   return (
     <>
           <Header fixed>
@@ -25,4 +26,4 @@ const PurchaseOrders = () => {
   )
 }
 
-export default PurchaseOrders
+export default SubPurchases

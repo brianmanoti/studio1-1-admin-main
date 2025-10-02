@@ -6,5 +6,5 @@ export const Route = createFileRoute('/_authenticated/projects/$projectId/wages/
 })
 
 function RouteComponent() {
-  return <div><Wages /></div>
+  return <div><Wages/></div>
 }
