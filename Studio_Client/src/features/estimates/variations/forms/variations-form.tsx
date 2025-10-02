@@ -1,3 +1,5 @@
+"use client"
+
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
@@ -12,7 +14,6 @@ import { ArrowLeft, Plus, Trash, ChevronDown, ChevronRight } from "lucide-react"
 const formatKsh = (value: number) =>
   new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES" }).format(value)
 
-// ---------- Recursive helpers ----------
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 // Generate code recursively
@@ -44,23 +45,23 @@ export default function VariationsForm() {
 
   const { data: estimates = [] } = useQuery({
     queryKey: ["estimates"],
-    queryFn: async () => (await axiosInstance.get("/estimates")).data,
+    queryFn: async () => (await axiosInstance.get("/api/estimates")).data,
   })
 
   const [formData, setFormData] = useState({
     name: "",
-    projectId: "", // include projectId in payload
+    projectId: "",
     estimateId: "",
     description: "",
     notes: "",
     status: "Pending Approval",
-    items: [] as any[], // recursive groups/sections
+    items: [] as any[],
   })
 
   const [expanded, setExpanded] = useState<string[]>([])
 
   const mutation = useMutation({
-    mutationFn: async (data) => await axiosInstance.post("/variations", data),
+    mutationFn: async (data) => await axiosInstance.post("/api/variations", data),
     onSuccess: () => {
       queryClient.invalidateQueries(["variations"])
       navigate({ to: "/variations" })
@@ -78,7 +79,6 @@ export default function VariationsForm() {
     })
   }
 
-  // Add child item under given parent
   const addItem = (path: number[] = []) => {
     const newData = structuredClone(formData)
     let target = newData.items
@@ -100,7 +100,6 @@ export default function VariationsForm() {
     setFormData(newData)
   }
 
-  // Remove item at path
   const removeItem = (path: number[]) => {
     const newData = structuredClone(formData)
     let target = newData.items
@@ -120,7 +119,6 @@ export default function VariationsForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // transform items -> groups/sections/subsections
     const transform = (items: any[]): any[] =>
       items.map((item) => ({
         code: item.code,
@@ -132,7 +130,7 @@ export default function VariationsForm() {
         amount: item.quantity * item.rate,
         notes: item.notes,
         sections: item.children ? transform(item.children) : [],
-        subsections: item.children && item.children.length > 0 ? undefined : [], // only leaf have subsections
+        subsections: item.children && item.children.length > 0 ? undefined : [],
       }))
 
     const payload = {
@@ -159,15 +157,30 @@ export default function VariationsForm() {
       0
     )
 
-  // Recursive renderer
   const renderRows = (items: any[], path: number[] = [], level: number = 0) =>
     items.map((item, i) => {
       const newPath = [...path, i]
       return (
         <>
-          <tr key={item.code} className={level === 0 ? "bg-white font-semibold" : level === 1 ? "bg-gray-50" : "bg-gray-100"}>
-            <td className={`border px-2 py-1 pl-${level * 10} flex items-center gap-2`}>
-              <Button  type="button"  size="sm" variant="ghost" onClick={() => toggleExpand(item.code)}>
+          <tr
+            key={item.code}
+            className={
+              level === 0
+                ? "bg-white font-semibold"
+                : level === 1
+                ? "bg-gray-50"
+                : "bg-gray-100"
+            }
+          >
+            <td
+              className={`border px-2 py-1 pl-${level * 10} flex items-center gap-2 min-w-[200px]`}
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => toggleExpand(item.code)}
+              >
                 {expanded.includes(item.code) ? (
                   <ChevronDown className="w-4 h-4" />
                 ) : (
@@ -178,11 +191,16 @@ export default function VariationsForm() {
               <Input
                 value={item.name}
                 placeholder={`Name`}
-                onChange={(e) => handleChange(`items.${newPath.join(".children.")}.name`, e.target.value)}
+                onChange={(e) =>
+                  handleChange(
+                    `items.${newPath.join(".children.")}.name`,
+                    e.target.value
+                  )
+                }
                 className="w-full"
               />
             </td>
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center min-w-[120px]">
               <Input
                 type="number"
                 value={item.quantity}
@@ -194,15 +212,18 @@ export default function VariationsForm() {
                 }
               />
             </td>
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center min-w-[100px]">
               <Input
                 value={item.unit}
                 onChange={(e) =>
-                  handleChange(`items.${newPath.join(".children.")}.unit`, e.target.value)
+                  handleChange(
+                    `items.${newPath.join(".children.")}.unit`,
+                    e.target.value
+                  )
                 }
               />
             </td>
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center min-w-[150px]">
               <Input
                 type="number"
                 value={item.rate}
@@ -214,26 +235,32 @@ export default function VariationsForm() {
                 }
               />
             </td>
-            <td className="border px-2 py-1 text-center">
+            <td className="border px-2 py-1 text-center min-w-[150px]">
               {formatKsh(calcAmount(item.quantity, item.rate))}
             </td>
-            <td className="border px-2 py-1 text-right">
-              <Button  type="button"  size="sm" variant="destructive" onClick={() => removeItem(newPath)}>
+            <td className="border px-2 py-1 text-right min-w-[100px]">
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={() => removeItem(newPath)}
+              >
                 <Trash className="w-3 h-3" />
               </Button>
             </td>
           </tr>
 
-          {/* Render children if expanded */}
           {expanded.includes(item.code) &&
             renderRows(item.children, newPath, level + 1)}
 
-          {/* Add child row */}
           {expanded.includes(item.code) && (
             <tr>
-              <td colSpan={6} className={`border px-2 py-2 pl-${(level + 1) * 10}`}>
+              <td
+                colSpan={6}
+                className={`border px-2 py-2 pl-${(level + 1) * 10}`}
+              >
                 <Button
-                type="button" 
+                  type="button"
                   size="sm"
                   variant="outline"
                   className="w-full justify-start text-muted-foreground border-dashed"
@@ -249,10 +276,10 @@ export default function VariationsForm() {
     })
 
   return (
-    <div className="container mx-auto px-6 py-10">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-10">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Button
-        type="button" 
+          type="button"
           variant="ghost"
           className="flex items-center gap-2"
           onClick={() =>
@@ -261,11 +288,11 @@ export default function VariationsForm() {
         >
           <ArrowLeft className="w-5 h-5" /> Back
         </Button>
-        <h1 className="text-2xl font-semibold">Create Variation</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold">Create Variation</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <Input
             placeholder="Variation Name"
             value={formData.name}
@@ -284,6 +311,7 @@ export default function VariationsForm() {
             </SelectContent>
           </Select>
         </div>
+
         <Textarea
           placeholder="Description"
           value={formData.description}
@@ -295,27 +323,38 @@ export default function VariationsForm() {
           onChange={(e) => handleChange("notes", e.target.value)}
         />
 
-        {/* TABLE */}
-        <div className="overflow-x-auto">
-          <table className="w-full border border-gray-200 table-auto">
+        {/* Responsive Table */}
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[800px] w-full border border-gray-200 table-auto">
             <thead className="bg-gray-100">
               <tr>
-                <th className="border px-2 py-1 text-left w-1/3">Item</th>
-                <th className="border px-2 py-1 text-center">Quantity</th>
-                <th className="border px-2 py-1 text-center">Unit</th>
-                <th className="border px-2 py-1 text-center">Rate (Ksh)</th>
-                <th className="border px-2 py-1 text-center">Amount</th>
-                <th className="border px-2 py-1 text-right">Actions</th>
+                <th className="border px-2 py-1 text-left w-1/3 min-w-[200px]">
+                  Item
+                </th>
+                <th className="border px-2 py-1 text-center min-w-[120px]">
+                  Quantity
+                </th>
+                <th className="border px-2 py-1 text-center min-w-[100px]">
+                  Unit
+                </th>
+                <th className="border px-2 py-1 text-center min-w-[150px]">
+                  Rate (Ksh)
+                </th>
+                <th className="border px-2 py-1 text-center min-w-[150px]">
+                  Amount
+                </th>
+                <th className="border px-2 py-1 text-right min-w-[100px]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {renderRows(formData.items)}
 
-              {/* Add top-level group */}
               <tr>
                 <td colSpan={6} className="border px-2 py-2">
                   <Button
-                    type="button" 
+                    type="button"
                     size="sm"
                     variant="outline"
                     className="w-full justify-start text-muted-foreground border-dashed"
@@ -329,12 +368,15 @@ export default function VariationsForm() {
           </table>
         </div>
 
-        <div className="text-right text-xl font-semibold mt-4">
+        <div className="text-right text-lg sm:text-xl font-semibold mt-4">
           Total: {formatKsh(totalAmount(formData.items))}
         </div>
 
         <div className="flex gap-2 mt-4">
-          <Button type="submit" className="ml-auto bg-blue-600 hover:bg-blue-700 text-white">
+          <Button
+            type="submit"
+            className="ml-auto bg-blue-600 hover:bg-blue-700 text-white"
+          >
             {mutation.isPending ? "Saving..." : "Save Variation"}
           </Button>
         </div>
