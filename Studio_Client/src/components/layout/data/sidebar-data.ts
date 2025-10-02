@@ -33,12 +33,12 @@ export const sidebarData: SidebarData = {
       items: [
         {
           title: 'Dashboard',
-          url: '/',
+          url: '/projects/$projectId',
           icon: LayoutDashboard,
         },
         {
           title: 'Budget',
-          url: '/budget',
+          url: `/projects/$projectId/budget`,
           icon: PieChartIcon,
         },
         {
@@ -47,27 +47,27 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Estimate',
-              url: '/estimates/estimate',
+              url: '/projects/$projectId/estimates/estimate',
             },
             {
               title: 'Variations',
-              url: '/estimates/variations',
+              url: '/projects/$projectId/estimates/variations',
             },
           ],
         },
         {
           title: 'Purchase Orders',
-          url: '/purchaseOrders',
+          url: '/projects/$projectId/purchaseOrders',
           icon: ListTodo,
         },
         {
           title: 'Wages',
-          url: '/wages',
+          url: '/projects/$projectId/wages',
           icon: ListOrderedIcon,
         },
         {
           title: 'Expenses',
-          url: '/expenses',
+          url: '/projects/$projectId/expenses',
           icon: DollarSignIcon,
         },
           {
@@ -76,21 +76,21 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Wages',
-              url: '/subcontractors/wages',
+              url: '/projects/$projectId/subcontractors/wages',
             },
             {
               title: 'Purchase Orders',
-              url: '/subcontractors/purchase-orders',
+              url: '/projects/$projectId/subcontractors/purchase-orders',
             },
             {
               title: 'Expenses',
-              url: '/subcontractors/expenses',
+              url: '/projects/$projectId/subcontractors/expenses',
             },
           ],
         },
         {
           title: 'Payroll',
-          url: '/payslip',
+          url: '/projects/$projectId/payslip',
           badge: '3',
           icon: CreditCardIcon,
         },

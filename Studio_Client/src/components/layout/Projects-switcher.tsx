@@ -83,7 +83,7 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
                 key={project._id}
                 onClick={() => {
                   setActiveTeam(project)
-                  navigate({ to: '$id', params: { id: project._id } }) // update URL
+                  navigate({ to: '/projects/$id', params: { id: project._id } }) // update URL
                 }}
                 className='gap-2 p-2'
               >

@@ -2,7 +2,7 @@ import { PurchaseOrdersTable } from '@/features/subcontractors/purchase-orders/p
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute(
-  '/_authenticated/subcontractors/purchase-orders/',
+  '/_authenticated/projects/$projectId/subcontractors/purchase-orders/',
 )({
   component: RouteComponent,
 })

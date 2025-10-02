@@ -1,7 +1,7 @@
 import { VariationTable } from '@/features/estimates/variations/variations-table'
 import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/_authenticated/estimates/variations/')({
+export const Route = createFileRoute('/_authenticated/projects/$projectId/estimates/variations/')({
   component: RouteComponent,
 })
 

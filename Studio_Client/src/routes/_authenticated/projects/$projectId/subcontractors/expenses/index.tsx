@@ -2,7 +2,7 @@ import { ExpensesTable } from '@/features/subcontractors/expenses/expenses-table
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute(
-  '/_authenticated/subcontractors/expenses/',
+  '/_authenticated/projects/$projectId/subcontractors/expenses/',
 )({
   component: RouteComponent,
 })
