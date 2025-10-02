@@ -106,7 +106,13 @@ export default function ProjectForm({
         <Button
           variant="ghost"
           className="absolute top-4 left-4 text-gray-600 hover:text-blue-700 flex items-center gap-2"
-          onClick={() => navigate({ to: "/" })}
+          onClick={() => {
+            if (window.history.length > 1) {
+              window.history.back()
+            } else {
+              navigate({ to: "/" }) // fallback
+            }
+          }}
         >
           <ArrowLeft className="w-5 h-5" />
           Back
