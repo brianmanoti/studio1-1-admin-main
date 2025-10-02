@@ -25,6 +25,7 @@ import { ThemeSwitch } from "@/components/theme-switch"
 import { ConfigDrawer } from "@/components/config-drawer"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Main } from "@/components/layout/main"
+import { ProjectListSkeleton } from "./components/projects-skeleton"
 
 interface Project {
   _id: string
@@ -228,7 +229,7 @@ const ProjectList = () => {
     initialState: { pagination: { pageSize, pageIndex: 0 } },
   })
 
-  if (isLoading) return <p className="p-6 text-sm text-muted-foreground">Loading projects...</p>
+  if (isLoading) return <section className="p-6 text-sm text-muted-foreground"><ProjectListSkeleton /></section>
   if (isError) return <p className="p-6 text-sm text-destructive">Failed to load projects</p>
   if (!projects.length)
     return <p className="p-6 text-sm text-muted-foreground">No projects found. Start by creating one!</p>

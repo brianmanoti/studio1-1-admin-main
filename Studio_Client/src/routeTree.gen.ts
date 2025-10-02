@@ -40,6 +40,7 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedProjectsProjectIdRouteRouteImport } from './routes/_authenticated/projects/$projectId/route'
+import { Route as AuthenticatedProjectsNewIndexRouteImport } from './routes/_authenticated/projects/new/index'
 import { Route as AuthenticatedProjectsProjectIdIndexRouteImport } from './routes/_authenticated/projects/$projectId/index'
 import { Route as AuthenticatedProjectsProjectIdWagesIndexRouteImport } from './routes/_authenticated/projects/$projectId/wages/index'
 import { Route as AuthenticatedProjectsProjectIdPurchaseOrdersIndexRouteImport } from './routes/_authenticated/projects/$projectId/purchaseOrders/index'
@@ -214,6 +215,12 @@ const AuthenticatedProjectsProjectIdRouteRoute =
     path: '/projects/$projectId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedProjectsNewIndexRoute =
+  AuthenticatedProjectsNewIndexRouteImport.update({
+    id: '/projects/new/',
+    path: '/projects/new/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedProjectsProjectIdIndexRoute =
   AuthenticatedProjectsProjectIdIndexRouteImport.update({
     id: '/',
@@ -314,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/projects/$projectId/': typeof AuthenticatedProjectsProjectIdIndexRoute
+  '/projects/new': typeof AuthenticatedProjectsNewIndexRoute
   '/projects/$projectId/budget': typeof AuthenticatedProjectsProjectIdBudgetIndexRoute
   '/projects/$projectId/expenses': typeof AuthenticatedProjectsProjectIdExpensesIndexRoute
   '/projects/$projectId/payslip': typeof AuthenticatedProjectsProjectIdPayslipIndexRoute
@@ -353,6 +361,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdIndexRoute
+  '/projects/new': typeof AuthenticatedProjectsNewIndexRoute
   '/projects/$projectId/budget': typeof AuthenticatedProjectsProjectIdBudgetIndexRoute
   '/projects/$projectId/expenses': typeof AuthenticatedProjectsProjectIdExpensesIndexRoute
   '/projects/$projectId/payslip': typeof AuthenticatedProjectsProjectIdPayslipIndexRoute
@@ -398,6 +407,7 @@ export interface FileRoutesById {
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/projects/$projectId/': typeof AuthenticatedProjectsProjectIdIndexRoute
+  '/_authenticated/projects/new/': typeof AuthenticatedProjectsNewIndexRoute
   '/_authenticated/projects/$projectId/budget/': typeof AuthenticatedProjectsProjectIdBudgetIndexRoute
   '/_authenticated/projects/$projectId/expenses/': typeof AuthenticatedProjectsProjectIdExpensesIndexRoute
   '/_authenticated/projects/$projectId/payslip/': typeof AuthenticatedProjectsProjectIdPayslipIndexRoute
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/users'
     | '/projects/$projectId/'
+    | '/projects/new'
     | '/projects/$projectId/budget'
     | '/projects/$projectId/expenses'
     | '/projects/$projectId/payslip'
@@ -481,6 +492,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/users'
     | '/projects/$projectId'
+    | '/projects/new'
     | '/projects/$projectId/budget'
     | '/projects/$projectId/expenses'
     | '/projects/$projectId/payslip'
@@ -525,6 +537,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
     | '/_authenticated/projects/$projectId/'
+    | '/_authenticated/projects/new/'
     | '/_authenticated/projects/$projectId/budget/'
     | '/_authenticated/projects/$projectId/expenses/'
     | '/_authenticated/projects/$projectId/payslip/'
@@ -771,6 +784,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsProjectIdRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/projects/new/': {
+      id: '/_authenticated/projects/new/'
+      path: '/projects/new'
+      fullPath: '/projects/new'
+      preLoaderRoute: typeof AuthenticatedProjectsNewIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/projects/$projectId/': {
       id: '/_authenticated/projects/$projectId/'
       path: '/'
@@ -929,6 +949,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedProjectsNewIndexRoute: typeof AuthenticatedProjectsNewIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -942,6 +963,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedProjectsNewIndexRoute: AuthenticatedProjectsNewIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
