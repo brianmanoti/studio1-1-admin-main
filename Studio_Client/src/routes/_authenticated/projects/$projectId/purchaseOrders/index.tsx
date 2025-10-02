@@ -1,4 +1,4 @@
-import { PurchaseOrdersTable } from '@/features/purchase-orders/purchaseOrders-table'
+import PurchaseOrders from '@/features/purchase-orders'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/projects/$projectId/purchaseOrders/')({
@@ -6,5 +6,5 @@ export const Route = createFileRoute('/_authenticated/projects/$projectId/purcha
 })
 
 function RouteComponent() {
-  return <div><PurchaseOrdersTable /></div>
+  return <div><PurchaseOrders /></div>
 }

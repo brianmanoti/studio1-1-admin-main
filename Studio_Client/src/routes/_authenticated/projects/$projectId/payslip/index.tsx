@@ -1,4 +1,4 @@
-import { PayslipTable } from '@/features/payslip/payslip-table'
+import Payslips from '@/features/payslip'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/projects/$projectId/payslip/')({
@@ -6,5 +6,5 @@ export const Route = createFileRoute('/_authenticated/projects/$projectId/paysli
 })
 
 function RouteComponent() {
-  return <div><PayslipTable /></div>
+  return <div><Payslips /></div>
 }
