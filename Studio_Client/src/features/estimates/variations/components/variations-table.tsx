@@ -11,7 +11,8 @@ import {
   type ColumnDef,
   Table as TanTable,
 } from '@tanstack/react-table'
-import { Eye, Pencil, Trash, Check, X, Plus } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Eye, Pencil, Trash, Check, X, Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -24,8 +25,10 @@ import {
 } from '@/components/ui/table'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import axiosInstance from '@/lib/axios'
+import { useNavigate } from '@tanstack/react-router'
 
-/** Variation type */
+// ✅ Type definition
 export type Variation = {
   variationId: string
   name: string
@@ -40,37 +43,33 @@ export type Variation = {
   balance: number
 }
 
-/** Dummy variations */
-const dummyVariations: Variation[] = [
-  {
-    variationId: 'VAR-001',
-    name: 'Foundation Change',
-    projectId: 'P-123',
-    estimateId: 'EST-789',
-    date: '2025-09-12',
-    status: 'Draft',
-    description: 'Adjustment for deeper foundation',
-    amount: 5000,
-    total: 5000,
-    spent: 1200,
-    balance: 3800,
-  },
-  {
-    variationId: 'VAR-002',
-    name: 'Roof Extension',
-    projectId: 'P-456',
-    estimateId: 'EST-222',
-    date: '2025-09-15',
-    status: 'Approved',
-    description: 'Extended roof area with insulation',
-    amount: 8000,
-    total: 8000,
-    spent: 5000,
-    balance: 3000,
-  },
-]
+// ✅ Fetch all variations
+export async function fetchVariations(): Promise<Variation[]> {
+  const { data } = await axiosInstance.get<Variation[]>('/api/variations')
+  return data
+}
 
-/** Bulk actions for variations */
+// ✅ Approve variation
+export async function approveVariation(id: string) {
+  const { data } = await axiosInstance.patch(`/api/variations/${id}/approve`)
+  return data
+}
+
+// ✅ Reject variation
+export async function rejectVariation(id: string) {
+  const { data } = await axiosInstance.patch(`/api/variations/${id}/reject`)
+  return data
+}
+
+// ✅ Delete variation
+export async function deleteVariation(id: string) {
+  const { data } = await axiosInstance.delete(`/api/variations/${id}`)
+  return data
+}
+
+
+
+/** Bulk actions */
 function VariationBulkActions({
   table,
   onBulkApprove,
@@ -78,18 +77,18 @@ function VariationBulkActions({
   onBulkDelete,
 }: {
   table: TanTable<Variation>
-  onBulkApprove?: (rows: Variation[]) => void
-  onBulkReject?: (rows: Variation[]) => void
-  onBulkDelete?: (rows: Variation[]) => void
+  onBulkApprove: (rows: Variation[]) => void
+  onBulkReject: (rows: Variation[]) => void
+  onBulkDelete: (rows: Variation[]) => void
 }) {
   const selected = table.getSelectedRowModel().rows.map((r) => r.original)
   const [dialog, setDialog] = React.useState<{ open: boolean; action?: 'approve' | 'reject' | 'delete' }>({ open: false })
 
   const handleConfirm = () => {
     if (!dialog.action) return
-    if (dialog.action === 'approve') onBulkApprove?.(selected)
-    if (dialog.action === 'reject') onBulkReject?.(selected)
-    if (dialog.action === 'delete') onBulkDelete?.(selected)
+    if (dialog.action === 'approve') onBulkApprove(selected)
+    if (dialog.action === 'reject') onBulkReject(selected)
+    if (dialog.action === 'delete') onBulkDelete(selected)
     setDialog({ open: false })
   }
 
@@ -127,8 +126,10 @@ function VariationBulkActions({
   )
 }
 
-/** Table columns */
-function getColumns(): ColumnDef<Variation>[] {
+/** ✅ Table columns */
+function getColumns(
+  handleAction: (id: string, action: 'approve' | 'reject' | 'delete') => void
+): ColumnDef<Variation>[] {
   return [
     {
       id: 'select',
@@ -175,14 +176,14 @@ function getColumns(): ColumnDef<Variation>[] {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => {
-        const variation = row.original
+        const v = row.original
         return (
           <div className="flex gap-2">
-            <button onClick={() => alert(`View ${variation.variationId}`)}><Eye className="w-4 h-4" /></button>
-            <button onClick={() => alert(`Edit ${variation.variationId}`)}><Pencil className="w-4 h-4" /></button>
-            <button onClick={() => alert(`Approve ${variation.variationId}`)}><Check className="w-4 h-4 text-green-600" /></button>
-            <button onClick={() => alert(`Reject ${variation.variationId}`)}><X className="w-4 h-4 text-red-600" /></button>
-            <button onClick={() => alert(`Delete ${variation.variationId}`)}><Trash className="w-4 h-4 text-red-700" /></button>
+            <button><Eye className="w-4 h-4" /></button>
+            <button><Pencil className="w-4 h-4" /></button>
+            <button onClick={() => handleAction(v.variationId, 'approve')}><Check className="w-4 h-4 text-green-600" /></button>
+            <button onClick={() => handleAction(v.variationId, 'reject')}><X className="w-4 h-4 text-red-600" /></button>
+            <button onClick={() => handleAction(v.variationId, 'delete')}><Trash className="w-4 h-4 text-red-700" /></button>
           </div>
         )
       },
@@ -190,15 +191,36 @@ function getColumns(): ColumnDef<Variation>[] {
   ]
 }
 
-/** Main Table Component */
+/** ✅ Main Table Component */
 export function VariationTable() {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  // 🔹 Fetch variations
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['variations'],
+    queryFn: fetchVariations,
+  })
+
+  // 🔹 Single mutations
+  const approveMutation = useMutation({ mutationFn: approveVariation, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['variations'] }) })
+  const rejectMutation = useMutation({ mutationFn: rejectVariation, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['variations'] }) })
+  const deleteMutation = useMutation({ mutationFn: deleteVariation, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['variations'] }) })
+
+  const handleAction = (id: string, action: 'approve' | 'reject' | 'delete') => {
+    if (action === 'approve') approveMutation.mutate(id)
+    if (action === 'reject') rejectMutation.mutate(id)
+    if (action === 'delete') deleteMutation.mutate(id)
+  }
+
+  // ✅ Table states
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
   const table = useReactTable({
-    data: dummyVariations,
-    columns: getColumns(),
+    data: data ?? [],
+    columns: getColumns(handleAction),
     state: { sorting, rowSelection, columnVisibility },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -210,12 +232,46 @@ export function VariationTable() {
     enableRowSelection: true,
   })
 
+  // ✅ Handle loading, error, empty
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+        <span>Loading variations...</span>
+      </div>
+    )
+
+  if (isError)
+    return (
+      <div className="flex flex-col items-center justify-center h-48">
+        <p className="text-red-600 mb-2">Failed to load variations.</p>
+        <Button onClick={() => refetch()}>Retry</Button>
+      </div>
+    )
+
+  if (!data?.length)
+    return (
+      <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+        <p>No variations found.</p>
+        <Button
+          onClick={() => navigate({ to: `/projects/$projectId/estimates/variations/new` })}
+        >
+          <Plus className="w-4 h-4 mr-2" /> Add Variation
+        </Button>
+      </div>
+    )
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <DataTableToolbar table={table} searchPlaceholder="Search variations..." />
-        <Button><Plus className="w-4 h-4 mr-2" /> Add Variation</Button>
+        <Button
+          onClick={() => navigate({ to: `/projects/$projectId/estimates/variations/new` })}
+        >
+          <Plus className="w-4 h-4 mr-2" /> Add Variation
+        </Button>
       </div>
+
       <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
@@ -230,32 +286,26 @@ export function VariationTable() {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
-                  No results.
-                </TableCell>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
+
       <DataTablePagination table={table} />
+
       <VariationBulkActions
         table={table}
-        onBulkApprove={(rows) => alert(`Bulk approved ${rows.length} variations`)}
-        onBulkReject={(rows) => alert(`Bulk rejected ${rows.length} variations`)}
-        onBulkDelete={(rows) => alert(`Bulk deleted ${rows.length} variations`)}
+        onBulkApprove={(rows) => rows.forEach((r) => approveMutation.mutate(r.variationId))}
+        onBulkReject={(rows) => rows.forEach((r) => rejectMutation.mutate(r.variationId))}
+        onBulkDelete={(rows) => rows.forEach((r) => deleteMutation.mutate(r.variationId))}
       />
     </div>
   )
