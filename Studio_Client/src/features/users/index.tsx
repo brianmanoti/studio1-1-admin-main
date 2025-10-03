@@ -9,13 +9,20 @@ import { UsersDialogs } from './components/users-dialogs'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider } from './components/users-provider'
 import { UsersTable } from './components/users-table'
-import { users } from './data/users'
+
+import { useQuery } from '@tanstack/react-query'
+import axiosInstance from '@/lib/axios'
 
 const route = getRouteApi('/_authenticated/users/')
 
 export function Users() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
+
+  const { data: users = [] } = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => (await axiosInstance.get("/api/auth/users")).data.users,
+  })
 
   return (
     <UsersProvider>
