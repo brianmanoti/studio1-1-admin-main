@@ -1,5 +1,5 @@
 // src/components/PurchaseOrderForm.jsx
-// Purpose: Responsive, user-friendly Purchase Order Form with TanStack Router support
+// Purpose: Responsive, user-friendly Purchase Order Form with TanStack Router support + Project dropdown
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useCanGoBack } from '@tanstack/react-router';
@@ -53,6 +53,20 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletedMode, setIsDeletedMode] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
+
+  // ------------------- Fetch Projects (TanStack) -------------------
+  const {
+    data: projects,
+    isLoading: isProjectsLoading,
+    isError: isProjectsError,
+  } = useQuery({
+    queryKey: ['projectsList'],
+    queryFn: async () => {
+      const res = await axiosInstance.get('/api/projects');
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
 
   // ------------------- Fetch existing PO -------------------
   useQuery({
@@ -128,7 +142,10 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     setForm((f) => ({ ...f, items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)) }));
   const addItem = () => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
   const removeItem = (i) =>
-    setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()] }));
+    setForm((f) => ({
+      ...f,
+      items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()],
+    }));
 
   // ------------------- Validation -------------------
   const validate = () => {
@@ -223,8 +240,26 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
         <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium">Project ID</label>
-            <input className="w-full border p-2 rounded" value={form.projectId} onChange={(e) => setField('projectId', e.target.value)} disabled={isLocked} />
+            <label className="block text-sm font-medium">Project</label>
+            {isProjectsLoading ? (
+              <p className="text-gray-500 text-sm">Loading projects...</p>
+            ) : isProjectsError ? (
+              <p className="text-red-500 text-sm">Failed to load projects</p>
+            ) : (
+              <select
+                className="w-full border p-2 rounded"
+                value={form.projectId}
+                onChange={(e) => setField('projectId', e.target.value)}
+                disabled={isLocked}
+              >
+                <option value="">— Choose Project —</option>
+                {(projects || []).map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name || p.title || p.projectName || p._id}
+                  </option>
+                ))}
+              </select>
+            )}
             {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
           </div>
           <div>
