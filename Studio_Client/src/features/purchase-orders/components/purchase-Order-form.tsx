@@ -52,7 +52,7 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   const [isDeletedMode, setIsDeletedMode] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
 
-  // ------------------- Fetch Projects (TanStack) -------------------
+  // ------------------- Fetch Projects -------------------
   const {
     data: projects,
     isLoading: isProjectsLoading,
@@ -115,7 +115,10 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
 
   // ------------------- Auto Calculate Total -------------------
   useEffect(() => {
-    const amount = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0);
+    const amount = form.items.reduce(
+      (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+      0
+    );
     setForm((f) => ({ ...f, amount }));
   }, [JSON.stringify(form.items)]);
 
@@ -137,12 +140,17 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   // ------------------- Helpers -------------------
   const setField = (name, value) => setForm((f) => ({ ...f, [name]: value }));
   const setItemField = (i, name, value) =>
-    setForm((f) => ({ ...f, items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)) }));
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)),
+    }));
   const addItem = () => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }));
   const removeItem = (i) =>
     setForm((f) => ({
       ...f,
-      items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()],
+      items: f.items.filter((_, idx) => idx !== i).length
+        ? f.items.filter((_, idx) => idx !== i)
+        : [emptyItem()],
     }));
 
   // ------------------- Validation -------------------
@@ -161,8 +169,10 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     form.items.forEach((it, idx) => {
       if (!it.description) e[`items.${idx}.description`] = 'Description required';
       if (!it.unit) e[`items.${idx}.unit`] = 'Unit required';
-      if (!it.quantity || Number(it.quantity) <= 0) e[`items.${idx}.quantity`] = 'Quantity > 0 required';
-      if (it.unitPrice === '' || Number(it.unitPrice) < 0) e[`items.${idx}.unitPrice`] = 'Invalid price';
+      if (!it.quantity || Number(it.quantity) <= 0)
+        e[`items.${idx}.quantity`] = 'Quantity > 0 required';
+      if (it.unitPrice === '' || Number(it.unitPrice) < 0)
+        e[`items.${idx}.unitPrice`] = 'Invalid price';
     });
 
     setErrors(e);
@@ -191,7 +201,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     }
   };
 
-  // ------------------- Navigation -------------------
   const handleBack = () => {
     if (isDirty && !confirm('You have unsaved changes. Leave without saving?')) return;
     if (canGoBack) window.history.back();
@@ -231,6 +240,15 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
       <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
         <h3 className="font-medium text-blue-700 mb-2">Link to Estimate</h3>
         <EstimateSelector onChange={onEstimateChange} />
+        {form.estimateId && (
+          <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 p-3 rounded">
+            <p><span className="font-medium">Estimate ID:</span> {form.estimateId}</p>
+            <p><span className="font-medium">Linked Level:</span> {form.estimateLevel}</p>
+            {form.estimateTargetId && (
+              <p><span className="font-medium">Target ID:</span> {form.estimateTargetId}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Basic Information */}
@@ -262,7 +280,12 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
           </div>
           <div>
             <label className="block text-sm font-medium">Company</label>
-            <input className="w-full border p-2 rounded" value={form.company} onChange={(e) => setField('company', e.target.value)} disabled={isLocked} />
+            <input
+              className="w-full border p-2 rounded"
+              value={form.company}
+              onChange={(e) => setField('company', e.target.value)}
+              disabled={isLocked}
+            />
             {errors.company && <p className="text-red-500 text-sm">{errors.company}</p>}
           </div>
         </div>
@@ -274,11 +297,73 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium">Vendor Name</label>
-            <input className="w-full border p-2 rounded" value={form.vendorName} onChange={(e) => setField('vendorName', e.target.value)} />
+            <input
+              className="w-full border p-2 rounded"
+              value={form.vendorName}
+              onChange={(e) => setField('vendorName', e.target.value)}
+            />
+            {errors.vendorName && <p className="text-red-500 text-sm">{errors.vendorName}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium">Vendor Contact</label>
-            <input className="w-full border p-2 rounded" value={form.vendorContact} onChange={(e) => setField('vendorContact', e.target.value)} />
+            <input
+              className="w-full border p-2 rounded"
+              value={form.vendorContact}
+              onChange={(e) => setField('vendorContact', e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Vendor Email</label>
+            <input
+              className="w-full border p-2 rounded"
+              type="email"
+              value={form.vendorEmail}
+              onChange={(e) => setField('vendorEmail', e.target.value)}
+            />
+            {errors.vendorEmail && <p className="text-red-500 text-sm">{errors.vendorEmail}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Vendor Phone</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={form.vendorPhone}
+              onChange={(e) => setField('vendorPhone', e.target.value)}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium">Vendor Address</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={form.vendorAddress}
+              onChange={(e) => setField('vendorAddress', e.target.value)}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Other Details */}
+      <section className="space-y-4">
+        <h3 className="font-semibold text-gray-700 border-b pb-2">Other Details</h3>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium">Subcontractor ID</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={form.subcontractorId}
+              onChange={(e) => setField('subcontractorId', e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Status</label>
+            <select
+              className="w-full border p-2 rounded"
+              value={form.status}
+              onChange={(e) => setField('status', e.target.value)}
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="delivered">Delivered</option>
+            </select>
           </div>
         </div>
       </section>
@@ -301,19 +386,41 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
               {form.items.map((it, idx) => (
                 <tr key={idx}>
                   <td className="p-2 border">
-                    <input className="w-full border p-1 rounded" value={it.description} onChange={(e) => setItemField(idx, 'description', e.target.value)} />
+                    <input
+                      className="w-full border p-1 rounded"
+                      value={it.description}
+                      onChange={(e) => setItemField(idx, 'description', e.target.value)}
+                    />
                   </td>
                   <td className="p-2 border">
-                    <input type="number" className="w-full border p-1 rounded" value={it.quantity} onChange={(e) => setItemField(idx, 'quantity', e.target.value)} />
+                    <input
+                      type="number"
+                      className="w-full border p-1 rounded"
+                      value={it.quantity}
+                      onChange={(e) => setItemField(idx, 'quantity', e.target.value)}
+                    />
                   </td>
                   <td className="p-2 border">
-                    <input className="w-full border p-1 rounded" value={it.unit} onChange={(e) => setItemField(idx, 'unit', e.target.value)} />
+                    <input
+                      className="w-full border p-1 rounded"
+                      value={it.unit}
+                      onChange={(e) => setItemField(idx, 'unit', e.target.value)}
+                    />
                   </td>
                   <td className="p-2 border">
-                    <input type="number" className="w-full border p-1 rounded" value={it.unitPrice} onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)} />
+                    <input
+                      type="number"
+                      className="w-full border p-1 rounded"
+                      value={it.unitPrice}
+                      onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
+                    />
                   </td>
                   <td className="p-2 border text-center">
-                    <button type="button" onClick={() => removeItem(idx)} className="text-red-600 hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      className="text-red-600 hover:underline"
+                    >
                       ✕
                     </button>
                   </td>
@@ -323,7 +430,13 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
           </table>
         </div>
         <div className="flex justify-between items-center pt-2">
-          <button type="button" onClick={addItem} className="text-blue-600 hover:underline">+ Add Item</button>
+          <button
+            type="button"
+            onClick={addItem}
+            className="text-blue-600 hover:underline"
+          >
+            + Add Item
+          </button>
           <div className="font-semibold text-gray-700">
             Total: <span className="text-blue-700">KES {form.amount.toLocaleString()}</span>
           </div>
@@ -333,22 +446,42 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
       {/* Notes */}
       <section>
         <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Notes</h3>
-        <textarea className="w-full border p-2 rounded min-h-[100px]" value={form.notes} onChange={(e) => setField('notes', e.target.value)} />
+        <textarea
+          className="w-full border p-2 rounded min-h-[100px]"
+          value={form.notes}
+          onChange={(e) => setField('notes', e.target.value)}
+        />
       </section>
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2 justify-end pt-4 border-t">
         {!isLocked && (
-          <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : purchaseOrderId ? 'Save Changes' : 'Create Purchase Order'}
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            disabled={isSubmitting}
+          >
+            {isSubmitting
+              ? 'Saving…'
+              : purchaseOrderId
+              ? 'Save Changes'
+              : 'Create Purchase Order'}
           </button>
         )}
         {purchaseOrderId && (
-          <button type="button" onClick={handleSoftDelete} className="text-gray-500 border px-4 py-2 rounded hover:bg-gray-50">
+          <button
+            type="button"
+            onClick={handleSoftDelete}
+            className="text-gray-500 border px-4 py-2 rounded hover:bg-gray-50"
+          >
             {isDeletedMode ? 'Restore (admin)' : 'Soft Delete'}
           </button>
         )}
-        <button type="button" onClick={handleBack} className="text-gray-700 border px-4 py-2 rounded hover:bg-gray-50">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="text-gray-700 border px-4 py-2 rounded hover:bg-gray-50"
+        >
           Cancel
         </button>
       </div>
