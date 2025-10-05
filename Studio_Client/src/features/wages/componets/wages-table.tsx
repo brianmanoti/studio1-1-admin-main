@@ -1,34 +1,27 @@
 'use client'
+
 import * as React from 'react'
+import type { ColumnDef, SortingState, VisibilityState } from '@tanstack/react-table'
 import {
-  type SortingState,
-  type VisibilityState,
   flexRender,
   getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
   useReactTable,
-  type ColumnDef,
-  Table as TanTable,
 } from '@tanstack/react-table'
 import { Eye, Pencil, Check, X, Trash, Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import axiosInstance from '@/lib/axios'
+import { useNavigate } from '@tanstack/react-router'
 
-/** Wage type */
 export type Wage = {
   _id: string
   wageNumber: string
@@ -40,244 +33,168 @@ export type Wage = {
   amount: number
 }
 
-/** Dummy data */
-const dummyWages: Wage[] = [
-  {
-    _id: '1',
-    wageNumber: 'WG-001',
-    company: 'Alpha Ltd',
-    vendorName: 'Vendor A',
-    status: 'pending',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 1200,
-  },
-  {
-    _id: '2',
-    wageNumber: 'WG-002',
-    company: 'Beta Corp',
-    vendorName: 'Vendor B',
-    status: 'approved',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 2500,
-  },
-  {
-    _id: '3',
-    wageNumber: 'WG-003',
-    company: 'Gamma Inc',
-    vendorName: 'Vendor C',
-    status: 'declined',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 800,
-  },
-]
-
-/** Bulk actions bar */
-function WagesBulkActions({
-  table,
-  onBulkApprove,
-  onBulkReject,
-  onBulkDelete,
-}: {
-  table: TanTable<Wage>
-  onBulkApprove?: (rows: Wage[]) => void
-  onBulkReject?: (rows: Wage[]) => void
-  onBulkDelete?: (rows: Wage[]) => void
-}) {
-  const selected = table.getSelectedRowModel().rows.map((r) => r.original)
-  const [dialog, setDialog] = React.useState<{
-    open: boolean
-    action?: 'approve' | 'reject' | 'delete'
-  }>({ open: false })
-
-  const handleConfirm = () => {
-    if (!dialog.action) return
-    if (dialog.action === 'approve') onBulkApprove?.(selected)
-    if (dialog.action === 'reject') onBulkReject?.(selected)
-    if (dialog.action === 'delete') onBulkDelete?.(selected)
-    setDialog({ open: false })
-  }
-
-  if (selected.length === 0) return null
-
-  return (
-    <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
-      <span className="text-sm text-gray-600">
-        {selected.length} selected
-      </span>
-      <Button size="sm" onClick={() => setDialog({ open: true, action: 'approve' })}>
-        Approve
-      </Button>
-      <Button size="sm" onClick={() => setDialog({ open: true, action: 'reject' })}>
-        Reject
-      </Button>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() => setDialog({ open: true, action: 'delete' })}
-      >
-        Delete
-      </Button>
-
-      <ConfirmDialog
-        open={dialog.open}
-        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
-        title={
-          dialog.action === 'delete'
-            ? 'Delete Wages'
-            : dialog.action === 'approve'
-            ? 'Approve Wages'
-            : 'Reject Wages'
-        }
-        desc={`Are you sure you want to ${dialog.action} ${selected.length} wage(s)?`}
-        destructive={dialog.action === 'delete' || dialog.action === 'reject'}
-        handleConfirm={handleConfirm}
-        confirmText={
-          dialog.action === 'delete'
-            ? 'Delete'
-            : dialog.action === 'approve'
-            ? 'Approve'
-            : 'Reject'
-        }
-      />
-    </div>
-  )
+/** Convert MongoDB ISO string to readable Kenyan date */
+export function formatKenyaDate(dateStr: string) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-KE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
-/** Columns definition with row actions */
-function getColumns({
-  onView,
-  onEdit,
-  onDelete,
-  onApprove,
-  onReject,
-}: {
-  onView?: (w: Wage) => void
-  onEdit?: (w: Wage) => void
-  onDelete?: (w: Wage) => void
-  onApprove?: (w: Wage) => void
-  onReject?: (w: Wage) => void
-}): ColumnDef<Wage>[] {
-  const [dialog, setDialog] = React.useState<{
-    open: boolean
-    wage?: Wage
-    action?: 'approve' | 'reject' | 'delete'
-  }>({ open: false })
-
-  const handleConfirm = () => {
-    if (!dialog.wage || !dialog.action) return
-    if (dialog.action === 'approve') onApprove?.(dialog.wage)
-    if (dialog.action === 'reject') onReject?.(dialog.wage)
-    if (dialog.action === 'delete') onDelete?.(dialog.wage)
-    setDialog({ open: false })
-  }
-
-  return [
-    {
-      id: 'select',
-      header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
-          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-          aria-label="Select all"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(v) => row.toggleSelected(!!v)}
-          aria-label="Select row"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
-    { accessorKey: 'wageNumber', header: 'Wage #' },
-    { accessorKey: 'company', header: 'Company' },
-    { accessorKey: 'vendorName', header: 'Vendor' },
-    { accessorKey: 'status', header: 'Status' },
-    { accessorKey: 'date', header: 'Date' },
-    { accessorKey: 'deliveryDate', header: 'Delivery' },
-    {
-      accessorKey: 'amount',
-      header: 'Amount',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }) => {
-        const wage = row.original
-        return (
-          <div className="flex gap-2">
-            <button onClick={() => onView?.(wage)} title="View">
-              <Eye className="w-4 h-4" />
-            </button>
-            <button onClick={() => onEdit?.(wage)} title="Edit">
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button onClick={() => setDialog({ open: true, wage, action: 'approve' })}>
-              <Check className="w-4 h-4 text-green-600" />
-            </button>
-            <button onClick={() => setDialog({ open: true, wage, action: 'reject' })}>
-              <X className="w-4 h-4 text-red-600" />
-            </button>
-            <button onClick={() => setDialog({ open: true, wage, action: 'delete' })}>
-              <Trash className="w-4 h-4 text-red-700" />
-            </button>
-
-            <ConfirmDialog
-              open={dialog.open}
-              onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
-              title={
-                dialog.action === 'delete'
-                  ? 'Delete Wage'
-                  : dialog.action === 'approve'
-                  ? 'Approve Wage'
-                  : 'Reject Wage'
-              }
-              desc={
-                dialog.wage
-                  ? `Are you sure you want to ${dialog.action} ${dialog.wage.wageNumber}?`
-                  : ''
-              }
-              destructive={dialog.action === 'delete' || dialog.action === 'reject'}
-              handleConfirm={handleConfirm}
-              confirmText={
-                dialog.action === 'delete'
-                  ? 'Delete'
-                  : dialog.action === 'approve'
-                  ? 'Approve'
-                  : 'Reject'
-              }
-            />
-          </div>
-        )
-      },
-    },
-  ]
+/** Format amount to Kenyan Shillings */
+export function formatKES(amount: number) {
+  return new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+  }).format(amount ?? 0)
 }
 
-/** Main demo table component */
 export function WagesTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [dialog, setDialog] = React.useState<{
+    open: boolean
+    action?: 'approve' | 'reject' | 'delete'
+    wage?: Wage
+    bulk?: boolean
+    rows?: Wage[]
+  }>({ open: false })
 
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const projectId = '68de8b6a157949fa127747a1'
+
+  // --- Fetch wages ---
+  const { data: wages = [], isLoading, isError } = useQuery({
+    queryKey: ['wages', projectId],
+    queryFn: async () => {
+      if (!projectId) return []
+      const res = await axiosInstance.get(`/api/wages`)
+      return res.data ?? []
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+
+  // --- Mutations ---
+  const mutateAction = useMutation({
+    mutationFn: async ({
+      action,
+      ids,
+    }: {
+      action: 'approve' | 'reject' | 'delete'
+      ids: string[]
+    }) => {
+      const endpoint =
+        action === 'approve'
+          ? '/api/wages/approve'
+          : action === 'reject'
+          ? '/api/wages/reject'
+          : '/api/wages/delete'
+      await axiosInstance.post(endpoint, { ids })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['wages', projectId])
+      setDialog({ open: false })
+      setRowSelection({})
+    },
+  })
+
+  const handleConfirm = () => {
+    if (!dialog.action) return
+    const ids = dialog.bulk
+      ? dialog.rows?.map((w) => w._id) ?? []
+      : dialog.wage
+      ? [dialog.wage._id]
+      : []
+
+    mutateAction.mutate({ action: dialog.action, ids })
+  }
+
+  // --- Table config ---
   const table = useReactTable({
-    data: dummyWages,
-    columns: getColumns({
-      onView: (w) => alert(`Viewing ${w.wageNumber}`),
-      onEdit: (w) => alert(`Editing ${w.wageNumber}`),
-      onApprove: (w) => alert(`Approved ${w.wageNumber}`),
-      onReject: (w) => alert(`Rejected ${w.wageNumber}`),
-      onDelete: (w) => alert(`Deleted ${w.wageNumber}`),
-    }),
+    data: wages ?? [],
+    columns: React.useMemo<ColumnDef<Wage>[]>(
+      () => [
+        {
+          id: 'select',
+          header: ({ table }) => (
+            <Checkbox
+              checked={table.getIsAllPageRowsSelected()}
+              indeterminate={table.getIsSomePageRowsSelected()}
+              onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+              aria-label="Select all"
+            />
+          ),
+          cell: ({ row }) => (
+            <Checkbox
+              checked={row.getIsSelected()}
+              indeterminate={row.getIsSomeSelected()}
+              onCheckedChange={(v) => row.toggleSelected(!!v)}
+              aria-label="Select row"
+            />
+          ),
+          enableSorting: false,
+          enableHiding: false,
+        },
+        { accessorKey: 'wageNumber', header: 'Wage #' },
+        { accessorKey: 'company', header: 'Company' },
+        { accessorKey: 'vendorName', header: 'Vendor' },
+        { accessorKey: 'status', header: 'Status' },
+        {
+          accessorKey: 'date',
+          header: 'Date',
+          cell: ({ getValue }) => formatKenyaDate(getValue() as string),
+        },
+        {
+          accessorKey: 'deliveryDate',
+          header: 'Delivery',
+          cell: ({ getValue }) => formatKenyaDate(getValue() as string),
+        },
+        {
+          accessorKey: 'amount',
+          header: 'Amount',
+          cell: ({ getValue }) => formatKES(getValue() as number),
+        },
+        {
+          id: 'actions',
+          header: 'Actions',
+          cell: ({ row }) => {
+            const wage = row.original
+            if (!wage) return null
+            return (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}` })}
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() =>
+                    navigate({ to: `/projects/${projectId}/wages/${wage._id}/edit` })
+                  }
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => setDialog({ open: true, wage, action: 'approve' })}>
+                  <Check className="w-4 h-4 text-green-600" />
+                </button>
+                <button onClick={() => setDialog({ open: true, wage, action: 'reject' })}>
+                  <X className="w-4 h-4 text-red-600" />
+                </button>
+                <button onClick={() => setDialog({ open: true, wage, action: 'delete' })}>
+                  <Trash className="w-4 h-4 text-red-700" />
+                </button>
+              </div>
+            )
+          },
+        },
+      ],
+      [navigate]
+    ),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -290,6 +207,12 @@ export function WagesTable() {
     getFacetedUniqueValues: getFacetedUniqueValues(),
     enableRowSelection: true,
   })
+
+  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original)
+
+  if (!projectId) return <div>Project ID is missing.</div>
+  if (isLoading) return <div>Loading wages...</div>
+  if (isError) return <div>Failed to load wages.</div>
 
   return (
     <div className="space-y-4">
@@ -311,13 +234,16 @@ export function WagesTable() {
             },
           ]}
         />
-        <Button onClick={() => alert('Add new wage')} className="ml-4">
+        <Button
+          onClick={() => navigate({ to: `/projects/${projectId}/wages/new` })}
+          className="ml-4"
+        >
           <Plus className="w-4 h-4 mr-2" />
           Add Wage
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-auto rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
@@ -326,10 +252,7 @@ export function WagesTable() {
                   <TableHead key={header.id} colSpan={header.colSpan}>
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
@@ -340,7 +263,7 @@ export function WagesTable() {
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
+                  data-state={row.getIsSelected() ? 'selected' : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -351,7 +274,10 @@ export function WagesTable() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
+                <TableCell
+                  colSpan={table.getAllColumns().length}
+                  className="h-24 text-center"
+                >
                   No results.
                 </TableCell>
               </TableRow>
@@ -362,11 +288,60 @@ export function WagesTable() {
 
       <DataTablePagination table={table} />
 
-      <WagesBulkActions
-        table={table}
-        onBulkApprove={(rows) => alert(`Bulk approved ${rows.length} wages`)}
-        onBulkReject={(rows) => alert(`Bulk rejected ${rows.length} wages`)}
-        onBulkDelete={(rows) => alert(`Bulk deleted ${rows.length} wages`)}
+      {selectedRows.length > 0 && (
+        <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
+          <span className="text-sm text-gray-600">{selectedRows.length} selected</span>
+          <Button
+            size="sm"
+            onClick={() =>
+              setDialog({ open: true, action: 'approve', bulk: true, rows: selectedRows })
+            }
+          >
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            onClick={() =>
+              setDialog({ open: true, action: 'reject', bulk: true, rows: selectedRows })
+            }
+          >
+            Reject
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() =>
+              setDialog({ open: true, action: 'delete', bulk: true, rows: selectedRows })
+            }
+          >
+            Delete
+          </Button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={dialog.open}
+        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+        title={
+          dialog.action === 'delete'
+            ? dialog.bulk
+              ? 'Delete Wages'
+              : 'Delete Wage'
+            : dialog.action === 'approve'
+            ? dialog.bulk
+              ? 'Approve Wages'
+              : 'Approve Wage'
+            : dialog.bulk
+            ? 'Reject Wages'
+            : 'Reject Wage'
+        }
+        desc={
+          dialog.bulk
+            ? `Are you sure you want to ${dialog.action} ${dialog.rows?.length ?? 0} wage(s)?`
+            : `Are you sure you want to ${dialog.action} ${dialog.wage?.wageNumber ?? ''}?`
+        }
+        destructive={dialog.action === 'delete' || dialog.action === 'reject'}
+        handleConfirm={handleConfirm}
       />
     </div>
   )

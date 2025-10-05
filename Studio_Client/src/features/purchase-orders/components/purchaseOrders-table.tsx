@@ -13,6 +13,7 @@ import {
   type ColumnDef,
   Table as TanTable,
 } from '@tanstack/react-table'
+import { useQuery } from '@tanstack/react-query'
 import { Eye, Pencil, Check, X, Trash, Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,8 @@ import {
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
+import { useNavigate } from '@tanstack/react-router'
+import axiosInstance from '@/lib/axios'
 
 /** Purchase Order type */
 export type PurchaseOrder = {
@@ -38,40 +41,6 @@ export type PurchaseOrder = {
   deliveryDate: string
   amount: number
 }
-
-/** Dummy data */
-const dummyPOs: PurchaseOrder[] = [
-  {
-    _id: '1',
-    poNumber: 'PO-001',
-    company: 'BuildCo Ltd',
-    vendorName: 'Supplier A',
-    status: 'pending',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 1500,
-  },
-  {
-    _id: '2',
-    poNumber: 'PO-002',
-    company: 'Skyline Corp',
-    vendorName: 'Supplier B',
-    status: 'approved',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 3200,
-  },
-  {
-    _id: '3',
-    poNumber: 'PO-003',
-    company: 'UrbanWorks',
-    vendorName: 'Supplier C',
-    status: 'declined',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 980,
-  },
-]
 
 /** Bulk actions bar */
 function PurchaseOrdersBulkActions({
@@ -103,9 +72,7 @@ function PurchaseOrdersBulkActions({
 
   return (
     <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
-      <span className="text-sm text-gray-600">
-        {selected.length} selected
-      </span>
+      <span className="text-sm text-gray-600">{selected.length} selected</span>
       <Button size="sm" onClick={() => setDialog({ open: true, action: 'approve' })}>
         Approve
       </Button>
@@ -159,20 +126,6 @@ function getColumns({
   onApprove?: (po: PurchaseOrder) => void
   onReject?: (po: PurchaseOrder) => void
 }): ColumnDef<PurchaseOrder>[] {
-  const [dialog, setDialog] = React.useState<{
-    open: boolean
-    po?: PurchaseOrder
-    action?: 'approve' | 'reject' | 'delete'
-  }>({ open: false })
-
-  const handleConfirm = () => {
-    if (!dialog.po || !dialog.action) return
-    if (dialog.action === 'approve') onApprove?.(dialog.po)
-    if (dialog.action === 'reject') onReject?.(dialog.po)
-    if (dialog.action === 'delete') onDelete?.(dialog.po)
-    setDialog({ open: false })
-  }
-
   return [
     {
       id: 'select',
@@ -220,41 +173,15 @@ function getColumns({
             <button onClick={() => onEdit?.(po)} title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={() => setDialog({ open: true, po, action: 'approve' })}>
+            <button onClick={() => onApprove?.(po)}>
               <Check className="w-4 h-4 text-green-600" />
             </button>
-            <button onClick={() => setDialog({ open: true, po, action: 'reject' })}>
+            <button onClick={() => onReject?.(po)}>
               <X className="w-4 h-4 text-red-600" />
             </button>
-            <button onClick={() => setDialog({ open: true, po, action: 'delete' })}>
+            <button onClick={() => onDelete?.(po)}>
               <Trash className="w-4 h-4 text-red-700" />
             </button>
-
-            <ConfirmDialog
-              open={dialog.open}
-              onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
-              title={
-                dialog.action === 'delete'
-                  ? 'Delete Purchase Order'
-                  : dialog.action === 'approve'
-                  ? 'Approve Purchase Order'
-                  : 'Reject Purchase Order'
-              }
-              desc={
-                dialog.po
-                  ? `Are you sure you want to ${dialog.action} ${dialog.po.poNumber}?`
-                  : ''
-              }
-              destructive={dialog.action === 'delete' || dialog.action === 'reject'}
-              handleConfirm={handleConfirm}
-              confirmText={
-                dialog.action === 'delete'
-                  ? 'Delete'
-                  : dialog.action === 'approve'
-                  ? 'Approve'
-                  : 'Reject'
-              }
-            />
           </div>
         )
       },
@@ -263,13 +190,27 @@ function getColumns({
 }
 
 /** Main PurchaseOrdersTable */
-export function PurchaseOrdersTable() {
+export function PurchaseOrderTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
+  const projectId = '68de8b6a157949fa127747a1'
+
+  const navigate = useNavigate()
+
+  // ------------------- Fetch Purchase Orders -------------------
+  const { data: purchaseOrders = [], isLoading, isError } = useQuery({
+    queryKey: ['purchaseOrders'],
+    queryFn: async () => {
+      const res = await axiosInstance.get('/api/purchase-orders')
+      return res.data
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+
   const table = useReactTable({
-    data: dummyPOs,
+    data: purchaseOrders, // ✅ use API data
     columns: getColumns({
       onView: (po) => alert(`Viewing ${po.poNumber}`),
       onEdit: (po) => alert(`Editing ${po.poNumber}`),
@@ -287,6 +228,9 @@ export function PurchaseOrdersTable() {
     getSortedRowModel: getSortedRowModel(),
     enableRowSelection: true,
   })
+
+  if (isLoading) return <div>Loading purchase orders...</div>
+  if (isError) return <div>Failed to load purchase orders.</div>
 
   return (
     <div className="space-y-4">
@@ -308,7 +252,7 @@ export function PurchaseOrdersTable() {
             },
           ]}
         />
-        <Button onClick={() => alert('Add new Purchase Order')}>
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/purchaseOrders/new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Purchase Order
         </Button>

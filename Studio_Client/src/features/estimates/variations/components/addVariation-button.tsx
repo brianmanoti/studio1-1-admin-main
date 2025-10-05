@@ -14,4 +14,3 @@ export function AddVariationButton({ projectId }: { projectId: string }) {
     </Button>
   )
 }
-// Note: Ensure that the `projectId` prop is passed correctly when using this component.

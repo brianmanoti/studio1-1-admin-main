@@ -1,3 +1,5 @@
+'use client'
+
 import { getRouteApi } from '@tanstack/react-router'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -16,13 +18,23 @@ import axiosInstance from '@/lib/axios'
 const route = getRouteApi('/_authenticated/users/')
 
 export function Users() {
-  const search = route.useSearch()
-  const navigate = route.useNavigate()
+  const search = route?.useSearch?.() ?? {} // safe fallback
+  const navigate = route?.useNavigate?.() ?? (() => {}) // noop if undefined
 
-  const { data: users = [] } = useQuery({
+  const { data: usersData, isLoading, isError } = useQuery({
     queryKey: ["users"],
-    queryFn: async () => (await axiosInstance.get("/api/auth/users")).data.users,
+    queryFn: async () => {
+      try {
+        const response = await axiosInstance.get("/api/auth/users")
+        return response?.data?.users ?? [] // default empty array
+      } catch (error) {
+        console.error("Failed to fetch users:", error)
+        return [] // fallback in case of API error
+      }
+    },
   })
+
+  const users = Array.isArray(usersData) ? usersData : [] // ensure array
 
   return (
     <UsersProvider>

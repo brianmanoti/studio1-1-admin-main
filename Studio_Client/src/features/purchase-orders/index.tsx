@@ -4,7 +4,8 @@ import { Main } from "@/components/layout/main"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Search } from "@/components/search"
 import { ThemeSwitch } from "@/components/theme-switch"
-import { PurchaseOrdersTable } from "../subcontractors/purchase-orders/components/purchaseOrders-table"
+
+import { PurchaseOrderTable } from "./components/purchaseOrders-table"
 
 const PurchaseOrders = () => {
   return (
@@ -18,7 +19,7 @@ const PurchaseOrders = () => {
             </div>
           </Header>
           <Main>
-            <PurchaseOrdersTable />
+            <PurchaseOrderTable />
           </Main>
           
     </>

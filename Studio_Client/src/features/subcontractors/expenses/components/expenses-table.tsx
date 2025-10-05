@@ -13,6 +13,7 @@ import {
   type ColumnDef,
   Table as TanTable,
 } from '@tanstack/react-table'
+import { useQuery } from '@tanstack/react-query'
 import { Eye, Pencil, Check, X, Trash, Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,8 @@ import {
 } from '@/components/ui/table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
+import { useNavigate } from '@tanstack/react-router'
+import axiosInstance from '@/lib/axios'
 
 /** Expense type */
 export type Expense = {
@@ -38,40 +41,6 @@ export type Expense = {
   deliveryDate: string
   amount: number
 }
-
-/** Dummy data */
-const dummyExpenses: Expense[] = [
-  {
-    _id: '1',
-    expenseNumber: 'EX-001',
-    company: 'Delta Ltd',
-    vendorName: 'Vendor X',
-    status: 'pending',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 500,
-  },
-  {
-    _id: '2',
-    expenseNumber: 'EX-002',
-    company: 'Omega Corp',
-    vendorName: 'Vendor Y',
-    status: 'approved',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 1200,
-  },
-  {
-    _id: '3',
-    expenseNumber: 'EX-003',
-    company: 'Sigma Inc',
-    vendorName: 'Vendor Z',
-    status: 'declined',
-    date: new Date().toISOString(),
-    deliveryDate: new Date().toISOString(),
-    amount: 750,
-  },
-]
 
 /** Bulk actions bar */
 function ExpensesBulkActions({
@@ -103,9 +72,7 @@ function ExpensesBulkActions({
 
   return (
     <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
-      <span className="text-sm text-gray-600">
-        {selected.length} selected
-      </span>
+      <span className="text-sm text-gray-600">{selected.length} selected</span>
       <Button size="sm" onClick={() => setDialog({ open: true, action: 'approve' })}>
         Approve
       </Button>
@@ -159,20 +126,6 @@ function getColumns({
   onApprove?: (e: Expense) => void
   onReject?: (e: Expense) => void
 }): ColumnDef<Expense>[] {
-  const [dialog, setDialog] = React.useState<{
-    open: boolean
-    expense?: Expense
-    action?: 'approve' | 'reject' | 'delete'
-  }>({ open: false })
-
-  const handleConfirm = () => {
-    if (!dialog.expense || !dialog.action) return
-    if (dialog.action === 'approve') onApprove?.(dialog.expense)
-    if (dialog.action === 'reject') onReject?.(dialog.expense)
-    if (dialog.action === 'delete') onDelete?.(dialog.expense)
-    setDialog({ open: false })
-  }
-
   return [
     {
       id: 'select',
@@ -220,41 +173,15 @@ function getColumns({
             <button onClick={() => onEdit?.(exp)} title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={() => setDialog({ open: true, expense: exp, action: 'approve' })}>
+            <button onClick={() => onApprove?.(exp)}>
               <Check className="w-4 h-4 text-green-600" />
             </button>
-            <button onClick={() => setDialog({ open: true, expense: exp, action: 'reject' })}>
+            <button onClick={() => onReject?.(exp)}>
               <X className="w-4 h-4 text-red-600" />
             </button>
-            <button onClick={() => setDialog({ open: true, expense: exp, action: 'delete' })}>
+            <button onClick={() => onDelete?.(exp)}>
               <Trash className="w-4 h-4 text-red-700" />
             </button>
-
-            <ConfirmDialog
-              open={dialog.open}
-              onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
-              title={
-                dialog.action === 'delete'
-                  ? 'Delete Expense'
-                  : dialog.action === 'approve'
-                  ? 'Approve Expense'
-                  : 'Reject Expense'
-              }
-              desc={
-                dialog.expense
-                  ? `Are you sure you want to ${dialog.action} ${dialog.expense.expenseNumber}?`
-                  : ''
-              }
-              destructive={dialog.action === 'delete' || dialog.action === 'reject'}
-              handleConfirm={handleConfirm}
-              confirmText={
-                dialog.action === 'delete'
-                  ? 'Delete'
-                  : dialog.action === 'approve'
-                  ? 'Approve'
-                  : 'Reject'
-              }
-            />
           </div>
         )
       },
@@ -262,14 +189,31 @@ function getColumns({
   ]
 }
 
-/** Main ExpensesTable component */
-export function ExpensesTable() {
+
+export function SubExpensesTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
+  const navigate = useNavigate()
+  const projectId = '68de8b6a157949fa127747a1'
+
+  // ✅ Fetch from API
+  const {
+    data: expenses = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['expensesList'],
+    queryFn: async () => {
+      const res = await axiosInstance.get('/api/expenses')
+      return res.data
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+
   const table = useReactTable({
-    data: dummyExpenses,
+    data: expenses, // ✅ use API data instead of dummyExpenses
     columns: getColumns({
       onView: (e) => alert(`Viewing ${e.expenseNumber}`),
       onEdit: (e) => alert(`Editing ${e.expenseNumber}`),
@@ -287,6 +231,9 @@ export function ExpensesTable() {
     getSortedRowModel: getSortedRowModel(),
     enableRowSelection: true,
   })
+
+  if (isLoading) return <div>Loading expenses...</div>
+  if (isError) return <div>Failed to load expenses.</div>
 
   return (
     <div className="space-y-4">
@@ -308,7 +255,7 @@ export function ExpensesTable() {
             },
           ]}
         />
-        <Button onClick={() => alert('Add new expense')}>
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/expenses/new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Expense
         </Button>
