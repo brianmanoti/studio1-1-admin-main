@@ -1,6 +1,3 @@
-// src/components/EstimateSelector.jsx
-// Works with nested estimate structure (groups → sections → subsections)
-// Responsive + Tailwind-styled version (no logic changes)
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '@/lib/axios';

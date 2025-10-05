@@ -1,5 +1,3 @@
-// src/components/PurchaseOrderForm.jsx
-// Purpose: Responsive, user-friendly Purchase Order Form with TanStack Router support + Project dropdown
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useCanGoBack } from '@tanstack/react-router';
