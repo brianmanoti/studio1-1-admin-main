@@ -18,7 +18,7 @@ import { UsersDialogs } from '@/features/users/components/users-dialogs'
 import { UsersPrimaryButtons } from '@/features/users/components/users-primary-buttons'
 import { UsersProvider } from '@/features/users/components/users-provider'
 import { UsersTable } from '@/features/users/components/users-table'
-import { users } from '@/features/users/data/users'
+import axiosInstance from '@/lib/axios'
 
 export const Route = createFileRoute('/clerk/_authenticated/user-management')({
   component: UserManagement,
@@ -30,8 +30,27 @@ function UserManagement() {
 
   const [opened, setOpened] = useState(true)
   const { isLoaded, isSignedIn } = useAuth()
+  const [users, setUsers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  if (!isLoaded) {
+  // Fetch users from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await axiosInstance.get('/api/auth/users')
+        setUsers(Array.isArray(res?.data?.users) ? res.data.users : [])
+      } catch (error) {
+        console.error('Failed to fetch users:', error)
+        setUsers([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUsers()
+  }, [])
+
+  if (!isLoaded || loading) {
     return (
       <div className='flex h-svh items-center justify-center'>
         <Loader2 className='size-8 animate-spin' />
@@ -100,6 +119,7 @@ function UserManagement() {
   )
 }
 
+// Unauthorized component remains exactly as-is
 const COUNTDOWN = 5 // Countdown second
 
 function Unauthorized() {
@@ -110,7 +130,6 @@ function Unauthorized() {
   const [cancelled, setCancelled] = useState(false)
   const [countdown, setCountdown] = useState(COUNTDOWN)
 
-  // Set and run the countdown conditionally
   useEffect(() => {
     if (cancelled || opened) return
     const interval = setInterval(() => {
@@ -119,7 +138,6 @@ function Unauthorized() {
     return () => clearInterval(interval)
   }, [cancelled, opened])
 
-  // Navigate to sign-in page when countdown hits 0
   useEffect(() => {
     if (countdown > 0) return
     navigate({ to: '/clerk/sign-in' })
