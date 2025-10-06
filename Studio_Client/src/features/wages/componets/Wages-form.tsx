@@ -28,7 +28,6 @@ export default function WageOrderForm({ wageId }) {
     projectId: '',
     reference: '',
     company: '',
-    status: 'pending',
     date: formatDateToInput(new Date()),
     deliveryDate: formatDateToInput(new Date()),
     deliveryAddress: '',
@@ -40,7 +39,6 @@ export default function WageOrderForm({ wageId }) {
     vendorAddress: '',
     items: [emptyItem()],
     amount: 0,
-    subcontractorId: '',
     estimateId: '',
     estimateLevel: 'estimate',
     estimateTargetId: '',
@@ -91,19 +89,6 @@ export default function WageOrderForm({ wageId }) {
       setServerError('Failed to load wage  data');
     },
   });
-
-
-// Fetch subcontractors
-const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } = useQuery({
-  queryKey: ['subcontractors'],
-  queryFn: async () => {
-    const res = await axiosInstance.get('/api/subcontractors');
-    return Array.isArray(res.data) ? res.data : []; // ensure always an array
-  },
-  staleTime: 1000 * 60 * 10,
-});
-
-
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
@@ -400,45 +385,6 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
         </div>
       </section>
 
-      {/* Other Details */}
-      <section className="space-y-4">
-        <h3 className="font-semibold text-gray-700 border-b pb-2">Other Details</h3>
-        <div className="grid md:grid-cols-2 gap-4">
-        <div>
-        <label className="block text-sm font-medium">Subcontractor</label>
-        {loadingSubs ? (
-            <p className="text-gray-500 text-sm">Loading subcontractors…</p>
-        ) : subsError ? (
-            <p className="text-red-500 text-sm">Failed to load subcontractors</p>
-        ) : (
-            <select
-            className="w-full border p-2 rounded bg-white focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            value={form.subcontractorId}
-            onChange={(e) => setField('subcontractorId', e.target.value)}
-            >
-            <option value="">— Select Subcontractor —</option>
-            {(subcontractors || []).map((sub) => (
-                <option key={sub._id} value={sub._id}>
-                {sub.name || sub.companyName || `Subcontractor ${sub._id}`}
-                </option>
-            ))}
-            </select>
-        )}
-        </div>
-          <div>
-            <label className="block text-sm font-medium">Status</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={form.status}
-              onChange={(e) => setField('status', e.target.value)}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="delivered">Delivered</option>
-            </select>
-          </div>
-        </div>
-      </section>
 
       {/* Items */}
       <section className="space-y-2">

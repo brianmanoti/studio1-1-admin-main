@@ -117,15 +117,15 @@ function ExpensesBulkActions({
 function getColumns({
   onView,
   onEdit,
-  onDelete,
-  onApprove,
-  onReject,
+  onApproveConfirm,
+  onRejectConfirm,
+  onDeleteConfirm,
 }: {
   onView?: (e: Expense) => void
   onEdit?: (e: Expense) => void
-  onDelete?: (e: Expense) => void
-  onApprove?: (e: Expense) => void
-  onReject?: (e: Expense) => void
+  onApproveConfirm?: (e: Expense) => void
+  onRejectConfirm?: (e: Expense) => void
+  onDeleteConfirm?: (e: Expense) => void
 }): ColumnDef<Expense>[] {
   return [
     {
@@ -154,8 +154,8 @@ function getColumns({
     { accessorKey: 'company', header: 'Company' },
     { accessorKey: 'vendorName', header: 'Vendor' },
     { accessorKey: 'status', header: 'Status' },
-    { accessorKey: 'date', header: 'Date' },
-    { accessorKey: 'deliveryDate', header: 'Delivery' },
+    { accessorKey: 'date', header: 'Date',  cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'), },
+    { accessorKey: 'deliveryDate', header: 'Delivery',  cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'), },
     {
       accessorKey: 'amount',
       header: 'Amount',
@@ -174,13 +174,13 @@ function getColumns({
             <button onClick={() => onEdit?.(exp)} title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={() => onApprove?.(exp)}>
+            <button onClick={() => onApproveConfirm?.(exp)} title="Approve">
               <Check className="w-4 h-4 text-green-600" />
             </button>
-            <button onClick={() => onReject?.(exp)}>
+            <button onClick={() => onRejectConfirm?.(exp)} title="Reject">
               <X className="w-4 h-4 text-red-600" />
             </button>
-            <button onClick={() => onDelete?.(exp)}>
+            <button onClick={() => onDeleteConfirm?.(exp)} title="Delete">
               <Trash className="w-4 h-4 text-red-700" />
             </button>
           </div>
@@ -190,10 +190,12 @@ function getColumns({
   ]
 }
 
+/** ✅ Main Expenses Table Component */
 export function ExpensesTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [dialog, setDialog] = React.useState<{ open: boolean; action?: 'approve' | 'reject' | 'delete'; expense?: Expense }>({ open: false })
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -241,14 +243,25 @@ export function ExpensesTable() {
     onError: () => toast.error('Failed to delete expense'),
   })
 
+  const handleConfirm = () => {
+    const { action, expense } = dialog
+    if (!action || !expense) return
+
+    if (action === 'approve') approveMutation.mutate(expense._id)
+    if (action === 'reject') rejectMutation.mutate(expense._id)
+    if (action === 'delete') deleteMutation.mutate(expense._id)
+
+    setDialog({ open: false })
+  }
+
   const table = useReactTable({
     data: expenses,
     columns: getColumns({
       onView: (e) => navigate({ to: `/projects/${projectId}/subcontractors/expenses/${e._id}` }),
       onEdit: (e) => navigate({ to: `/projects/${projectId}/subcontractors/expenses/${e._id}/edit` }),
-      onApprove: (e) => approveMutation.mutate(e._id),
-      onReject: (e) => rejectMutation.mutate(e._id),
-      onDelete: (e) => deleteMutation.mutate(e._id),
+      onApproveConfirm: (e) => setDialog({ open: true, action: 'approve', expense: e }),
+      onRejectConfirm: (e) => setDialog({ open: true, action: 'reject', expense: e }),
+      onDeleteConfirm: (e) => setDialog({ open: true, action: 'delete', expense: e }),
     }),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
@@ -284,7 +297,7 @@ export function ExpensesTable() {
             },
           ]}
         />
-        <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/expenses/new` })}>
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/expenses/new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Expense
         </Button>
@@ -334,6 +347,29 @@ export function ExpensesTable() {
         onBulkApprove={(rows) => rows.forEach((e) => approveMutation.mutate(e._id))}
         onBulkReject={(rows) => rows.forEach((e) => rejectMutation.mutate(e._id))}
         onBulkDelete={(rows) => rows.forEach((e) => deleteMutation.mutate(e._id))}
+      />
+
+      {/* Confirm dialog for single actions */}
+      <ConfirmDialog
+        open={dialog.open}
+        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+        title={
+          dialog.action === 'delete'
+            ? 'Delete Expense'
+            : dialog.action === 'approve'
+            ? 'Approve Expense'
+            : 'Reject Expense'
+        }
+        desc={`Are you sure you want to ${dialog.action} this expense?`}
+        destructive={dialog.action === 'delete' || dialog.action === 'reject'}
+        handleConfirm={handleConfirm}
+        confirmText={
+          dialog.action === 'delete'
+            ? 'Delete'
+            : dialog.action === 'approve'
+            ? 'Approve'
+            : 'Reject'
+        }
       />
     </div>
   )

@@ -28,7 +28,6 @@ export default function ExpenseForm({ expenseId }) {
     projectId: '',
     reference: '',
     company: '',
-    status: 'pending',
     date: formatDateToInput(new Date()),
     deliveryDate: formatDateToInput(new Date()),
     deliveryAddress: '',
@@ -40,7 +39,6 @@ export default function ExpenseForm({ expenseId }) {
     vendorAddress: '',
     items: [emptyItem()],
     amount: 0,
-    subcontractorId: '',
     estimateId: '',
     estimateLevel: 'estimate',
     estimateTargetId: '',
@@ -112,7 +110,7 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
       queryClient.invalidateQueries(['expenses']);
       navigate({ to: `/expenses/${data._id}` });
     },
-    onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create purchase order'),
+    onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create Expenses order'),
   });
 
   const updateMutation = useMutation({
@@ -218,7 +216,7 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
   const handleBack = () => {
     if (isDirty && !confirm('You have unsaved changes. Leave without saving?')) return;
     if (canGoBack) window.history.back();
-    else navigate({ to: '/purchase-orders' });
+    else navigate({ to: '/expenses' });
   };
 
   const handleSoftDelete = async () => {
@@ -394,46 +392,6 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
           />
         </div>
       </div>
-      </section>
-
-      {/* Other Details */}
-      <section className="space-y-4">
-        <h3 className="font-semibold text-gray-700 border-b pb-2">Other Details</h3>
-        <div className="grid md:grid-cols-2 gap-4">
-        <div>
-        <label className="block text-sm font-medium">Subcontractor</label>
-        {loadingSubs ? (
-            <p className="text-gray-500 text-sm">Loading subcontractors…</p>
-        ) : subsError ? (
-            <p className="text-red-500 text-sm">Failed to load subcontractors</p>
-        ) : (
-            <select
-            className="w-full border p-2 rounded bg-white focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            value={form.subcontractorId}
-            onChange={(e) => setField('subcontractorId', e.target.value)}
-            >
-            <option value="">— Select Subcontractor —</option>
-            {(subcontractors || []).map((sub) => (
-                <option key={sub._id} value={sub._id}>
-                {sub.name || sub.companyName || `Subcontractor ${sub._id}`}
-                </option>
-            ))}
-            </select>
-        )}
-        </div>
-          <div>
-            <label className="block text-sm font-medium">Status</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={form.status}
-              onChange={(e) => setField('status', e.target.value)}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="delivered">Delivered</option>
-            </select>
-          </div>
-        </div>
       </section>
 
       {/* Items */}
