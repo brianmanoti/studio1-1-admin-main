@@ -1,5 +1,4 @@
-
-import type React from "react"
+import * as React from "react"
 import { useMemo, useState } from "react"
 import { useNavigate, Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
@@ -8,9 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, ChevronUp, ChevronDown, Eye, Pencil, Trash2, MoreVertical } from "lucide-react"
 import { toast } from "react-toastify"
 import { useDeleteProject, useProjects } from "@/lib/hooks/useProjects"
-
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-
 import {
   type ColumnDef,
   flexRender,
@@ -19,6 +16,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   type SortingState,
+  type PaginationState,
 } from "@tanstack/react-table"
 import { Header } from "@/components/layout/header"
 import { ThemeSwitch } from "@/components/theme-switch"
@@ -26,6 +24,7 @@ import { ConfigDrawer } from "@/components/config-drawer"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Main } from "@/components/layout/main"
 import { ProjectListSkeleton } from "./components/projects-skeleton"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 interface Project {
   _id: string
@@ -41,50 +40,43 @@ interface Project {
   endDate?: string
 }
 
-const ProjectList = () => {
+const ProjectList: React.FC = () => {
+  const navigate = useNavigate()
   const { data: projects = [], isLoading, isError } = useProjects()
   const deleteMutation = useDeleteProject()
-  const navigate = useNavigate()
+
+  // UI state
   const [search, setSearch] = useState("")
   const [projectType, setProjectType] = useState<string | undefined>()
-  const [pageSize, setPageSize] = useState(10)
   const [sorting, setSorting] = useState<SortingState>([])
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
+
+  // Confirm dialog
+  const [openDialog, setOpenDialog] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
 
   const notify = () => toast("Project created")
 
-  const handleDelete = (projectId: string, projectName: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (window.confirm(`Are you sure you want to delete "${projectName}"?`)) {
-      deleteMutation.mutate(projectId)
-    }
-  }
+  // Filtered list (search + type)
+  const filteredProjects = useMemo(() => {
+    if (!projects?.length) return []
+    const s = search.trim().toLowerCase()
+    return projects.filter((p) => {
+      const matchesSearch = !s || p.name?.toLowerCase().includes(s)
+      const matchesType = projectType ? p.type === projectType : true
+      return matchesSearch && matchesType
+    })
+  }, [projects, search, projectType])
 
-  const handleView = (projectId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    navigate({ to: `/projects/${projectId}` })
-  }
-
-  const handleEdit = (projectId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    navigate({ to: `/projects/${projectId}/edit` })
-  }
-
-  const filteredProjects = useMemo(
-    () =>
-      projects.filter((p) => {
-        const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase())
-        const matchesType = projectType ? p.type === projectType : true
-        return matchesSearch && matchesType
-      }),
-    [projects, search, projectType],
-  )
-
-  const columns = useMemo<ColumnDef<Project>[]>(
-    () => [
+  // Columns
+  const columns = useMemo<ColumnDef<Project>[]>(() => {
+    return [
       {
         header: "ID",
         accessorKey: "projectNumber",
-        cell: (info) => <span className="text-xs font-medium text-muted-foreground">{info.getValue() || "N/A"}</span>,
+        cell: (info) => (
+          <span className="text-xs font-medium text-muted-foreground">{info.getValue() || "N/A"}</span>
+        ),
       },
       {
         header: "Name",
@@ -143,12 +135,16 @@ const ProjectList = () => {
       {
         header: "Start Date",
         accessorKey: "startDate",
-        cell: (info) => <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>,
+        cell: (info) => (
+          <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>
+        ),
       },
       {
         header: "End Date",
         accessorKey: "endDate",
-        cell: (info) => <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>,
+        cell: (info) => (
+          <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>
+        ),
       },
       {
         header: "Actions",
@@ -160,27 +156,39 @@ const ProjectList = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => handleView(project._id, e)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate({ to: `/projects/${project._id}` })
+                }}
                 className="h-7 w-7 p-0 hover:bg-primary/10 hover:text-primary"
                 title="View"
               >
                 <Eye className="h-3.5 w-3.5" />
               </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => handleEdit(project._id, e)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate({ to: `/projects/${project._id}/edit` })
+                }}
                 className="h-7 w-7 p-0 hover:bg-blue-500/10 hover:text-blue-600"
                 title="Edit"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => handleDelete(project._id, project.name, e)}
                 className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
                 title="Delete"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedProject({ id: project._id, name: project.name })
+                  setOpenDialog(true)
+                }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -193,20 +201,31 @@ const ProjectList = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={(e) => handleView(project._id, e as any)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    View
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => handleEdit(project._id, e as any)}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate({ to: `/projects/${project._id}` })
+                    }}
+                  >
+                    <Eye className="mr-2 h-4 w-4" /> View
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={(e) => handleDelete(project._id, project.name, e as any)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate({ to: `/projects/${project._id}/edit` })
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedProject({ id: project._id, name: project.name })
+                      setOpenDialog(true)
+                    }}
                     className="text-destructive focus:text-destructive"
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -214,24 +233,30 @@ const ProjectList = () => {
           )
         },
       },
-    ],
-    [],
-  )
+    ]
+  }, [navigate])
 
+  // React Table setup
   const table = useReactTable({
     data: filteredProjects,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize, pageIndex: 0 } },
   })
 
-  if (isLoading) return <section className="p-6 text-sm text-muted-foreground"><ProjectListSkeleton /></section>
+  // Loading / error / empty handling
+  if (isLoading)
+    return (
+      <section className="p-6 text-sm text-muted-foreground">
+        <ProjectListSkeleton />
+      </section>
+    )
   if (isError) return <p className="p-6 text-sm text-destructive">Failed to load projects</p>
-  if (!projects.length)
+  if (!projects.length && !isLoading)
     return <p className="p-6 text-sm text-muted-foreground">No projects found. Start by creating one!</p>
 
   return (
@@ -243,14 +268,18 @@ const ProjectList = () => {
           <ProfileDropdown />
         </div>
       </Header>
+
       <Main>
         <div className="p-2 md:p-4 space-y-4 md:space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-xl md:text-2xl font-bold tracking-tight">Active Projects</h2>
-              <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage and track all your projects</p>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1">
+                Manage and track all your projects
+              </p>
             </div>
+
             <div className="flex items-center gap-2">
               <Button onClick={notify} variant="outline" size="sm" className="text-xs md:text-sm bg-transparent">
                 Notify
@@ -275,7 +304,10 @@ const ProjectList = () => {
               />
             </div>
 
-            <Select onValueChange={(value) => setProjectType(value === "all" ? undefined : value)}>
+            <Select
+              value={projectType ?? "all"}
+              onValueChange={(value) => setProjectType(value === "all" ? undefined : value)}
+            >
               <SelectTrigger className="w-full sm:w-44 h-9 text-sm">
                 <SelectValue placeholder="Project Type" />
               </SelectTrigger>
@@ -312,6 +344,7 @@ const ProjectList = () => {
                     </tr>
                   ))}
                 </thead>
+
                 <tbody className="divide-y divide-border bg-card">
                   {table.getRowModel().rows.map((row) => (
                     <tr
@@ -343,10 +376,12 @@ const ProjectList = () => {
               >
                 Previous
               </Button>
+
               <span className="text-xs">
                 Page <span className="font-medium">{table.getState().pagination.pageIndex + 1}</span> of{" "}
                 <span className="font-medium">{table.getPageCount()}</span>
               </span>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -361,11 +396,10 @@ const ProjectList = () => {
             <div className="flex items-center gap-2">
               <span className="text-xs">Rows per page:</span>
               <Select
-                value={String(pageSize)}
-                onValueChange={(value) => {
-                  setPageSize(Number(value))
-                  table.setPageSize(Number(value))
-                }}
+                value={String(table.getState().pagination.pageSize)}
+                onValueChange={(value) =>
+                  setPagination((prev) => ({ ...prev, pageIndex: 0, pageSize: Number(value) }))
+                }
               >
                 <SelectTrigger className="w-16 h-8 text-xs">
                   <SelectValue />
@@ -379,6 +413,40 @@ const ProjectList = () => {
             </div>
           </div>
         </div>
+
+        {/* ✅ ConfirmDialog must be placed here (outside overflow divs) */}
+        {selectedProject && (
+          <ConfirmDialog
+            open={openDialog}
+            onOpenChange={(open) => {
+              setOpenDialog(open)
+              if (!open) setSelectedProject(null)
+            }}
+            title="Delete Project"
+            desc={
+              <>
+                Are you sure you want to delete <strong>{selectedProject.name}</strong>? This action
+                cannot be undone.
+              </>
+            }
+            confirmText="Delete"
+            cancelBtnText="Cancel"
+            destructive
+            handleConfirm={() => {
+              deleteMutation.mutate(selectedProject.id, {
+                onSuccess: () => {
+                  toast.success("Project deleted successfully")
+                  setOpenDialog(false)
+                  setSelectedProject(null)
+                },
+                onError: () => {
+                  toast.error("Failed to delete project")
+                },
+              })
+            }}
+            isLoading={deleteMutation.isLoading}
+          />
+        )}
       </Main>
     </>
   )

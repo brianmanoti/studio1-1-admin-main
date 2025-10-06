@@ -303,6 +303,48 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
             {errors.company && <p className="text-red-500 text-sm">{errors.company}</p>}
           </div>
         </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Date
+          </label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-md p-2"
+            value={form.date || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+            disabled={isLocked}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Delivery Date
+          </label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-md p-2"
+            value={form.deliveryDate || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
+            disabled={isLocked}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Delivery Address
+          </label>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-md p-2"
+            placeholder="Enter delivery address"
+            value={form.deliveryAddress || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))}
+            disabled={isLocked}
+          />
+        </div>
+      </div>
       </section>
 
       {/* Vendor Info */}

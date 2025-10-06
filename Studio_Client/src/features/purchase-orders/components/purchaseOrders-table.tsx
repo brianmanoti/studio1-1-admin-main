@@ -13,7 +13,7 @@ import {
   type ColumnDef,
   Table as TanTable,
 } from '@tanstack/react-table'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, Pencil, Check, X, Trash, Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -29,8 +29,8 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { useNavigate } from '@tanstack/react-router'
 import axiosInstance from '@/lib/axios'
+import { toast } from 'sonner'
 
-/** Purchase Order type */
 export type PurchaseOrder = {
   _id: string
   poNumber: string
@@ -42,7 +42,7 @@ export type PurchaseOrder = {
   amount: number
 }
 
-/** Bulk actions bar */
+/** Bulk Actions */
 function PurchaseOrdersBulkActions({
   table,
   onBulkApprove,
@@ -55,10 +55,7 @@ function PurchaseOrdersBulkActions({
   onBulkDelete?: (rows: PurchaseOrder[]) => void
 }) {
   const selected = table.getSelectedRowModel().rows.map((r) => r.original)
-  const [dialog, setDialog] = React.useState<{
-    open: boolean
-    action?: 'approve' | 'reject' | 'delete'
-  }>({ open: false })
+  const [dialog, setDialog] = React.useState<{ open: boolean; action?: 'approve' | 'reject' | 'delete' }>({ open: false })
 
   const handleConfirm = () => {
     if (!dialog.action) return
@@ -71,7 +68,7 @@ function PurchaseOrdersBulkActions({
   if (selected.length === 0) return null
 
   return (
-    <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
+    <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-gray-50">
       <span className="text-sm text-gray-600">{selected.length} selected</span>
       <Button size="sm" onClick={() => setDialog({ open: true, action: 'approve' })}>
         Approve
@@ -79,11 +76,7 @@ function PurchaseOrdersBulkActions({
       <Button size="sm" onClick={() => setDialog({ open: true, action: 'reject' })}>
         Reject
       </Button>
-      <Button
-        size="sm"
-        variant="destructive"
-        onClick={() => setDialog({ open: true, action: 'delete' })}
-      >
+      <Button size="sm" variant="destructive" onClick={() => setDialog({ open: true, action: 'delete' })}>
         Delete
       </Button>
 
@@ -112,19 +105,37 @@ function PurchaseOrdersBulkActions({
   )
 }
 
-/** Columns with row actions */
+/** Status Badge Colors */
+function getStatusColor(status: PurchaseOrder['status']) {
+  switch (status) {
+    case 'approved':
+      return 'bg-green-100 text-green-700'
+    case 'declined':
+      return 'bg-red-100 text-red-700'
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-700'
+    case 'in-transit':
+      return 'bg-blue-100 text-blue-700'
+    case 'delivered':
+      return 'bg-purple-100 text-purple-700'
+    default:
+      return 'bg-gray-100 text-gray-700'
+  }
+}
+
+/** Columns */
 function getColumns({
   onView,
   onEdit,
-  onDelete,
   onApprove,
   onReject,
+  onDelete,
 }: {
   onView?: (po: PurchaseOrder) => void
   onEdit?: (po: PurchaseOrder) => void
-  onDelete?: (po: PurchaseOrder) => void
   onApprove?: (po: PurchaseOrder) => void
   onReject?: (po: PurchaseOrder) => void
+  onDelete?: (po: PurchaseOrder) => void
 }): ColumnDef<PurchaseOrder>[] {
   return [
     {
@@ -136,29 +147,42 @@ function getColumns({
             (table.getIsSomePageRowsSelected() && 'indeterminate')
           }
           onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-          aria-label="Select all"
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(v) => row.toggleSelected(!!v)}
-          aria-label="Select row"
         />
       ),
-      enableSorting: false,
-      enableHiding: false,
     },
     { accessorKey: 'poNumber', header: 'PO #' },
     { accessorKey: 'company', header: 'Company' },
     { accessorKey: 'vendorName', header: 'Vendor' },
-    { accessorKey: 'status', header: 'Status' },
-    { accessorKey: 'date', header: 'Date' },
-    { accessorKey: 'deliveryDate', header: 'Delivery' },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue }) => {
+        const status = getValue() as PurchaseOrder['status']
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(status)}`}>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </span>
+        )
+      },
+    },
+    { accessorKey: 'date', header: 'Date', cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'), },
+    { accessorKey: 'deliveryDate', header: 'Delivery',
+      cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'),
+
+     },
     {
       accessorKey: 'amount',
       header: 'Amount',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
+        cell: ({ getValue }) => {
+        const amount = getValue() as number
+        return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
+      },
     },
     {
       id: 'actions',
@@ -166,20 +190,27 @@ function getColumns({
       cell: ({ row }) => {
         const po = row.original
         return (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button onClick={() => onView?.(po)} title="View">
               <Eye className="w-4 h-4" />
             </button>
             <button onClick={() => onEdit?.(po)} title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={() => onApprove?.(po)}>
-              <Check className="w-4 h-4 text-green-600" />
-            </button>
-            <button onClick={() => onReject?.(po)}>
-              <X className="w-4 h-4 text-red-600" />
-            </button>
-            <button onClick={() => onDelete?.(po)}>
+
+            {/* ✅ Hide approve/reject for approved or declined */}
+            {po.status !== 'approved' && po.status !== 'declined' && (
+              <>
+                <button onClick={() => onApprove?.(po)} title="Approve">
+                  <Check className="w-4 h-4 text-green-600" />
+                </button>
+                <button onClick={() => onReject?.(po)} title="Reject">
+                  <X className="w-4 h-4 text-red-600" />
+                </button>
+              </>
+            )}
+
+            <button onClick={() => onDelete?.(po)} title="Delete">
               <Trash className="w-4 h-4 text-red-700" />
             </button>
           </div>
@@ -189,34 +220,65 @@ function getColumns({
   ]
 }
 
-/** Main PurchaseOrdersTable */
+/** Main Table Component */
 export function PurchaseOrderTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const projectId = '68de8b6a157949fa127747a1'
 
-  const navigate = useNavigate()
-
-  // ------------------- Fetch Purchase Orders -------------------
+  // --- Fetch Data ---
   const { data: purchaseOrders = [], isLoading, isError } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: async () => {
       const res = await axiosInstance.get('/api/purchase-orders')
       return res.data
     },
-    staleTime: 1000 * 60 * 5,
   })
 
+  // --- Mutations ---
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
+    onSuccess: () => {
+      toast.success('Purchase order approved.')
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/decline`),
+    onSuccess: () => {
+      toast.success('Purchase order rejected.')
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}`),
+    onSuccess: () => {
+      toast.success('Purchase order deleted.')
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+    },
+  })
+
+  const handleBulk = (rows: PurchaseOrder[], action: 'approve' | 'reject' | 'delete') => {
+    rows.forEach((row) => {
+      if (action === 'approve') approveMutation.mutate(row._id)
+      if (action === 'reject') rejectMutation.mutate(row._id)
+      if (action === 'delete') deleteMutation.mutate(row._id)
+    })
+  }
+
   const table = useReactTable({
-    data: purchaseOrders, // ✅ use API data
+    data: purchaseOrders,
     columns: getColumns({
-      onView: (po) => alert(`Viewing ${po.poNumber}`),
-      onEdit: (po) => alert(`Editing ${po.poNumber}`),
-      onApprove: (po) => alert(`Approved ${po.poNumber}`),
-      onReject: (po) => alert(`Rejected ${po.poNumber}`),
-      onDelete: (po) => alert(`Deleted ${po.poNumber}`),
+      onView: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}` }),
+      onEdit: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}/edit` }),
+      onApprove: (po) => approveMutation.mutate(po._id),
+      onReject: (po) => rejectMutation.mutate(po._id),
+      onDelete: (po) => deleteMutation.mutate(po._id),
     }),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
@@ -233,8 +295,8 @@ export function PurchaseOrderTable() {
   if (isError) return <div>Failed to load purchase orders.</div>
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-2 sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <DataTableToolbar
           table={table}
           searchPlaceholder="Search purchase orders..."
@@ -258,16 +320,14 @@ export function PurchaseOrderTable() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-md border">
-        <Table>
+      <div className="overflow-x-auto rounded-md border">
+        <Table className="min-w-full text-sm">
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
                 {hg.headers.map((header) => (
                   <TableHead key={header.id} colSpan={header.colSpan}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
@@ -299,9 +359,9 @@ export function PurchaseOrderTable() {
 
       <PurchaseOrdersBulkActions
         table={table}
-        onBulkApprove={(rows) => alert(`Bulk approved ${rows.length} purchase orders`)}
-        onBulkReject={(rows) => alert(`Bulk rejected ${rows.length} purchase orders`)}
-        onBulkDelete={(rows) => alert(`Bulk deleted ${rows.length} purchase orders`)}
+        onBulkApprove={(rows) => handleBulk(rows, 'approve')}
+        onBulkReject={(rows) => handleBulk(rows, 'reject')}
+        onBulkDelete={(rows) => handleBulk(rows, 'delete')}
       />
     </div>
   )

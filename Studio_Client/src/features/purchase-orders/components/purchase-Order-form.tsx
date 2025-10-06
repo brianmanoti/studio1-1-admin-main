@@ -39,7 +39,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     vendorAddress: '',
     items: [emptyItem()],
     amount: 0,
-    subcontractorId: '',
     estimateId: '',
     estimateLevel: 'estimate',
     estimateTargetId: '',
@@ -96,7 +95,7 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     mutationFn: (payload) => axiosInstance.post('/api/purchase-orders', payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries(['purchaseOrders']);
-      navigate({ to: `/purchase-orders/${data._id}` });
+      navigate({ to: `/projects/$projectId/purchaseOrders` });
     },
     onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create purchase order'),
   });
@@ -291,6 +290,51 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
         </div>
       </section>
 
+      {/* Order Info */}
+   
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Date
+          </label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-md p-2"
+            value={form.date || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+            disabled={isLocked}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Delivery Date
+          </label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-md p-2"
+            value={form.deliveryDate || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
+            disabled={isLocked}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Delivery Address
+          </label>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-md p-2"
+            placeholder="Enter delivery address"
+            value={form.deliveryAddress || ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))}
+            disabled={isLocked}
+          />
+        </div>
+      </div>
+
+
       {/* Vendor Info */}
       <section className="space-y-4">
         <h3 className="font-semibold text-gray-700 border-b pb-2">Vendor Information</h3>
@@ -337,33 +381,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
               value={form.vendorAddress}
               onChange={(e) => setField('vendorAddress', e.target.value)}
             />
-          </div>
-        </div>
-      </section>
-
-      {/* Other Details */}
-      <section className="space-y-4">
-        <h3 className="font-semibold text-gray-700 border-b pb-2">Other Details</h3>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium">Subcontractor ID</label>
-            <input
-              className="w-full border p-2 rounded"
-              value={form.subcontractorId}
-              onChange={(e) => setField('subcontractorId', e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Status</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={form.status}
-              onChange={(e) => setField('status', e.target.value)}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="delivered">Delivered</option>
-            </select>
           </div>
         </div>
       </section>
