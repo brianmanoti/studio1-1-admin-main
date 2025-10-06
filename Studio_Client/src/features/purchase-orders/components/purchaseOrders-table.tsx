@@ -62,7 +62,6 @@ function PurchaseOrdersBulkActions({
     if (dialog.action === 'approve') onBulkApprove?.(selected)
     if (dialog.action === 'reject') onBulkReject?.(selected)
     if (dialog.action === 'delete') onBulkDelete?.(selected)
-    setDialog({ open: false })
   }
 
   if (selected.length === 0) return null
@@ -133,9 +132,9 @@ function getColumns({
 }: {
   onView?: (po: PurchaseOrder) => void
   onEdit?: (po: PurchaseOrder) => void
-  onApprove?: (po: PurchaseOrder) => void
-  onReject?: (po: PurchaseOrder) => void
-  onDelete?: (po: PurchaseOrder) => void
+  onApprove?: (po: PurchaseOrder, closeDialog: () => void) => void
+  onReject?: (po: PurchaseOrder, closeDialog: () => void) => void
+  onDelete?: (po: PurchaseOrder, closeDialog: () => void) => void
 }): ColumnDef<PurchaseOrder>[] {
   return [
     {
@@ -198,10 +197,9 @@ function getColumns({
 
         const handleConfirm = () => {
           if (!dialog.action) return
-          if (dialog.action === 'approve') onApprove?.(po)
-          if (dialog.action === 'reject') onReject?.(po)
-          if (dialog.action === 'delete') onDelete?.(po)
-          setDialog({ open: false })
+          if (dialog.action === 'approve') onApprove?.(po, () => setDialog({ open: false }))
+          if (dialog.action === 'reject') onReject?.(po, () => setDialog({ open: false }))
+          if (dialog.action === 'delete') onDelete?.(po, () => setDialog({ open: false }))
         }
 
         return (
@@ -265,36 +263,35 @@ export function PurchaseOrderTable() {
   const navigate = useNavigate()
   const projectId = '68de8b6a157949fa127747a1'
 
-  const { data: purchaseOrders = [], isLoading, isError } = useQuery({
-    queryKey: ['purchaseOrders'],
-    queryFn: async () => {
-      const res = await axiosInstance.get('/api/purchase-orders')
-      return res.data
-    },
-  })
-
+  /** ✅ Mutations with success-only dialog closing */
   const approveMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
-    onSuccess: () => {
+    onSuccess: (_, id, context: any) => {
       toast.success('Purchase order approved.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+      context?.closeDialog?.()
     },
+    onError: () => toast.error('Failed to approve purchase order. Please try again.'),
   })
 
   const rejectMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/decline`),
-    onSuccess: () => {
+    onSuccess: (_, id, context: any) => {
       toast.success('Purchase order rejected.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+      context?.closeDialog?.()
     },
+    onError: () => toast.error('Failed to reject purchase order. Please try again.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}`),
-    onSuccess: () => {
+    onSuccess: (_, id, context: any) => {
       toast.success('Purchase order deleted.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+      context?.closeDialog?.()
     },
+    onError: () => toast.error('Failed to delete purchase order. Please try again.'),
   })
 
   const handleBulk = (rows: PurchaseOrder[], action: 'approve' | 'reject' | 'delete') => {
@@ -306,13 +303,16 @@ export function PurchaseOrderTable() {
   }
 
   const table = useReactTable({
-    data: purchaseOrders,
+    data: useQuery({
+      queryKey: ['purchaseOrders'],
+      queryFn: async () => (await axiosInstance.get('/api/purchase-orders')).data,
+    }).data || [],
     columns: getColumns({
       onView: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}` }),
       onEdit: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}/edit` }),
-      onApprove: (po) => approveMutation.mutate(po._id),
-      onReject: (po) => rejectMutation.mutate(po._id),
-      onDelete: (po) => deleteMutation.mutate(po._id),
+      onApprove: (po, closeDialog) => approveMutation.mutate(po._id, { context: { closeDialog } }),
+      onReject: (po, closeDialog) => rejectMutation.mutate(po._id, { context: { closeDialog } }),
+      onDelete: (po, closeDialog) => deleteMutation.mutate(po._id, { context: { closeDialog } }),
     }),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
@@ -324,9 +324,6 @@ export function PurchaseOrderTable() {
     getSortedRowModel: getSortedRowModel(),
     enableRowSelection: true,
   })
-
-  if (isLoading) return <div>Loading purchase orders...</div>
-  if (isError) return <div>Failed to load purchase orders.</div>
 
   return (
     <div className="space-y-4 p-2 sm:p-4">

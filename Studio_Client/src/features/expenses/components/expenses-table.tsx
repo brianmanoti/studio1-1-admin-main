@@ -13,7 +13,7 @@ import {
   type ColumnDef,
   Table as TanTable,
 } from '@tanstack/react-table'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, Pencil, Check, X, Trash, Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { useNavigate } from '@tanstack/react-router'
 import axiosInstance from '@/lib/axios'
+import { toast } from 'sonner'
 
 /** Expense type */
 export type Expense = {
@@ -158,7 +159,7 @@ function getColumns({
     {
       accessorKey: 'amount',
       header: 'Amount',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
+      cell: ({ getValue }) => `KES ${(getValue() as number).toLocaleString()}`,
     },
     {
       id: 'actions',
@@ -189,16 +190,16 @@ function getColumns({
   ]
 }
 
-/** Main ExpensesTable component */
 export function ExpensesTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
   const projectId = '68de8b6a157949fa127747a1'
 
-  // ✅ Fetch from API
+  // ✅ Fetch expenses
   const {
     data: expenses = [],
     isLoading,
@@ -212,14 +213,42 @@ export function ExpensesTable() {
     staleTime: 1000 * 60 * 5,
   })
 
+  // ✅ Mutations
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => axiosInstance.patch(`/api/expenses/${id}/approve`),
+    onSuccess: () => {
+      toast.success('Expense approved successfully')
+      queryClient.invalidateQueries({ queryKey: ['expensesList'] })
+    },
+    onError: () => toast.error('Failed to approve expense'),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => axiosInstance.patch(`/api/expenses/${id}/reject`),
+    onSuccess: () => {
+      toast.success('Expense rejected successfully')
+      queryClient.invalidateQueries({ queryKey: ['expensesList'] })
+    },
+    onError: () => toast.error('Failed to reject expense'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axiosInstance.delete(`/api/expenses/${id}`),
+    onSuccess: () => {
+      toast.success('Expense deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['expensesList'] })
+    },
+    onError: () => toast.error('Failed to delete expense'),
+  })
+
   const table = useReactTable({
-    data: expenses, // ✅ use API data instead of dummyExpenses
+    data: expenses,
     columns: getColumns({
-      onView: (e) => alert(`Viewing ${e.expenseNumber}`),
-      onEdit: (e) => alert(`Editing ${e.expenseNumber}`),
-      onApprove: (e) => alert(`Approved ${e.expenseNumber}`),
-      onReject: (e) => alert(`Rejected ${e.expenseNumber}`),
-      onDelete: (e) => alert(`Deleted ${e.expenseNumber}`),
+      onView: (e) => navigate({ to: `/projects/${projectId}/subcontractors/expenses/${e._id}` }),
+      onEdit: (e) => navigate({ to: `/projects/${projectId}/subcontractors/expenses/${e._id}/edit` }),
+      onApprove: (e) => approveMutation.mutate(e._id),
+      onReject: (e) => rejectMutation.mutate(e._id),
+      onDelete: (e) => deleteMutation.mutate(e._id),
     }),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
@@ -255,7 +284,7 @@ export function ExpensesTable() {
             },
           ]}
         />
-        <Button onClick={() => navigate({ to: `/projects/${projectId}/expenses/new` })}>
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/expenses/new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Expense
         </Button>
@@ -302,9 +331,9 @@ export function ExpensesTable() {
 
       <ExpensesBulkActions
         table={table}
-        onBulkApprove={(rows) => alert(`Bulk approved ${rows.length} expenses`)}
-        onBulkReject={(rows) => alert(`Bulk rejected ${rows.length} expenses`)}
-        onBulkDelete={(rows) => alert(`Bulk deleted ${rows.length} expenses`)}
+        onBulkApprove={(rows) => rows.forEach((e) => approveMutation.mutate(e._id))}
+        onBulkReject={(rows) => rows.forEach((e) => rejectMutation.mutate(e._id))}
+        onBulkDelete={(rows) => rows.forEach((e) => deleteMutation.mutate(e._id))}
       />
     </div>
   )

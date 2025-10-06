@@ -21,6 +21,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axiosInstance from '@/lib/axios'
 import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
 
 export type Wage = {
   _id: string
@@ -88,18 +89,26 @@ export function WagesTable() {
       action: 'approve' | 'reject' | 'delete'
       ids: string[]
     }) => {
-      const endpoint =
-        action === 'approve'
-          ? '/api/wages/approve'
-          : action === 'reject'
-          ? '/api/wages/reject'
-          : '/api/wages/delete'
-      await axiosInstance.post(endpoint, { ids })
+      const requests = ids.map((id) => {
+        if (action === 'approve') {
+          return axiosInstance.patch(`/api/wages/${id}/approve`)
+        } else if (action === 'reject') {
+          return axiosInstance.patch(`/api/wages/${id}/reject`)
+        } else {
+          return axiosInstance.delete(`/api/wages/${id}`)
+        }
+      })
+      await Promise.all(requests)
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['wages', projectId])
       setDialog({ open: false })
       setRowSelection({})
+      toast.success('Action completed successfully.')
+    },
+    onError: (error) => {
+      console.error('Error performing action:', error)
+      toast.error('Action failed. Please try again.')
     },
   })
 
@@ -117,84 +126,79 @@ export function WagesTable() {
   // --- Table config ---
   const table = useReactTable({
     data: wages ?? [],
-    columns: React.useMemo<ColumnDef<Wage>[]>(
-      () => [
-        {
-          id: 'select',
-          header: ({ table }) => (
-            <Checkbox
-              checked={table.getIsAllPageRowsSelected()}
-              indeterminate={table.getIsSomePageRowsSelected()}
-              onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-              aria-label="Select all"
-            />
-          ),
-          cell: ({ row }) => (
-            <Checkbox
-              checked={row.getIsSelected()}
-              indeterminate={row.getIsSomeSelected()}
-              onCheckedChange={(v) => row.toggleSelected(!!v)}
-              aria-label="Select row"
-            />
-          ),
-          enableSorting: false,
-          enableHiding: false,
+    columns: React.useMemo<ColumnDef<Wage>[]>(() => [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected()}
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            indeterminate={row.getIsSomeSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+      },
+      { accessorKey: 'wageNumber', header: 'Wage #' },
+      { accessorKey: 'company', header: 'Company' },
+      { accessorKey: 'vendorName', header: 'Vendor' },
+      { accessorKey: 'status', header: 'Status' },
+      {
+        accessorKey: 'date',
+        header: 'Date',
+        cell: ({ getValue }) => formatKenyaDate(getValue() as string),
+      },
+      {
+        accessorKey: 'deliveryDate',
+        header: 'Delivery',
+        cell: ({ getValue }) => formatKenyaDate(getValue() as string),
+      },
+      {
+        accessorKey: 'amount',
+        header: 'Amount',
+        cell: ({ getValue }) => formatKES(getValue() as number),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => {
+          const wage = row.original
+          if (!wage) return null
+          return (
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}` })}
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}/edit` })}
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button onClick={() => setDialog({ open: true, wage, action: 'approve' })}>
+                <Check className="w-4 h-4 text-green-600" />
+              </button>
+              <button onClick={() => setDialog({ open: true, wage, action: 'reject' })}>
+                <X className="w-4 h-4 text-red-600" />
+              </button>
+              <button onClick={() => setDialog({ open: true, wage, action: 'delete' })}>
+                <Trash className="w-4 h-4 text-red-700" />
+              </button>
+            </div>
+          )
         },
-        { accessorKey: 'wageNumber', header: 'Wage #' },
-        { accessorKey: 'company', header: 'Company' },
-        { accessorKey: 'vendorName', header: 'Vendor' },
-        { accessorKey: 'status', header: 'Status' },
-        {
-          accessorKey: 'date',
-          header: 'Date',
-          cell: ({ getValue }) => formatKenyaDate(getValue() as string),
-        },
-        {
-          accessorKey: 'deliveryDate',
-          header: 'Delivery',
-          cell: ({ getValue }) => formatKenyaDate(getValue() as string),
-        },
-        {
-          accessorKey: 'amount',
-          header: 'Amount',
-          cell: ({ getValue }) => formatKES(getValue() as number),
-        },
-        {
-          id: 'actions',
-          header: 'Actions',
-          cell: ({ row }) => {
-            const wage = row.original
-            if (!wage) return null
-            return (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}` })}
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() =>
-                    navigate({ to: `/projects/${projectId}/wages/${wage._id}/edit` })
-                  }
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button onClick={() => setDialog({ open: true, wage, action: 'approve' })}>
-                  <Check className="w-4 h-4 text-green-600" />
-                </button>
-                <button onClick={() => setDialog({ open: true, wage, action: 'reject' })}>
-                  <X className="w-4 h-4 text-red-600" />
-                </button>
-                <button onClick={() => setDialog({ open: true, wage, action: 'delete' })}>
-                  <Trash className="w-4 h-4 text-red-700" />
-                </button>
-              </div>
-            )
-          },
-        },
-      ],
-      [navigate]
-    ),
+      },
+    ], [navigate]),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -261,10 +265,7 @@ export function WagesTable() {
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() ? 'selected' : undefined}
-                >
+                <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -274,10 +275,7 @@ export function WagesTable() {
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={table.getAllColumns().length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
                   No results.
                 </TableCell>
               </TableRow>
@@ -293,26 +291,20 @@ export function WagesTable() {
           <span className="text-sm text-gray-600">{selectedRows.length} selected</span>
           <Button
             size="sm"
-            onClick={() =>
-              setDialog({ open: true, action: 'approve', bulk: true, rows: selectedRows })
-            }
+            onClick={() => setDialog({ open: true, action: 'approve', bulk: true, rows: selectedRows })}
           >
             Approve
           </Button>
           <Button
             size="sm"
-            onClick={() =>
-              setDialog({ open: true, action: 'reject', bulk: true, rows: selectedRows })
-            }
+            onClick={() => setDialog({ open: true, action: 'reject', bulk: true, rows: selectedRows })}
           >
             Reject
           </Button>
           <Button
             size="sm"
             variant="destructive"
-            onClick={() =>
-              setDialog({ open: true, action: 'delete', bulk: true, rows: selectedRows })
-            }
+            onClick={() => setDialog({ open: true, action: 'delete', bulk: true, rows: selectedRows })}
           >
             Delete
           </Button>
