@@ -171,15 +171,20 @@ function getColumns({
         )
       },
     },
-    { accessorKey: 'date', header: 'Date', cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'), },
-    { accessorKey: 'deliveryDate', header: 'Delivery',
+    {
+      accessorKey: 'date',
+      header: 'Date',
       cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'),
-
-     },
+    },
+    {
+      accessorKey: 'deliveryDate',
+      header: 'Delivery',
+      cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString('en-KE'),
+    },
     {
       accessorKey: 'amount',
       header: 'Amount',
-        cell: ({ getValue }) => {
+      cell: ({ getValue }) => {
         const amount = getValue() as number
         return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
       },
@@ -189,6 +194,16 @@ function getColumns({
       header: 'Actions',
       cell: ({ row }) => {
         const po = row.original
+        const [dialog, setDialog] = React.useState<{ open: boolean; action?: 'approve' | 'reject' | 'delete' }>({ open: false })
+
+        const handleConfirm = () => {
+          if (!dialog.action) return
+          if (dialog.action === 'approve') onApprove?.(po)
+          if (dialog.action === 'reject') onReject?.(po)
+          if (dialog.action === 'delete') onDelete?.(po)
+          setDialog({ open: false })
+        }
+
         return (
           <div className="flex flex-wrap gap-2">
             <button onClick={() => onView?.(po)} title="View">
@@ -198,21 +213,42 @@ function getColumns({
               <Pencil className="w-4 h-4" />
             </button>
 
-            {/* ✅ Hide approve/reject for approved or declined */}
             {po.status !== 'approved' && po.status !== 'declined' && (
               <>
-                <button onClick={() => onApprove?.(po)} title="Approve">
+                <button onClick={() => setDialog({ open: true, action: 'approve' })} title="Approve">
                   <Check className="w-4 h-4 text-green-600" />
                 </button>
-                <button onClick={() => onReject?.(po)} title="Reject">
+                <button onClick={() => setDialog({ open: true, action: 'reject' })} title="Reject">
                   <X className="w-4 h-4 text-red-600" />
                 </button>
               </>
             )}
 
-            <button onClick={() => onDelete?.(po)} title="Delete">
+            <button onClick={() => setDialog({ open: true, action: 'delete' })} title="Delete">
               <Trash className="w-4 h-4 text-red-700" />
             </button>
+
+            <ConfirmDialog
+              open={dialog.open}
+              onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+              title={
+                dialog.action === 'delete'
+                  ? 'Delete Purchase Order'
+                  : dialog.action === 'approve'
+                  ? 'Approve Purchase Order'
+                  : 'Reject Purchase Order'
+              }
+              desc={`Are you sure you want to ${dialog.action} this purchase order?`}
+              destructive={dialog.action === 'delete' || dialog.action === 'reject'}
+              handleConfirm={handleConfirm}
+              confirmText={
+                dialog.action === 'delete'
+                  ? 'Delete'
+                  : dialog.action === 'approve'
+                  ? 'Approve'
+                  : 'Reject'
+              }
+            />
           </div>
         )
       },
@@ -229,7 +265,6 @@ export function PurchaseOrderTable() {
   const navigate = useNavigate()
   const projectId = '68de8b6a157949fa127747a1'
 
-  // --- Fetch Data ---
   const { data: purchaseOrders = [], isLoading, isError } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: async () => {
@@ -238,7 +273,6 @@ export function PurchaseOrderTable() {
     },
   })
 
-  // --- Mutations ---
   const approveMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
     onSuccess: () => {
