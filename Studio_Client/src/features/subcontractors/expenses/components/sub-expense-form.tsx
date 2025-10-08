@@ -98,7 +98,7 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
   queryKey: ['subcontractors'],
   queryFn: async () => {
     const res = await axiosInstance.get('/api/subcontractors');
-    return Array.isArray(res.data) ? res.data : []; // ensure always an array
+    return Array.isArray(res.data.data) ? res.data.data : []; // ensure always an array
   },
   staleTime: 1000 * 60 * 10,
 });
