@@ -95,9 +95,9 @@ export default function WageOrderForm({ wageId }) {
     mutationFn: (payload) => axiosInstance.post('/api/wages', payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries(['wages']);
-      navigate({ to: `/wages/${data._id}` });
+      navigate({ to: `/projects/$projectId/wages` });
     },
-    onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create purchase order'),
+    onError: (err) => setServerError(err?.response?.data?.message || 'Failed to Wage order'),
   });
 
   const updateMutation = useMutation({
@@ -483,7 +483,7 @@ export default function WageOrderForm({ wageId }) {
               ? 'Saving…'
               : wageId
               ? 'Save Changes'
-              : 'Create Purchase Order'}
+              : 'Create Wage'}
           </button>
         )}
         {wageId && (

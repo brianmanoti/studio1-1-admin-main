@@ -258,8 +258,8 @@ export function ExpensesTable() {
   const table = useReactTable({
     data: expenses,
     columns: getColumns({
-      onView: (e) => navigate({ to: `/projects/${projectId}/subcontractors/expenses/${e._id}` }),
-      onEdit: (e) => navigate({ to: `/projects/${projectId}/subcontractors/expenses/${e._id}/edit` }),
+      onView: (e) => navigate({ to: `/projects/${projectId}/expenses/${e._id}` }),
+      onEdit: (e) => navigate({ to: `/projects/${projectId}/expenses/edit/${e._id}` }),
       onApproveConfirm: (e) => setDialog({ open: true, action: 'approve', expense: e }),
       onRejectConfirm: (e) => setDialog({ open: true, action: 'reject', expense: e }),
       onDeleteConfirm: (e) => setDialog({ open: true, action: 'delete', expense: e }),

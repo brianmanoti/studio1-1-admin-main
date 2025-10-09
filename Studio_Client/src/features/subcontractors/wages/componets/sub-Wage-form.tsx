@@ -110,7 +110,7 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
     mutationFn: (payload) => axiosInstance.post('/api/wages', payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries(['wages']);
-      navigate({ to: `/wages/${data._id}` });
+      navigate({ to: `/projects/$projectId/subcontractors/wages` });
     },
     onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create purchase order'),
   });

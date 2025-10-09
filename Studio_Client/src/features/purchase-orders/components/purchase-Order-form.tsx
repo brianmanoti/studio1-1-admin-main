@@ -24,7 +24,7 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   const isMountedRef = useRef(true);
 
   const defaultForm = {
-    projectId: '',
+    projectId: '68dea2f589c927f88ef8ff3',
     reference: '',
     company: '',
     status: 'pending',

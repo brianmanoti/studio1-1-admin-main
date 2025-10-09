@@ -67,7 +67,7 @@ export default function SubExpenseForm({ expenseId }) {
     staleTime: 1000 * 60 * 5,
   });
 
-  // ------------------- Fetch existing wage -------------------
+  // ------------------- Fetch existing Expense-------------------
   useQuery({
     queryKey: ['expenses', expenseId],
     enabled: !!expenseId,
@@ -88,7 +88,7 @@ export default function SubExpenseForm({ expenseId }) {
       setIsDeletedMode(!!po?.isDeleted);
     },
     onError() {
-      setServerError('Failed to load wage  data');
+      setServerError('Failed to load expense  data');
     },
   });
 
@@ -110,17 +110,17 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
     mutationFn: (payload) => axiosInstance.post('/api/expenses', payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries(['expenses']);
-      navigate({ to: `/expenses/${data._id}` });
+      navigate({ to: `/projects/$projectId/expenses` });
     },
-    onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create purchase order'),
+    onError: (err) => setServerError(err?.response?.data?.message || 'Failed to create expense order'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (payload) =>
-      axiosInstance.put(`/api/wage/${expenseId}`, payload).then((res) => res.data),
+      axiosInstance.put(`/api/expenses/${expenseId}`, payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries(['expenses', expenseId]);
-      navigate({ to: `/wage/${data._id}` });
+      navigate({ to: `/projects/$projectId/expenses/${data._id}` });
     },
     onError: (err) => setServerError(err?.response?.data?.message || 'Failed to update Expense order'),
   });
@@ -534,7 +534,7 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
               ? 'Saving…'
               : expenseId
               ? 'Save Changes'
-              : 'Create Purchase Order'}
+              : 'Create Expense'}
           </button>
         )}
         {expenseId && (
