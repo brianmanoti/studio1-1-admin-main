@@ -202,10 +202,10 @@ export function SubPurchaseOrderTable() {
 
   // ------------------- Fetch Purchase Orders -------------------
   const { data: purchaseOrders = [], isLoading, isError } = useQuery({
-    queryKey: ['purchaseOrders'],
+    queryKey: ['purchaseOrders', projectId],
     queryFn: async () => {
-      const res = await axiosInstance.get('/api/purchase-orders')
-      return res.data
+      const res = await axiosInstance.get(`/api/purchase-orders/projects/${projectId}`)
+      return res.data.data
     },
     staleTime: 1000 * 60 * 5,
   })

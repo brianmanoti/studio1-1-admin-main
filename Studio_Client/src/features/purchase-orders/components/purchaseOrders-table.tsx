@@ -305,8 +305,8 @@ export function PurchaseOrderTable() {
 
   const table = useReactTable({
     data: useQuery({
-      queryKey: ['purchaseOrders'],
-      queryFn: async () => (await axiosInstance.get('/api/purchase-orders')).data,
+      queryKey: ['purchaseOrders', projectId],
+      queryFn: async () => (await axiosInstance.get(`/api/purchase-orders/project/${projectId}`)).data.data,
     }).data || [],
     columns: getColumns({
       onView: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}` }),
