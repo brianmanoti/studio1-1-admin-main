@@ -22,6 +22,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axiosInstance from '@/lib/axios'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { useProjectStore } from '@/stores/projectStore'
 
 export type Wage = {
   _id: string
@@ -67,16 +68,17 @@ export function WagesTable() {
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const projectId = '68de8b6a157949fa127747a1'
+  const projectId = useProjectStore((state) => state.projectId)
 
   // --- Fetch wages ---
   const { data: wages = [], isLoading, isError } = useQuery({
     queryKey: ['wages', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const res = await axiosInstance.get(`/api/wages`)
+      const res = await axiosInstance.get(`/api/wages/project/${projectId}`)
       return res.data ?? []
     },
+    enabled: !!projectId, // only run if projectId is available
     staleTime: 1000 * 60 * 5,
   })
 

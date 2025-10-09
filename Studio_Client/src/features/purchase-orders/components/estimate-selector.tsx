@@ -1,15 +1,70 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axiosInstance from '@/lib/axios';
+import { useProjectStore } from '@/stores/projectStore';
 
 export default function EstimateSelector({ onChange }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['estimateData'],
+  const projectId = useProjectStore((state) => state.projectId);
+  const queryClient = useQueryClient();
+
+  // ✅ Prefetch estimates early whenever projectId changes
+  useEffect(() => {
+    if (projectId) {
+      queryClient.prefetchQuery({
+        queryKey: ['estimatesByProject', projectId],
+        queryFn: async () => {
+          const res = await axiosInstance.get(`/api/estimates/project/${projectId}`);
+          return res.data;
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [projectId, queryClient]);
+
+  // ✅ Fetch estimates for current project
+  const {
+    data: estimates,
+    isLoading: loadingEstimates,
+    isError: estimateError,
+  } = useQuery({
+    queryKey: ['estimatesByProject', projectId],
     queryFn: async () => {
-      const res = await axiosInstance.get('/api/estimates/EST-ad981a8c0c41/structure');
+      const res = await axiosInstance.get(`/api/estimates/project/${projectId}`);
       return res.data;
     },
-    staleTime: 1000 * 60 * 5,
+    enabled: !!projectId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const estimateId = useMemo(() => estimates?.[0]?.estimateId ?? null, [estimates]);
+
+  // ✅ Prefetch the estimate structure as soon as we know estimateId
+  useEffect(() => {
+    if (estimateId) {
+      queryClient.prefetchQuery({
+        queryKey: ['estimateData', estimateId],
+        queryFn: async () => {
+          const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`);
+          return res.data;
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [estimateId, queryClient]);
+
+  // ✅ Fetch the actual estimate structure (will hit cache if prefetched)
+  const {
+    data,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['estimateData', estimateId],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`);
+      return res.data;
+    },
+    enabled: !!estimateId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const [estimateLevel, setEstimateLevel] = useState('estimate');
@@ -19,20 +74,15 @@ export default function EstimateSelector({ onChange }) {
     subsectionId: '',
   });
 
-  // --- Flatten nested structure for easier lookup ---
+  // ✅ Memoize derived data for speed
   const allSections = useMemo(() => {
-    if (!data?.groups) return [];
-    return data.groups.flatMap((g) =>
-      (g.sections || []).map((s) => ({
-        ...s,
-        groupId: g.key,
-      }))
-    );
+    return data?.groups?.flatMap((g) =>
+      (g.sections || []).map((s) => ({ ...s, groupId: g.key }))
+    ) ?? [];
   }, [data]);
 
   const allSubsections = useMemo(() => {
-    if (!data?.groups) return [];
-    return data.groups.flatMap((g) =>
+    return data?.groups?.flatMap((g) =>
       (g.sections || []).flatMap((s) =>
         (s.subsections || []).map((sub) => ({
           ...sub,
@@ -40,73 +90,90 @@ export default function EstimateSelector({ onChange }) {
           groupId: g.key,
         }))
       )
-    );
+    ) ?? [];
   }, [data]);
 
-  // --- Filtered options ---
   const filteredSections = useMemo(() => {
-    if (!selected.groupId) return allSections;
-    return allSections.filter((s) => s.groupId === selected.groupId);
+    return selected.groupId
+      ? allSections.filter((s) => s.groupId === selected.groupId)
+      : allSections;
   }, [allSections, selected.groupId]);
 
   const filteredSubsections = useMemo(() => {
-    if (!selected.sectionId) return allSubsections;
-    return allSubsections.filter((sub) => sub.sectionId === selected.sectionId);
+    return selected.sectionId
+      ? allSubsections.filter((sub) => sub.sectionId === selected.sectionId)
+      : allSubsections;
   }, [allSubsections, selected.sectionId]);
 
-  if (isLoading) return <div className="text-gray-500 text-sm">Loading estimate…</div>;
-  if (isError) return <div className="text-red-500 text-sm">Failed to load estimate data</div>;
+  // ✅ useCallback ensures no re-creation of functions
+  const emit = useCallback(
+    (targetId) => {
+      onChange?.({
+        estimateId: data?.estimateId || '',
+        estimateLevel,
+        estimateTargetId: targetId || null,
+      });
+    },
+    [onChange, data?.estimateId, estimateLevel]
+  );
+
+  const handleLevelChange = useCallback(
+    (e) => {
+      const level = e.target.value;
+      setEstimateLevel(level);
+      setSelected({ groupId: '', sectionId: '', subsectionId: '' });
+      emit(null);
+    },
+    [emit]
+  );
+
+  const handleSelect = useCallback(
+    (key, value) => {
+      let next = { ...selected, [key]: value };
+
+      if (key === 'groupId') {
+        next.sectionId = '';
+        next.subsectionId = '';
+      } else if (key === 'sectionId') {
+        next.subsectionId = '';
+        const section = allSections.find((sec) => sec.key === value);
+        if (section) next.groupId = section.groupId;
+      } else if (key === 'subsectionId') {
+        const sub = allSubsections.find((ss) => ss.key === value);
+        if (sub) {
+          next.sectionId = sub.sectionId;
+          next.groupId = sub.groupId;
+        }
+      }
+
+      setSelected(next);
+
+      const target =
+        estimateLevel === 'group'
+          ? next.groupId
+          : estimateLevel === 'section'
+          ? next.sectionId
+          : estimateLevel === 'subsection'
+          ? next.subsectionId
+          : null;
+
+      emit(target);
+    },
+    [allSections, allSubsections, estimateLevel, emit, selected]
+  );
+
+  // ✅ Friendly Loading & Error UI
+  if (isLoading || loadingEstimates)
+    return <div className="text-gray-500 text-sm">Loading estimate…</div>;
+
+  if (isError || estimateError)
+    return <div className="text-red-500 text-sm">Failed to load estimate data</div>;
+
   if (!data) return null;
 
-  // --- Emit selection up to parent ---
-  const emit = (targetId) => {
-    onChange?.({
-      estimateId: data?.estimateId || '',
-      estimateLevel,
-      estimateTargetId: targetId || null,
-    });
-  };
-
-  // --- Handlers ---
-  const handleLevelChange = (e) => {
-    const level = e.target.value;
-    setEstimateLevel(level);
-    setSelected({ groupId: '', sectionId: '', subsectionId: '' });
-    emit(null);
-  };
-
-  const handleSelect = (key, value) => {
-    let next = { ...selected, [key]: value };
-
-    if (key === 'groupId') {
-      next.sectionId = '';
-      next.subsectionId = '';
-    }
-    if (key === 'sectionId') {
-      next.subsectionId = '';
-      const section = allSections.find((sec) => sec.key === value);
-      if (section) next.groupId = section.groupId;
-    }
-    if (key === 'subsectionId') {
-      const sub = allSubsections.find((ss) => ss.key === value);
-      if (sub) {
-        next.sectionId = sub.sectionId;
-        next.groupId = sub.groupId;
-      }
-    }
-
-    setSelected(next);
-
-    let target = null;
-    if (estimateLevel === 'group') target = next.groupId || null;
-    if (estimateLevel === 'section') target = next.sectionId || null;
-    if (estimateLevel === 'subsection') target = next.subsectionId || null;
-    emit(target);
-  };
-
-  // --- UI ---
   return (
     <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md space-y-3">
+      {/* Estimate Level Selector */}
       <div>
         <label className="block text-sm font-medium text-blue-800 mb-1">Estimate Level</label>
         <select
@@ -121,7 +188,10 @@ export default function EstimateSelector({ onChange }) {
         </select>
       </div>
 
-      {(estimateLevel === 'group' || estimateLevel === 'section' || estimateLevel === 'subsection') && (
+      {/* Group Selector */}
+      {(estimateLevel === 'group' ||
+        estimateLevel === 'section' ||
+        estimateLevel === 'subsection') && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Group</label>
           <select
@@ -139,6 +209,7 @@ export default function EstimateSelector({ onChange }) {
         </div>
       )}
 
+      {/* Section Selector */}
       {(estimateLevel === 'section' || estimateLevel === 'subsection') && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Section</label>
@@ -158,6 +229,7 @@ export default function EstimateSelector({ onChange }) {
         </div>
       )}
 
+      {/* Subsection Selector */}
       {estimateLevel === 'subsection' && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Subsection</label>

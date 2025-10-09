@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { useNavigate } from '@tanstack/react-router'
 import axiosInstance from '@/lib/axios'
+import { useProjectStore } from '@/stores/projectStore'
 
 /** Purchase Order type */
 export type PurchaseOrder = {
@@ -195,7 +196,7 @@ export function SubPurchaseOrderTable() {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
-  const projectId = '68de8b6a157949fa127747a1'
+  const projectId = useProjectStore((state) => state.projectId)
 
   const navigate = useNavigate()
 

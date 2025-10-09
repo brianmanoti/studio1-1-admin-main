@@ -30,6 +30,7 @@ import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { useNavigate } from '@tanstack/react-router'
 import axiosInstance from '@/lib/axios'
 import { toast } from 'sonner'
+import { useProjectStore } from '@/stores/projectStore'
 
 /** Expense type */
 export type Expense = {
@@ -199,7 +200,7 @@ export function ExpensesTable() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const projectId = '68de8b6a157949fa127747a1'
+  const projectId = useProjectStore((state) => state.projectId)
 
   // ✅ Fetch expenses
   const {
