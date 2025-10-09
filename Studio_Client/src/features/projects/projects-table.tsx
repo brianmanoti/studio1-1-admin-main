@@ -51,192 +51,195 @@ const ProjectList: React.FC = () => {
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
 
-  // Confirm dialog
+  // Confirm dialog state
   const [openDialog, setOpenDialog] = useState(false)
   const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
 
   const notify = () => toast("Project created")
 
-  // Filtered list (search + type)
+  // ✅ Filtered list (handles empty, undefined, or partial data safely)
   const filteredProjects = useMemo(() => {
-    if (!projects?.length) return []
+    if (!projects || projects.length === 0) return []
     const s = search.trim().toLowerCase()
     return projects.filter((p) => {
-      const matchesSearch = !s || p.name?.toLowerCase().includes(s)
-      const matchesType = projectType ? p.type === projectType : true
+      const name = p?.name?.toLowerCase() || ""
+      const matchesSearch = !s || name.includes(s)
+      const matchesType = projectType ? p?.type === projectType : true
       return matchesSearch && matchesType
     })
   }, [projects, search, projectType])
 
-  // Columns
-  const columns = useMemo<ColumnDef<Project>[]>(() => {
-    return [
-      {
-        header: "ID",
-        accessorKey: "projectNumber",
-        cell: (info) => (
-          <span className="text-xs font-medium text-muted-foreground">{info.getValue() || "N/A"}</span>
-        ),
-      },
-      {
-        header: "Name",
-        accessorKey: "name",
-        cell: (info) => {
-          const project = info.row.original
-          return (
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-                {project.name?.charAt(0).toUpperCase()}
-              </span>
-              <span className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-                {project.name}
-              </span>
-            </div>
-          )
-        },
-      },
-      {
-        header: "Client",
-        accessorKey: "client.companyName",
-        cell: (info) => {
-          const project = info.row.original
-          return (
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-                {project.client?.primaryContact?.charAt(0).toUpperCase() || "?"}
-              </span>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">
-                  {project.client?.companyName || "Unknown Client"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {project.client?.primaryContact || ""}
-                  {project.client?.email ? ` · ${project.client.email}` : ""}
-                </span>
-              </div>
-            </div>
-          )
-        },
-      },
-      {
-        header: "Type",
-        accessorKey: "type",
-        cell: (info) => {
-          const type = info.getValue() as string
-          return type ? (
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-              {type}
+  // ✅ Columns definition
+  const columns = useMemo<ColumnDef<Project>[]>(() => [
+    {
+      header: "ID",
+      accessorKey: "projectNumber",
+      cell: (info) => (
+        <span className="text-xs font-medium text-muted-foreground">{info.getValue() || "N/A"}</span>
+      ),
+    },
+    {
+      header: "Name",
+      accessorKey: "name",
+      cell: (info) => {
+        const project = info.row.original
+        return (
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
+              {project.name?.charAt(0)?.toUpperCase() || "?"}
             </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">-</span>
-          )
-        },
+            <span className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              {project.name || "Unnamed Project"}
+            </span>
+          </div>
+        )
       },
-      {
-        header: "Start Date",
-        accessorKey: "startDate",
-        cell: (info) => (
-          <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>
-        ),
-      },
-      {
-        header: "End Date",
-        accessorKey: "endDate",
-        cell: (info) => (
-          <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>
-        ),
-      },
-      {
-        header: "Actions",
-        id: "actions",
-        cell: (info) => {
-          const project = info.row.original
-          return (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  navigate({ to: `/projects/${project._id}` })
-                }}
-                className="h-7 w-7 p-0 hover:bg-primary/10 hover:text-primary"
-                title="View"
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  navigate({ to: `/projects/${project._id}/edit` })
-                }}
-                className="h-7 w-7 p-0 hover:bg-blue-500/10 hover:text-blue-600"
-                title="Edit"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
-                title="Delete"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedProject({ id: project._id, name: project.name })
-                  setOpenDialog(true)
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-
-              {/* Mobile dropdown menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild className="md:hidden">
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate({ to: `/projects/${project._id}` })
-                    }}
-                  >
-                    <Eye className="mr-2 h-4 w-4" /> View
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate({ to: `/projects/${project._id}/edit` })
-                    }}
-                  >
-                    <Pencil className="mr-2 h-4 w-4" /> Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedProject({ id: project._id, name: project.name })
-                      setOpenDialog(true)
-                    }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+    },
+    {
+      header: "Client",
+      accessorKey: "client.companyName",
+      cell: (info) => {
+        const project = info.row.original
+        const client = project?.client
+        return (
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+              {client?.primaryContact?.charAt(0)?.toUpperCase() || "?"}
+            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">
+                {client?.companyName || "Unknown Client"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {client?.primaryContact || ""}
+                {client?.email ? ` · ${client.email}` : ""}
+              </span>
             </div>
-          )
-        },
+          </div>
+        )
       },
-    ]
-  }, [navigate])
+    },
+    {
+      header: "Type",
+      accessorKey: "type",
+      cell: (info) => {
+        const type = info.getValue() as string
+        return type ? (
+          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+            {type}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )
+      },
+    },
+    {
+      header: "Start Date",
+      accessorKey: "startDate",
+      cell: (info) => (
+        <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>
+      ),
+    },
+    {
+      header: "End Date",
+      accessorKey: "endDate",
+      cell: (info) => (
+        <span className="text-xs text-muted-foreground">{(info.getValue() as string) || "-"}</span>
+      ),
+    },
+    {
+      header: "Actions",
+      id: "actions",
+      cell: (info) => {
+        const project = info.row.original
+        return (
+          <div className="flex items-center gap-1">
+            {/* View */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate({ to: `/projects/${project._id}` })
+              }}
+              className="h-7 w-7 p-0 hover:bg-primary/10 hover:text-primary"
+              title="View"
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
 
-  // React Table setup
+            {/* Edit */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate({ to: `/projects/${project._id}/edit` })
+              }}
+              className="h-7 w-7 p-0 hover:bg-blue-500/10 hover:text-blue-600"
+              title="Edit"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* Delete */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 hover:bg-destructive/10 hover:text-destructive"
+              title="Delete"
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedProject({ id: project._id, name: project.name })
+                setOpenDialog(true)
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* Mobile dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild className="md:hidden">
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate({ to: `/projects/${project._id}` })
+                  }}
+                >
+                  <Eye className="mr-2 h-4 w-4" /> View
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate({ to: `/projects/${project._id}/edit` })
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" /> Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedProject({ id: project._id, name: project.name })
+                    setOpenDialog(true)
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
+    },
+  ], [navigate])
+
+  // ✅ Table setup
   const table = useReactTable({
     data: filteredProjects,
     columns,
@@ -248,15 +251,10 @@ const ProjectList: React.FC = () => {
     getPaginationRowModel: getPaginationRowModel(),
   })
 
-  // Loading / error / empty handling
-  if (isLoading)
-    return (
-      <section className="p-6 text-sm text-muted-foreground">
-        <ProjectListSkeleton />
-      </section>
-    )
+  // ✅ Loading / error / empty handling
+  if (isLoading) return <section className="p-6 text-sm text-muted-foreground"><ProjectListSkeleton /></section>
   if (isError) return <p className="p-6 text-sm text-destructive">Failed to load projects</p>
-  if (!projects.length && !isLoading)
+  if (!projects?.length && !isLoading)
     return <p className="p-6 text-sm text-muted-foreground">No projects found. Start by creating one!</p>
 
   return (
@@ -334,10 +332,8 @@ const ProjectList: React.FC = () => {
                         >
                           <div className="flex items-center gap-1.5">
                             {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <ChevronUp className="w-3 h-3" />,
-                              desc: <ChevronDown className="w-3 h-3" />,
-                            }[header.column.getIsSorted() as string] || null}
+                            {header.column.getIsSorted() === "asc" && <ChevronUp className="w-3 h-3" />}
+                            {header.column.getIsSorted() === "desc" && <ChevronDown className="w-3 h-3" />}
                           </div>
                         </th>
                       ))}
@@ -364,7 +360,7 @@ const ProjectList: React.FC = () => {
             </div>
           </div>
 
-          {/* Pagination Footer */}
+          {/* Pagination */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <Button
@@ -414,7 +410,7 @@ const ProjectList: React.FC = () => {
           </div>
         </div>
 
-        {/* ✅ ConfirmDialog must be placed here (outside overflow divs) */}
+        {/* Confirm Dialog */}
         {selectedProject && (
           <ConfirmDialog
             open={openDialog}

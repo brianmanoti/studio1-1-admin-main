@@ -15,6 +15,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useNavigate, useParams } from '@tanstack/react-router'
+import { useProjectStore } from '@/stores/projectStore'
 
 interface Project {
   _id: string
@@ -31,6 +32,8 @@ interface ProjectsSwitcherProps {
 }
 
 export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitcherProps) {
+  const setProjectId = useProjectStore((state) => state.setProjectId)
+
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
   const params = useParams({ strict: false }) as { id?: string }
@@ -40,9 +43,15 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
   React.useEffect(() => {
     if (projects && projects.length > 0) {
       const found = params.id ? projects.find((p) => p._id === params.id) : null
-      setActiveProject(found || projects[0])
+      const selected = found || projects[0]
+      setActiveProject(selected)
+
+      // ✅ Ensure projectId is always synced globally
+      if (selected?._id) {
+        setProjectId(selected._id)
+      }
     }
-  }, [projects, params.id])
+  }, [projects, params.id, setProjectId])
 
   if (isLoading)
     return (
@@ -101,6 +110,7 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
                 key={project._id}
                 onClick={() => {
                   setActiveProject(project)
+                  setProjectId(project._id) // ✅ instantly update global projectId
                   navigate({ to: '/projects/$id', params: { id: project._id } })
                 }}
                 className="gap-2 p-2"
@@ -111,7 +121,6 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
 
             <DropdownMenuSeparator />
 
-            {/* ✅ Add Project Navigation Instead of Dialog */}
             <DropdownMenuItem
               className="gap-2 p-2 cursor-pointer hover:bg-blue-50 transition"
               onClick={() => navigate({ to: '/projects/new' })}
