@@ -1,3 +1,4 @@
+import EstimateView from '@/features/estimates/estimates/components/Estimates-table'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/projects/$projectId/estimates/estimate/')({
@@ -5,5 +6,5 @@ export const Route = createFileRoute('/_authenticated/projects/$projectId/estima
 })
 
 function RouteComponent() {
-  return <div>Hello "/_authenticated/estimates/estimate/"!</div>
+  return <><EstimateView /></>
 }
