@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useCanGoBack } from '@tanstack/react-router';
 import axiosInstance from '@/lib/axios';
-import EstimateSelector from './estimate-selector';
+import EstimateSelector from '../../estimates/estimates/components/estimate-selector';
 
 const emptyItem = () => ({ description: '', quantity: 1, unit: '', unitPrice: 0 });
 

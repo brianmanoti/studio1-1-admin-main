@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronRight, Download, FileText } from "lucide-react"
 import axiosInstance from "@/lib/axios"
+import { useProjectStore } from "@/stores/projectStore"
+import { useNavigate } from "@tanstack/react-router"
 
 interface Subsection {
   id?: string
@@ -69,46 +71,59 @@ interface Estimate {
 
 export default function EstimateView() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const navigate = useNavigate()
 
-  const projectId = "68d82caec76d60b25c8c0a12" // Replace with your actual project ID
+  const projectId = useProjectStore((state) => state.projectId) // Replace with your actual project ID
 
-  const { data = [], isLoading, isError } = useQuery({
-    queryKey: ["estimates", projectId],
-    queryFn: async () => {
+const { data = [], isLoading, isError, error } = useQuery({
+  queryKey: ["estimates", projectId],
+  queryFn: async () => {
+    try {
       const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
       return res.data as Estimate[]
-    },
-    enabled: !!projectId,
-  })
+    } catch (err: any) {
+      // 👇 If backend returns 404 (no estimates), return an empty array instead of throwing
+      if (err.response?.status === 404) {
+        return []
+      }
+      throw err // rethrow other errors (e.g., 500, network)
+    }
+  },
+  enabled: !!projectId,
+})
 
-  const formatKES = (value?: number) =>
-    new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      minimumFractionDigits: 2,
-    }).format(value || 0)
+const formatKES = (value?: number) =>
+  new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    minimumFractionDigits: 2,
+  }).format(value || 0)
 
-  if (isLoading)
-    return (
-      <p className="text-center mt-10 text-blue-600 font-medium text-lg">
-        Loading estimates...
-      </p>
-    )
+if (isLoading)
+  return (
+    <p className="text-center mt-10 text-blue-600 font-medium text-lg">
+      Loading estimates...
+    </p>
+  )
 
-  if (isError)
-    return (
-      <p className="text-center mt-10 text-red-600 font-medium text-lg">
-        Failed to load estimates
-      </p>
-    )
+// Only show this if it's a real error (not a 404)
+if (isError && !Array.isArray(data))
+  return (
+    <p className="text-center mt-10 text-red-600 font-medium text-lg">
+      Failed to load estimates: {error?.response?.data?.error || "Unknown error"}
+    </p>
+  )
 
-  if (!data.length)
-    return (
-      <div className="text-center p-8 border rounded-lg bg-blue-50">
-        <p className="mb-4 text-blue-700 font-medium">No estimates yet.</p>
-        <Button className="bg-blue-600 text-white hover:bg-blue-700">+ Add New Estimate</Button>
-      </div>
-    )
+if (!data.length)
+  return (
+    <div className="text-center p-8 border rounded-lg bg-blue-50">
+      <p className="mb-4 text-blue-700 font-medium">No estimates yet.</p>
+      <Button onClick={() => navigate({ to: `/projects/${projectId}/purchaseOrders/new` })} className="bg-blue-600 text-white hover:bg-blue-700">
+        + Add New Estimate
+      </Button>
+    </div>
+  )
+
 
   return (
     <div className="space-y-6 p-4 md:p-6">
