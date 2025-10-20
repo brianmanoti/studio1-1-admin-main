@@ -11,6 +11,18 @@ import { TypeSwitcher } from "./type-switcher"
 import { useDashboardMetrics } from "@/hooks/use-dashboard-metrics"
 import type { ReportsData } from "@/hooks/use-reports"
 
+// ✅ Helper to format numbers to Kenyan currency
+const formatCurrency = (num: number | string) => {
+  if (num === null || num === undefined) return "KSh 0.00"
+  const clean = String(num).replace(/,/g, "").trim()
+  const parsed = parseFloat(clean)
+  return new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    maximumFractionDigits: 2,
+  }).format(isNaN(parsed) ? 0 : parsed)
+}
+
 type DocumentType = "wages" | "expenses" | "purchase-orders"
 
 interface DashboardTabsProps {
@@ -28,43 +40,64 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
     return <div className="text-center py-8 text-muted-foreground">Loading metrics...</div>
   }
 
-  const totalPending = metrics.statusSummary.reduce((sum, item) => sum + item.count, 0)
-  const avgAmount = metrics.averageAmount[0]?.avgAmount || 0
+  // ✅ Derived values with safety
+  const totalPending =
+    metrics.statusSummary?.reduce((sum, item) => sum + (item.count || 0), 0) || 0
+
+  const avgAmount = Number(metrics.averageAmount?.[0]?.avgAmount || 0)
+
+  const topVendor = metrics.topVendors?.[0] || {}
+  const mostUsedItem = metrics.mostUsedItems?.[0] || {}
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="grid w-full grid-cols-2 mb-8 bg-secondary/50 p-1 rounded-lg">
-        <TabsTrigger value="dashboard" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+        <TabsTrigger
+          value="dashboard"
+          className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+        >
           Dashboard
         </TabsTrigger>
-        <TabsTrigger value="reports" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+        <TabsTrigger
+          value="reports"
+          className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+        >
           Reports
         </TabsTrigger>
       </TabsList>
 
+      {/* DASHBOARD TAB */}
       <TabsContent value="dashboard" className="space-y-8">
         <TypeSwitcher activeType={documentType} onTypeChange={setDocumentType} />
 
-        {/* Metrics Grid */}
+        {/* Key Metrics Grid */}
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4">Key Metrics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard title="Pending Approvals" value={totalPending} subtitle="Items awaiting approval" />
-            <MetricCard title="Average Amount" value={`$${avgAmount.toLocaleString()}`} subtitle="Per transaction" />
+            <MetricCard
+              title="Pending Approvals"
+              value={totalPending}
+              subtitle="Items awaiting approval"
+            />
+            <MetricCard
+              title="Average Amount"
+              value={formatCurrency(avgAmount)}
+              subtitle="Per transaction"
+            />
             <MetricCard
               title="Top Vendor"
-              value={metrics.topVendors[0]?.vendorName || "N/A"}
-              subtitle={`$${metrics.topVendors[0]?.totalAmount.toLocaleString() || 0}`}
+              value={topVendor.vendorName || "N/A"}
+              subtitle={formatCurrency(topVendor.totalAmount || 0)}
             />
             <MetricCard
               title="Most Used Item"
-              value={metrics.mostUsedItems[0]?.description || "N/A"}
-              subtitle={`${metrics.mostUsedItems[0]?.totalQuantity || 0} units`}
+              value={mostUsedItem.description || "N/A"}
+              subtitle={`${mostUsedItem.totalQuantity || 0} units`}
             />
           </div>
         </div>
 
-        {/* Charts and Tables */}
+        {/* Spend Trend & Top Vendors */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <SpendTrendChart data={metrics.monthlySpendTrend} />
@@ -72,7 +105,7 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
           <TopVendors vendors={metrics.topVendors} />
         </div>
 
-        {/* Pending Approvals */}
+        {/* Pending Approvals Table */}
         <PendingApprovals
           approvals={metrics.pendingApprovals.map((approval) => ({
             _id: approval._id,
@@ -86,6 +119,7 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
         />
       </TabsContent>
 
+      {/* REPORTS TAB */}
       <TabsContent value="reports">
         <ReportsTab data={reports} />
       </TabsContent>
