@@ -79,26 +79,37 @@ export default function VariationsForm() {
     })
   }
 
-  const addItem = (path: number[] = []) => {
-    const newData = structuredClone(formData)
-    let target = newData.items
-    for (let i = 0; i < path.length; i++) target = target[path[i]].children
+// Add item based on depth (0 = group, 1 = section, 2 = subsection)
+const addItem = (path: number[] = []) => {
+  const newData = structuredClone(formData)
+  let target = newData.items
 
-    target.push({
-      code: "",
-      name: "",
-      description: "",
-      quantity: 0,
-      unit: "",
-      rate: 0,
-      amount: 0,
-      notes: [] as string[],
-      children: [],
-    })
-
-    newData.items = reindex(newData.items)
-    setFormData(newData)
+  // Navigate to the correct depth
+  for (let i = 0; i < path.length; i++) {
+    target = target[path[i]].children
   }
+
+  // Determine item type based on level
+  const level = path.length
+  const label =
+    level === 0 ? "Group" : level === 1 ? "Section" : "Subsection"
+
+  target.push({
+    code: "",
+    name: `${label} Name`,
+    description: "",
+    quantity: 0,
+    unit: "",
+    rate: 0,
+    amount: 0,
+    notes: [] as string[],
+    children: [],
+  })
+
+  newData.items = reindex(newData.items)
+  setFormData(newData)
+}
+
 
   const removeItem = (path: number[]) => {
     const newData = structuredClone(formData)
@@ -253,24 +264,27 @@ export default function VariationsForm() {
           {expanded.includes(item.code) &&
             renderRows(item.children, newPath, level + 1)}
 
-          {expanded.includes(item.code) && (
-            <tr>
-              <td
-                colSpan={6}
-                className={`border px-2 py-2 pl-${(level + 1) * 10}`}
+        {expanded.includes(item.code) && (
+          <tr>
+            <td colSpan={6} className={`border px-2 py-2 pl-${(level + 1) * 10}`}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-muted-foreground border-dashed"
+                onClick={() => addItem(newPath)}
               >
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-full justify-start text-muted-foreground border-dashed"
-                  onClick={() => addItem(newPath)}
-                >
-                  <Plus className="w-3 h-3 mr-2" /> Add Child
-                </Button>
-              </td>
-            </tr>
-          )}
+                <Plus className="w-3 h-3 mr-2" />
+                {level === 0
+                  ? "Add Section"
+                  : level === 1
+                  ? "Add Subsection"
+                  : "Add Group"}
+              </Button>
+            </td>
+          </tr>
+        )}
+
         </>
       )
     })

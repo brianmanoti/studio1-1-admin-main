@@ -118,7 +118,7 @@ if (!data.length)
   return (
     <div className="text-center p-8 border rounded-lg bg-blue-50">
       <p className="mb-4 text-blue-700 font-medium">No estimates yet.</p>
-      <Button onClick={() => navigate({ to: `/projects/${projectId}/purchaseOrders/new` })} className="bg-blue-600 text-white hover:bg-blue-700">
+      <Button onClick={() => navigate({ to: `/projects/${projectId}/estimates/estimate/new/` })} className="bg-blue-600 text-white hover:bg-blue-700">
         + Add New Estimate
       </Button>
     </div>
@@ -134,8 +134,8 @@ if (!data.length)
           <Button variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50">
             <FileText className="w-4 h-4" /> Export
           </Button>
-          <Button className="bg-blue-600 text-white hover:bg-blue-700">
-            + Add New Estimate
+          <Button  onClick={() => navigate({ to: `/projects/${projectId}/estimates/variations/new` })} className="bg-blue-600 text-white hover:bg-blue-700">
+            + Add  Variation
           </Button>
         </div>
       </div>
