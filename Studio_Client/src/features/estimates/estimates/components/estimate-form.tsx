@@ -16,6 +16,7 @@ import { Upload, Trash2, ChevronDown, ChevronRight, Plus } from "lucide-react"
 import { ImportExcelModal } from "./import-excel-modal"
 import axiosInstance from "@/lib/axios"
 
+// --- Interfaces ---
 interface EstimateData {
   projectId: string
   name: string
@@ -24,6 +25,12 @@ interface EstimateData {
   date?: string
   status?: string
   groups: Group[]
+  totals?: TotalLine[] // ✅ NEW (for global Excel totals)
+}
+
+interface TotalLine {
+  description: string
+  amount: number
 }
 
 interface Group {
@@ -37,6 +44,7 @@ interface Group {
   amount?: number
   total: number
   sections?: Section[]
+  totals?: TotalLine[] // ✅ NEW (for group-level “TOTAL” rows)
 }
 
 interface Section {
@@ -69,15 +77,14 @@ export default function EstimateForm() {
   const [imported, setImported] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
 
-  // New fields
+  // Top-level fields
   const [estimateName, setEstimateName] = useState("")
   const [description, setDescription] = useState("")
   const [notes, setNotes] = useState("")
   const [status, setStatus] = useState("Draft")
-  const [date, setDate] = useState(() =>
-    new Date().toISOString().split("T")[0]
-  )
+  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0])
 
+  // Utility
   const formatKES = (value: number) =>
     new Intl.NumberFormat("en-KE", {
       style: "currency",
@@ -103,65 +110,59 @@ export default function EstimateForm() {
     onError: () => toast.error("Failed to save estimate"),
   })
 
-const handleImportSuccess = (data: any) => {
-  const importedGroups = Array.isArray(data) ? data : data.groups || [];
+  // --- Handle Excel Import ---
+  const handleImportSuccess = (data: any) => {
+    const importedGroups = Array.isArray(data) ? data : data.groups || []
 
-  // ✅ Step 1: Normalize by group id or name
-  const mergedGroups: Record<string, Group> = {};
+    const mergedGroups: Record<string, Group> = {}
 
-  importedGroups.forEach((g: any) => {
-    const groupKey = g.id || g.grpId || g.name;
+    importedGroups.forEach((g: any) => {
+      const groupKey = g.id || g.grpId || g.name
+      if (!mergedGroups[groupKey]) {
+        mergedGroups[groupKey] = {
+          ...g,
+          sections: g.sections || [],
+          totals: g.totals || [], // ✅ Support Excel totals
+        }
+      } else {
+        mergedGroups[groupKey].sections = [
+          ...(mergedGroups[groupKey].sections || []),
+          ...(g.sections || []),
+        ]
+        mergedGroups[groupKey].notes = [
+          ...(mergedGroups[groupKey].notes || []),
+          ...(g.notes || []),
+        ]
+        mergedGroups[groupKey].totals = [
+          ...(mergedGroups[groupKey].totals || []),
+          ...(g.totals || []),
+        ]
+      }
+    })
 
-    if (!mergedGroups[groupKey]) {
-      mergedGroups[groupKey] = {
-        ...g,
-        sections: g.sections || [],
-      };
-    } else {
-      // ✅ Merge sections & notes if same group appears multiple times
-      mergedGroups[groupKey].sections = [
-        ...(mergedGroups[groupKey].sections || []),
-        ...(g.sections || []),
-      ];
-      mergedGroups[groupKey].notes = [
-        ...(mergedGroups[groupKey].notes || []),
-        ...(g.notes || []),
-      ];
-    }
-  });
-
-  // ✅ Step 2: Convert back to array and ensure unique IDs
-  const arrangedGroups = Object.values(mergedGroups).map((group, index) => ({
-    ...group,
-    id: group.id || `group-${index + 1}`,
-    sections: (group.sections || []).map((section: any, si: number) => ({
-      ...section,
-      id: section.id || `section-${index + 1}-${si + 1}`,
-      subsections: (section.subsections || []).map((sub: any, subi: number) => ({
-        ...sub,
-        id: sub.id || `sub-${index + 1}-${si + 1}-${subi + 1}`,
+    const arrangedGroups = Object.values(mergedGroups).map((group, index) => ({
+      ...group,
+      id: group.id || `group-${index + 1}`,
+      sections: (group.sections || []).map((section: any, si: number) => ({
+        ...section,
+        id: section.id || `section-${index + 1}-${si + 1}`,
+        subsections: (section.subsections || []).map((sub: any, subi: number) => ({
+          ...sub,
+          id: sub.id || `sub-${index + 1}-${si + 1}-${subi + 1}`,
+        })),
       })),
-    })),
-  }));
+    }))
 
-  // ✅ Step 3: Apply to state
-  setGroups(arrangedGroups);
-  setImported(true);
-  toast.success("Import successful! Data organized and structured.");
-};
+    setGroups(arrangedGroups)
+    setImported(true)
+    toast.success("Import successful! Totals and data structured.")
+  }
 
-
+  // --- Add / Update / Delete ---
   const addGroup = () =>
     setGroups([
       ...groups,
-      {
-        id: `group-${Date.now()}`,
-        name: "",
-        quantity: 0,
-        rate: 0,
-        total: 0,
-        sections: [],
-      },
+      { id: `group-${Date.now()}`, name: "", quantity: 0, rate: 0, total: 0, sections: [] },
     ])
 
   const addSection = (groupIndex: number) => {
@@ -187,13 +188,7 @@ const handleImportSuccess = (data: any) => {
     if (targetSection) {
       targetSection.subsections = [
         ...(targetSection.subsections || []),
-        {
-          id: `sub-${Date.now()}`,
-          name: "",
-          quantity: 0,
-          rate: 0,
-          amount: 0,
-        },
+        { id: `sub-${Date.now()}`, name: "", quantity: 0, rate: 0, amount: 0 },
       ]
       setGroups(arr)
     }
@@ -206,56 +201,70 @@ const handleImportSuccess = (data: any) => {
   }
 
   const deleteGroup = (i: number) => {
-    if (confirm("Delete this group?")) {
-      setGroups(groups.filter((_, idx) => idx !== i))
-    }
+    if (confirm("Delete this group?")) setGroups(groups.filter((_, idx) => idx !== i))
   }
 
-const handleSubmit = () => {
-  if (!projectId) return toast.error("Select a project first");
-  if (!estimateName.trim()) return toast.error("Estimate name is required");
+  // --- Submit ---
+  const handleSubmit = () => {
+    if (!projectId) return toast.error("Select a project first")
+    if (!estimateName.trim()) return toast.error("Estimate name is required")
 
-  // 🧹 Clean + strip backend-generated IDs (grpId, secId, subId)
-  const cleanedGroups = groups.map(({ grpId, sections, ...group }) => ({
-    ...group,
-    sections: (sections || []).map(({ secId, subsections, ...section }) => ({
-      ...section,
-      subsections: (subsections || []).map(({ subId, ...sub }) => ({
-        ...sub,
+    const cleanedGroups = groups.map(({ grpId, sections, ...group }) => ({
+      ...group,
+      sections: (sections || []).map(({ secId, subsections, ...section }) => ({
+        ...section,
+        subsections: (subsections || []).map(({ subId, ...sub }) => sub),
       })),
-    })),
-  }));
+    }))
 
-  const payload = {
-    projectId,
-    name: estimateName,
-    description,
-    status,
-    date,
-    notes,
-    groups: cleanedGroups,
-  };
-  mutation.mutate(payload);
-};
+    const grandTotals: TotalLine[] = []
+    let overallTotal = 0
 
+    cleanedGroups.forEach((g) => {
+      const groupSum =
+        g.total ||
+        g.sections?.reduce(
+          (s, sec) => s + (sec.quantity || 0) * (sec.rate || 0),
+          0
+        ) ||
+        0
+      overallTotal += groupSum
+      if (g.totals?.length) grandTotals.push(...g.totals)
+    })
 
+    const payload: EstimateData = {
+      projectId,
+      name: estimateName,
+      description,
+      status,
+      date,
+      notes,
+      groups: cleanedGroups,
+      totals: [
+        ...grandTotals,
+        { description: "GRAND TOTAL", amount: overallTotal },
+      ],
+    }
 
+    mutation.mutate(payload)
+  }
+
+  // --- Renderers (same as before) ---
   const renderImportedTable = () => (
     <div className="overflow-x-auto rounded-lg border border-border mt-6">
-      <table className="w-full text-sm border-collapse text-center [&_th]:font-semibold [&_td]:text-gray-700 [&_tr:hover]:bg-muted/30 transition-colors">
+      <table className="w-full text-sm border-collapse text-center">
         <thead className="bg-muted text-muted-foreground">
           <tr>
-            <th className="px-3 py-2 border-b w-8 text-center align-middle"></th>
-            <th className="px-3 py-2 border-b text-center align-middle">Code</th>
-            <th className="px-3 py-2 border-b w-[20%] text-center align-middle">Name</th>
-            <th className="px-3 py-2 border-b w-[25%] text-center align-middle">Description</th>
-            <th className="px-3 py-2 border-b text-center align-middle">Qty</th>
-            <th className="px-3 py-2 border-b text-center align-middle">Unit</th>
-            <th className="px-3 py-2 border-b text-center align-middle">Rate</th>
-            <th className="px-3 py-2 border-b text-center align-middle">Amount</th>
+            <th></th>
+            <th>Code</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>Unit</th>
+            <th>Rate</th>
+            <th>Amount</th>
           </tr>
         </thead>
-
 
         <tbody>
           {groups.map((g) => {
@@ -272,17 +281,7 @@ const handleSubmit = () => {
                     }))
                   }
                 >
-                  <td className="px-3 py-2 border-b text-center align-middle">
-                    {g.sections?.length ? (
-                      isOpen ? (
-                        <ChevronDown className="w-4 h-4 inline" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 inline" />
-                      )
-                    ) : (
-                      <span>–</span>
-                    )}
-                  </td>
+                  <td>{g.sections?.length ? (isOpen ? <ChevronDown className="w-4 h-4 inline" /> : <ChevronRight className="w-4 h-4 inline" />) : "–"}</td>
                   <td>{g.code || "—"}</td>
                   <td className="font-semibold">{g.name}</td>
                   <td>{g.description || "—"}</td>
@@ -290,7 +289,7 @@ const handleSubmit = () => {
                   <td>{g.unit || "—"}</td>
                   <td className="text-right">{formatKES(g.rate)}</td>
                   <td className="text-right font-semibold">
-                    {formatKES(g.amount || g.rate * (g.quantity || 0))}
+                    {formatKES(g.total || g.rate * (g.quantity || 0))}
                   </td>
                 </tr>
 
@@ -326,6 +325,20 @@ const handleSubmit = () => {
                       ))}
                     </>
                   ))}
+
+                {/* ✅ Render Excel totals under each group */}
+                {g.totals?.length > 0 && (
+                  <>
+                    {g.totals.map((t, ti) => (
+                      <tr key={`total-${g.id}-${ti}`} className="bg-muted/30 font-semibold">
+                        <td colSpan={7} className="text-right pr-2 italic">
+                          {t.description}
+                        </td>
+                        <td className="text-right">{formatKES(t.amount)}</td>
+                      </tr>
+                    ))}
+                  </>
+                )}
               </>
             )
           })}
@@ -334,93 +347,11 @@ const handleSubmit = () => {
     </div>
   )
 
-  const renderManualForm = () => (
-    <div className="space-y-4 mt-6">
-      {groups.map((group, i) => (
-        <div key={group.id} className="border rounded-lg p-4 space-y-4 bg-muted/40 shadow-sm">
-          <div className="grid grid-cols-6 gap-2 items-center">
-            <Input placeholder="Group Name" value={group.name} onChange={(e) => updateGroup(i, { ...group, name: e.target.value })} />
-            <Input placeholder="Description" value={group.description || ""} onChange={(e) => updateGroup(i, { ...group, description: e.target.value })} />
-            <Input type="number" placeholder="Qty" value={group.quantity} onChange={(e) => updateGroup(i, { ...group, quantity: +e.target.value, total: +e.target.value * group.rate })} />
-            <Input type="number" placeholder="Rate" value={group.rate} onChange={(e) => updateGroup(i, { ...group, rate: +e.target.value, total: +e.target.value * group.quantity })} />
-            <Input disabled value={group.total} />
-            <Button size="icon" variant="ghost" onClick={() => deleteGroup(i)}>
-              <Trash2 className="w-4 h-4 text-red-500" />
-            </Button>
-          </div>
-
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => addSection(i)}>
-              <Plus className="w-3 h-3" /> Add Section
-            </Button>
-          </div>
-
-          {group.sections?.map((section, si) => (
-            <div key={section.id} className="ml-4 mt-2 border-l pl-4 space-y-2">
-              <div className="grid grid-cols-6 gap-2">
-                <Input placeholder="Section Name" value={section.name} onChange={(e) => {
-                  const arr = [...groups]
-                  arr[i].sections![si].name = e.target.value
-                  setGroups(arr)
-                }} />
-                <Input placeholder="Description" value={section.description || ""} onChange={(e) => {
-                  const arr = [...groups]
-                  arr[i].sections![si].description = e.target.value
-                  setGroups(arr)
-                }} />
-                <Input type="number" placeholder="Qty" value={section.quantity} onChange={(e) => {
-                  const arr = [...groups]
-                  arr[i].sections![si].quantity = +e.target.value
-                  setGroups(arr)
-                }} />
-                <Input type="number" placeholder="Rate" value={section.rate} onChange={(e) => {
-                  const arr = [...groups]
-                  arr[i].sections![si].rate = +e.target.value
-                  setGroups(arr)
-                }} />
-                <Input disabled value={section.quantity * section.rate} />
-                <Button size="sm" variant="outline" onClick={() => addSubsection(i, si)}>
-                  + Subsection
-                </Button>
-              </div>
-
-              {section.subsections?.map((sub, subi) => (
-                <div key={sub.id} className="ml-4 border-l pl-4 grid grid-cols-5 gap-2">
-                  <Input placeholder="Subsection Name" value={sub.name} onChange={(e) => {
-                    const arr = [...groups]
-                    arr[i].sections![si].subsections![subi].name = e.target.value
-                    setGroups(arr)
-                  }} />
-                  <Input placeholder="Description" value={sub.description || ""} onChange={(e) => {
-                    const arr = [...groups]
-                    arr[i].sections![si].subsections![subi].description = e.target.value
-                    setGroups(arr)
-                  }} />
-                  <Input type="number" placeholder="Qty" value={sub.quantity} onChange={(e) => {
-                    const arr = [...groups]
-                    arr[i].sections![si].subsections![subi].quantity = +e.target.value
-                    setGroups(arr)
-                  }} />
-                  <Input type="number" placeholder="Rate" value={sub.rate} onChange={(e) => {
-                    const arr = [...groups]
-                    arr[i].sections![si].subsections![subi].rate = +e.target.value
-                    setGroups(arr)
-                  }} />
-                  <Input disabled value={sub.quantity * sub.rate} />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-
   return (
     <div className="p-6 space-y-8">
       <h2 className="text-2xl font-semibold">Create Estimate</h2>
 
-      {/* Top Section with More Fields */}
+      {/* Top fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Select onValueChange={setProjectId}>
           <SelectTrigger>
@@ -439,11 +370,8 @@ const handleSubmit = () => {
         <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
         <Input placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-
         <Select onValueChange={setStatus} defaultValue={status}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select Status" />
-          </SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Draft">Draft</SelectItem>
             <SelectItem value="Approved">Approved</SelectItem>
@@ -452,15 +380,9 @@ const handleSubmit = () => {
         </Select>
       </div>
 
-      {/* Import Button */}
       <div className="flex justify-between items-center">
-        <Button
-          variant="outline"
-          className="flex items-center gap-2 text-sm"
-          onClick={() => setIsImportModalOpen(true)}
-        >
-          <Upload className="w-4 h-4" />
-          Import Excel
+        <Button variant="outline" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 text-sm">
+          <Upload className="w-4 h-4" /> Import Excel
         </Button>
 
         <ImportExcelModal
@@ -470,12 +392,9 @@ const handleSubmit = () => {
         />
       </div>
 
-      {/* Main Table / Manual UI */}
       <div className="space-y-6 border rounded-lg p-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">
-            {imported ? "Imported Estimate Data" : "Manual Entry"}
-          </h3>
+          <h3 className="text-lg font-semibold">{imported ? "Imported Estimate Data" : "Manual Entry"}</h3>
           {!imported && (
             <Button onClick={addGroup} className="text-sm">
               + Add Group
@@ -487,10 +406,8 @@ const handleSubmit = () => {
           <p className="text-muted-foreground text-sm italic text-center">
             No groups yet. Start by adding or importing.
           </p>
-        ) : imported ? (
-          renderImportedTable()
         ) : (
-          renderManualForm()
+          renderImportedTable()
         )}
 
         <Button
