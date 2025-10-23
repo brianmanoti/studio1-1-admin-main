@@ -15,6 +15,8 @@ import {
 import { Upload, Trash2, ChevronDown, ChevronRight, Plus } from "lucide-react"
 import { ImportExcelModal } from "./import-excel-modal"
 import axiosInstance from "@/lib/axios"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 // --- Interfaces ---
 interface EstimateData {
@@ -351,8 +353,10 @@ export default function EstimateForm() {
     <div className="p-6 space-y-8">
       <h2 className="text-2xl font-semibold">Create Estimate</h2>
 
-      {/* Top fields */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {/* Top fields */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="flex flex-col space-y-2">
+        <Label>Project</Label>
         <Select onValueChange={setProjectId}>
           <SelectTrigger>
             <SelectValue placeholder="Select Project" />
@@ -365,13 +369,34 @@ export default function EstimateForm() {
             ))}
           </SelectContent>
         </Select>
+      </div>
 
+      <div className="flex flex-col space-y-2">
+        <Label>Estimate Name</Label>
         <Input placeholder="Estimate Name" value={estimateName} onChange={(e) => setEstimateName(e.target.value)} />
-        <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
-        <Input placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+
+      <div className="flex flex-col space-y-2 md:col-span-2 lg:col-span-3">
+        <Label>Description</Label>
+        <Textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+
+      <div className="flex flex-col space-y-2 md:col-span-2 lg:col-span-3">
+        <Label>Notes</Label>
+        <Textarea placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+
+      <div className="flex flex-col space-y-2">
+        <Label>Date</Label>
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </div>
+
+      <div className="flex flex-col space-y-2">
+        <Label>Status</Label>
         <Select onValueChange={setStatus} defaultValue={status}>
-          <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="Draft">Draft</SelectItem>
             <SelectItem value="Approved">Approved</SelectItem>
@@ -379,6 +404,7 @@ export default function EstimateForm() {
           </SelectContent>
         </Select>
       </div>
+    </div>
 
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 text-sm">
