@@ -9,6 +9,7 @@ import { SkipToMain } from '@/components/skip-to-main'
 import { useProjectStore } from '@/stores/projectStore'
 import { useEffect } from 'react'
 import { ProjectDebug } from '../debug'
+import { ItemsVendorsProvider } from '@/contexts/items-vendors-context'
 
 
 type ProjectsLayoutProps = {
@@ -45,6 +46,7 @@ export function ProjectsLayout({ children }: ProjectsLayoutProps) {
     <SearchProvider>
       <LayoutProvider>
         <SidebarProvider defaultOpen={defaultOpen}>
+          <ItemsVendorsProvider>
           <SkipToMain />
           <AppSidebar />
           <SidebarInset
@@ -57,6 +59,7 @@ export function ProjectsLayout({ children }: ProjectsLayoutProps) {
             <ProjectDebug />
             {children ?? <Outlet />}
           </SidebarInset>
+          </ItemsVendorsProvider>
         </SidebarProvider>
       </LayoutProvider>
     </SearchProvider>
