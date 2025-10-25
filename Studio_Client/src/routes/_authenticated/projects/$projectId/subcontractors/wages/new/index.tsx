@@ -1,4 +1,5 @@
-import SubWageOrderForm from '@/features/subcontractors/wages/componets/sub-Wage-form'
+
+import SubcontractorWagesForm from '@/features/subcontractors/wages/componets/subcontractor-wages-form'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute(
@@ -10,7 +11,7 @@ export const Route = createFileRoute(
 function RouteComponent() {
   return (
     <>
-      < SubWageOrderForm />
+      < SubcontractorWagesForm />
     </>
   )
 }

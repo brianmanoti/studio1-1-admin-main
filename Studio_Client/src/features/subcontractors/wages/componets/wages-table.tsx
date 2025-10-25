@@ -1,5 +1,3 @@
-'use client'
-
 import * as React from 'react'
 import type { ColumnDef, SortingState, VisibilityState } from '@tanstack/react-table'
 import {
@@ -24,6 +22,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useProjectStore } from '@/stores/projectStore'
 
+/* ------------------------------ Types ------------------------------ */
 export type Wage = {
   _id: string
   wageNumber: string
@@ -35,8 +34,8 @@ export type Wage = {
   amount: number
 }
 
-/** Convert MongoDB ISO string to readable Kenyan date */
-export function formatKenyaDate(dateStr: string) {
+/* ------------------------------ Utils ------------------------------ */
+export const formatKenyaDate = (dateStr: string): string => {
   if (!dateStr) return ''
   const date = new Date(dateStr)
   return date.toLocaleDateString('en-KE', {
@@ -46,18 +45,21 @@ export function formatKenyaDate(dateStr: string) {
   })
 }
 
-/** Format amount to Kenyan Shillings */
-export function formatKES(amount: number) {
-  return new Intl.NumberFormat('en-KE', {
+export const formatKES = (amount: number): string =>
+  new Intl.NumberFormat('en-KE', {
     style: 'currency',
     currency: 'KES',
   }).format(amount ?? 0)
-}
 
-export function WagesTable() {
-  const [rowSelection, setRowSelection] = React.useState({})
+/* ------------------------------ Component ------------------------------ */
+export function SubWagesTable() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const projectId = useProjectStore((state) => state.projectId)
+
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [rowSelection, setRowSelection] = React.useState({})
   const [dialog, setDialog] = React.useState<{
     open: boolean
     action?: 'approve' | 'reject' | 'delete'
@@ -66,23 +68,25 @@ export function WagesTable() {
     rows?: Wage[]
   }>({ open: false })
 
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const projectId = useProjectStore((state) => state.projectId)
-
-  // --- Fetch wages ---
-  const { data: wages = [], isLoading, isError } = useQuery({
+  /* ------------------------------ Fetch ------------------------------ */
+  const {
+    data: wages = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery<Wage[]>({
     queryKey: ['wages', projectId],
     queryFn: async () => {
       if (!projectId) return []
       const res = await axiosInstance.get(`/api/wages/project/${projectId}`)
       return res.data ?? []
     },
-    enabled: !!projectId, // only run if projectId is available
-    staleTime: 1000 * 60 * 5,
+    enabled: !!projectId,
+    staleTime: 1000 * 60 * 5, // cache for 5 mins
+    retry: 2, // avoid infinite retries
   })
 
-  // --- Mutations ---
+  /* ------------------------------ Mutations ------------------------------ */
   const mutateAction = useMutation({
     mutationFn: async ({
       action,
@@ -92,43 +96,46 @@ export function WagesTable() {
       ids: string[]
     }) => {
       const requests = ids.map((id) => {
-        if (action === 'approve') {
-          return axiosInstance.patch(`/api/wages/${id}/approve`)
-        } else if (action === 'reject') {
-          return axiosInstance.patch(`/api/wages/${id}/reject`)
-        } else {
-          return axiosInstance.delete(`/api/wages/${id}`)
-        }
+        if (action === 'approve') return axiosInstance.patch(`/api/wages/${id}/approve`)
+        if (action === 'reject') return axiosInstance.patch(`/api/wages/${id}/reject`)
+        return axiosInstance.delete(`/api/wages/${id}`)
       })
       await Promise.all(requests)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['wages', projectId])
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['wages', projectId] })
       setDialog({ open: false })
       setRowSelection({})
-      toast.success('Action completed successfully.')
+      toast.success(
+        variables.action === 'delete'
+          ? 'Wage(s) deleted successfully.'
+          : variables.action === 'approve'
+          ? 'Wage(s) approved successfully.'
+          : 'Wage(s) rejected successfully.'
+      )
     },
-    onError: (error) => {
-      console.error('Error performing action:', error)
-      toast.error('Action failed. Please try again.')
+    onError: (err: any) => {
+      console.error(err)
+      toast.error(err?.response?.data?.message || 'Action failed. Please try again.')
     },
   })
 
-  const handleConfirm = () => {
+  const handleConfirm = React.useCallback(() => {
     if (!dialog.action) return
-    const ids = dialog.bulk
-      ? dialog.rows?.map((w) => w._id) ?? []
-      : dialog.wage
-      ? [dialog.wage._id]
-      : []
+    const ids =
+      dialog.bulk && dialog.rows
+        ? dialog.rows.map((w) => w._id)
+        : dialog.wage
+        ? [dialog.wage._id]
+        : []
 
+    if (ids.length === 0) return toast.warning('No wages selected.')
     mutateAction.mutate({ action: dialog.action, ids })
-  }
+  }, [dialog, mutateAction])
 
-  // --- Table config ---
-  const table = useReactTable({
-    data: wages ?? [],
-    columns: React.useMemo<ColumnDef<Wage>[]>(() => [
+  /* ------------------------------ Table ------------------------------ */
+  const columns = React.useMemo<ColumnDef<Wage>[]>(
+    () => [
       {
         id: 'select',
         header: ({ table }) => (
@@ -174,33 +181,49 @@ export function WagesTable() {
         header: 'Actions',
         cell: ({ row }) => {
           const wage = row.original
-          if (!wage) return null
           return (
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <button
                 onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}` })}
+                aria-label="View wage"
               >
                 <Eye className="w-4 h-4" />
               </button>
               <button
                 onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}/edit` })}
+                aria-label="Edit wage"
               >
                 <Pencil className="w-4 h-4" />
               </button>
-              <button onClick={() => setDialog({ open: true, wage, action: 'approve' })}>
+              <button
+                onClick={() => setDialog({ open: true, wage, action: 'approve' })}
+                aria-label="Approve wage"
+              >
                 <Check className="w-4 h-4 text-green-600" />
               </button>
-              <button onClick={() => setDialog({ open: true, wage, action: 'reject' })}>
+              <button
+                onClick={() => setDialog({ open: true, wage, action: 'reject' })}
+                aria-label="Reject wage"
+              >
                 <X className="w-4 h-4 text-red-600" />
               </button>
-              <button onClick={() => setDialog({ open: true, wage, action: 'delete' })}>
+              <button
+                onClick={() => setDialog({ open: true, wage, action: 'delete' })}
+                aria-label="Delete wage"
+              >
                 <Trash className="w-4 h-4 text-red-700" />
               </button>
             </div>
           )
         },
       },
-    ], [navigate]),
+    ],
+    [navigate, projectId]
+  )
+
+  const table = useReactTable({
+    data: wages ?? [],
+    columns,
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -216,13 +239,16 @@ export function WagesTable() {
 
   const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original)
 
-  if (!projectId) return <div>Project ID is missing.</div>
-  if (isLoading) return <div>Loading wages...</div>
-  if (isError) return <div>Failed to load wages.</div>
+  /* ------------------------------ Render ------------------------------ */
+  if (!projectId)
+    return <div className="text-sm text-red-600">Project ID missing. Please select a project.</div>
+  if (isLoading) return <div className="text-sm text-gray-500">Loading wages...</div>
+  if (isError) return <div className="text-sm text-red-600">Failed to load wages: {String(error)}</div>
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <DataTableToolbar
           table={table}
           searchPlaceholder="Search wages..."
@@ -242,20 +268,21 @@ export function WagesTable() {
         />
         <Button
           onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/wages/new` })}
-          className="ml-4"
+          className="ml-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Wage
         </Button>
       </div>
 
-      <div className="overflow-auto rounded-md border">
+      {/* Table */}
+      <div className="overflow-auto rounded-md border bg-white">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
                 {hg.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
+                  <TableHead key={header.id}>
                     {header.isPlaceholder
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}
@@ -277,8 +304,11 @@ export function WagesTable() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
-                  No results.
+                <TableCell
+                  colSpan={table.getAllColumns().length}
+                  className="h-24 text-center text-sm text-gray-500"
+                >
+                  No wages found.
                 </TableCell>
               </TableRow>
             )}
@@ -286,19 +316,23 @@ export function WagesTable() {
         </Table>
       </div>
 
+      {/* Pagination */}
       <DataTablePagination table={table} />
 
+      {/* Bulk actions */}
       {selectedRows.length > 0 && (
-        <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
-          <span className="text-sm text-gray-600">{selectedRows.length} selected</span>
+        <div className="flex gap-2 p-2 border rounded-md bg-gray-50 text-sm">
+          <span className="text-gray-600">{selectedRows.length} selected</span>
           <Button
             size="sm"
+            disabled={mutateAction.isPending}
             onClick={() => setDialog({ open: true, action: 'approve', bulk: true, rows: selectedRows })}
           >
             Approve
           </Button>
           <Button
             size="sm"
+            disabled={mutateAction.isPending}
             onClick={() => setDialog({ open: true, action: 'reject', bulk: true, rows: selectedRows })}
           >
             Reject
@@ -306,6 +340,7 @@ export function WagesTable() {
           <Button
             size="sm"
             variant="destructive"
+            disabled={mutateAction.isPending}
             onClick={() => setDialog({ open: true, action: 'delete', bulk: true, rows: selectedRows })}
           >
             Delete
@@ -313,6 +348,7 @@ export function WagesTable() {
         </div>
       )}
 
+      {/* Confirmation dialog */}
       <ConfirmDialog
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
@@ -336,6 +372,7 @@ export function WagesTable() {
         }
         destructive={dialog.action === 'delete' || dialog.action === 'reject'}
         handleConfirm={handleConfirm}
+        disabled={mutateAction.isPending}
       />
     </div>
   )

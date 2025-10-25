@@ -4,7 +4,7 @@ import { Main } from "@/components/layout/main"
 import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Search } from "@/components/search"
 import { ThemeSwitch } from "@/components/theme-switch"
-import { WagesTable } from "@/features/wages/componets/wages-table"
+import { SubWagesTable } from "./componets/wages-table"
 
 
 const SubWages = () => {
@@ -19,7 +19,7 @@ const SubWages = () => {
             </div>
           </Header>
           <Main>
-            <WagesTable />
+            <SubWagesTable />
           </Main>
           
     </>
