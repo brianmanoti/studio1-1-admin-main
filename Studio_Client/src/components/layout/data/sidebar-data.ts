@@ -104,6 +104,10 @@ export const sidebarData: SidebarData = {
           icon: ShieldCheck,
           items: [
             {
+              title: 'Items',
+              url: '/projects/$projectId/items',
+            },
+            {
               title: 'Sign In',
               url: '/clerk/sign-in',
             },

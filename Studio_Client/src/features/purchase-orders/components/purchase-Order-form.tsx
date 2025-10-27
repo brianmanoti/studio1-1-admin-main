@@ -95,9 +95,11 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     enabled: !!debouncedVendorSearch,
     queryFn: async () => {
       const res = await axiosInstance.get(`/api/vendors/search`, { params: { q: debouncedVendorSearch } })
-      return res.data?.data || []
+      return res.data?.results || []
     },
   })
+
+  console.log("Vendor List:", vendorList)
 
   // ------------------- Fetch existing PO -------------------
   useQuery({
