@@ -108,8 +108,12 @@ export const sidebarData: SidebarData = {
               url: '/projects/$projectId/items',
             },
             {
-              title: 'Sign In',
-              url: '/clerk/sign-in',
+              title: 'Vendors',
+              url: '/projects/$projectId/Vendors',
+            },
+            {
+              title: 'SubContractors',
+              url: '/projects/$projectId/subcontractors',
             },
             {
               title: 'Sign Up',

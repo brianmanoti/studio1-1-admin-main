@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { useCreateSubcontractor, useUpdateSubcontractor, type Subcontractor } from "@/hooks/use-subcontractors"
 import { Button } from "@/components/ui/button"
@@ -7,7 +6,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import EstimateSelector from "@/components/estimate-selector"
 
 interface SubcontractorFormProps {
   subcontractor?: Subcontractor
@@ -120,18 +118,6 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
     })
   }
 
-  const handleEstimateChange = (estimateData: any) => {
-    if (estimateData) {
-      setNewProject({
-        ...newProject,
-        estimateId: estimateData.estimateId,
-        allocationLevel: estimateData.estimateLevel,
-        allocationRef: estimateData.estimateTargetId || "",
-        allocationModel: estimateData.estimateLevel.charAt(0).toUpperCase() + estimateData.estimateLevel.slice(1),
-      })
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -237,7 +223,6 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
                     <div className="flex-1">
                       <p className="font-medium text-sm">Project ID: {project.projectId}</p>
                       <p className="text-xs text-gray-600">Estimate: {project.estimateId}</p>
-                      <p className="text-xs text-gray-600">Level: {project.allocationLevel}</p>
                       <p className="text-xs text-gray-600">
                         Budget: KES {project.allocatedBudget.toLocaleString("en-KE")}
                       </p>
@@ -257,33 +242,84 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
             <CardTitle className="text-sm">Add New Project</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="projectId" className="text-xs">
+                  Project ID
+                </Label>
+                <Input
+                  id="projectId"
+                  value={newProject.projectId}
+                  onChange={(e) => setNewProject({ ...newProject, projectId: e.target.value })}
+                  placeholder="Enter project ID"
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="estimateId" className="text-xs">
+                  Estimate ID
+                </Label>
+                <Input
+                  id="estimateId"
+                  value={newProject.estimateId}
+                  onChange={(e) => setNewProject({ ...newProject, estimateId: e.target.value })}
+                  placeholder="Enter estimate ID"
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="allocationLevel" className="text-xs">
+                  Allocation Level
+                </Label>
+                <Select
+                  value={newProject.allocationLevel}
+                  onValueChange={(value) => setNewProject({ ...newProject, allocationLevel: value as any })}
+                >
+                  <SelectTrigger id="allocationLevel" className="text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="group">Group</SelectItem>
+                    <SelectItem value="section">Section</SelectItem>
+                    <SelectItem value="subsection">Subsection</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="allocationModel" className="text-xs">
+                  Allocation Model
+                </Label>
+                <Select
+                  value={newProject.allocationModel}
+                  onValueChange={(value) => setNewProject({ ...newProject, allocationModel: value as any })}
+                >
+                  <SelectTrigger id="allocationModel" className="text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Group">Group</SelectItem>
+                    <SelectItem value="Section">Section</SelectItem>
+                    <SelectItem value="Subsection">Subsection</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-1">
-              <Label htmlFor="projectId" className="text-xs">
-                Project ID
+              <Label htmlFor="allocationRef" className="text-xs">
+                Allocation Reference
               </Label>
               <Input
-                id="projectId"
-                value={newProject.projectId}
-                onChange={(e) => setNewProject({ ...newProject, projectId: e.target.value })}
-                placeholder="Enter project ID"
+                id="allocationRef"
+                value={newProject.allocationRef}
+                onChange={(e) => setNewProject({ ...newProject, allocationRef: e.target.value })}
+                placeholder="Enter allocation reference"
                 className="text-sm"
               />
             </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Select Estimate</Label>
-              <EstimateSelector onChange={handleEstimateChange} />
-            </div>
-
-            {newProject.estimateId && (
-              <div className="bg-white p-3 rounded border border-blue-200 space-y-2">
-                <p className="text-xs font-medium">Selected Estimate Details:</p>
-                <p className="text-xs text-gray-600">Estimate ID: {newProject.estimateId}</p>
-                <p className="text-xs text-gray-600">Level: {newProject.allocationLevel}</p>
-                <p className="text-xs text-gray-600">Reference: {newProject.allocationRef}</p>
-                <p className="text-xs text-gray-600">Model: {newProject.allocationModel}</p>
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">

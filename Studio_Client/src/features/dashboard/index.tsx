@@ -2,11 +2,8 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -14,8 +11,7 @@ import { TopNav } from '@/components/layout/top-nav'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Overview } from './components/overview'
-import { RecentSales } from './components/recent-sales'
+
 import { DashboardTabs } from './components/dashboard-tabs'
 import { useProjectStore } from '@/stores/projectStore'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -111,22 +107,22 @@ const topNav = [
     disabled: false,
   },
   {
-    title: 'Customers',
-    href: 'dashboard/customers',
+    title: 'Subcontractors',
+    href: '/projects/$projectId/subcontractors',
     isActive: false,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'items',
-    href: 'dashboard/items',
+    href: '/projects/$projectId/items',
     isActive: false,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Vendors',
-    href: 'dashboard/items',
+    href: '/projects/$projectId/vendors',
     isActive: false,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Settings',
