@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useCanGoBack } from '@tanstack/react-router';
 import axiosInstance from '@/lib/axios';
 import EstimateSelector from '@/features/estimates/estimates/components/estimate-selector';
+import { useProjectStore } from '@/stores/projectStore';
 ;
 
 const emptyItem = () => ({ description: '', quantity: 1, unit: '', unitPrice: 0 });
@@ -24,8 +25,10 @@ export default function SubExpenseForm({ expenseId }) {
   const queryClient = useQueryClient();
   const isMountedRef = useRef(true);
 
+  const CurrentProjectId = useProjectStore((state) => state.projectId)
+
   const defaultForm = {
-    projectId: '',
+    projectId: CurrentProjectId || '',
     reference: '',
     company: '',
     status: 'pending',
@@ -66,6 +69,12 @@ export default function SubExpenseForm({ expenseId }) {
     },
     staleTime: 1000 * 60 * 5,
   });
+  
+    useEffect(() => {
+      if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
+        setField("projectId", CurrentProjectId)
+      }
+    }, [isProjectsLoading, CurrentProjectId, form.projectId])
 
   // ------------------- Fetch existing Expense-------------------
   useQuery({

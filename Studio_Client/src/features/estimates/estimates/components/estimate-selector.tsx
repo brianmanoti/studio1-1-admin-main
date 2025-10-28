@@ -1,485 +1,308 @@
+import { useState, useMemo, useCallback, useEffect } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import axiosInstance from "@/lib/axios"
+import { useProjectStore } from "@/stores/projectStore"
 
-import { useState } from "react"
-import { useCreateSubcontractor, useUpdateSubcontractor, type Subcontractor } from "@/hooks/use-subcontractors"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Trash2 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import EstimateSelector from "@/components/estimate-selector"
+export default function EstimateSelector({ onChange }) {
+  const projectId = useProjectStore((state) => state.projectId)
+  const queryClient = useQueryClient()
 
-interface SubcontractorFormProps {
-  subcontractor?: Subcontractor
-  onSuccess?: () => void
-}
-
-interface Project {
-  projectId: string
-  estimateId: string
-  allocationLevel: "group" | "section" | "subsection"
-  allocationRef: string
-  allocationModel: "Group" | "Section" | "Subsection"
-  allocatedBudget: number
-  totalWages: number
-  totalExpenses: number
-  totalPOS: number
-  progress: number
-}
-
-interface Payment {
-  amount: number
-  date: string
-  description: string
-  reference: string
-}
-
-export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFormProps) {
-  const [formData, setFormData] = useState({
-    companyName: subcontractor?.companyName || "",
-    contactPerson: subcontractor?.contactPerson || "",
-    phoneNumber: subcontractor?.phoneNumber || "",
-    email: subcontractor?.email || "",
-    typeOfWork: subcontractor?.typeOfWork || "",
-    status: subcontractor?.status || "pending",
-    projects: (subcontractor?.projects as Project[]) || [],
-    payments: (subcontractor?.payments as Payment[]) || [],
-  })
-
-  const [newProject, setNewProject] = useState<Project>({
-    projectId: "",
-    estimateId: "",
-    allocationLevel: "group",
-    allocationRef: "",
-    allocationModel: "Group",
-    allocatedBudget: 0,
-    totalWages: 0,
-    totalExpenses: 0,
-    totalPOS: 0,
-    progress: 0,
-  })
-
-  const [newPayment, setNewPayment] = useState<Payment>({
-    amount: 0,
-    date: new Date().toISOString().split("T")[0],
-    description: "",
-    reference: "",
-  })
-
-  const createMutation = useCreateSubcontractor()
-  const updateMutation = useUpdateSubcontractor()
-  const isLoading = createMutation.isPending || updateMutation.isPending
-
-  const handleAddProject = () => {
-    if (newProject.projectId && newProject.estimateId) {
-      setFormData({
-        ...formData,
-        projects: [...formData.projects, newProject],
-      })
-      setNewProject({
-        projectId: "",
-        estimateId: "",
-        allocationLevel: "group",
-        allocationRef: "",
-        allocationModel: "Group",
-        allocatedBudget: 0,
-        totalWages: 0,
-        totalExpenses: 0,
-        totalPOS: 0,
-        progress: 0,
+  // ✅ Prefetch estimates safely
+  useEffect(() => {
+    if (projectId) {
+      queryClient.prefetchQuery({
+        queryKey: ["estimatesByProject", projectId],
+        queryFn: async () => {
+          try {
+            const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
+            return res.data
+          } catch (err: any) {
+            if (err.response?.status === 404) return []
+            throw err
+          }
+        },
+        staleTime: 5 * 60 * 1000,
       })
     }
-  }
+  }, [projectId, queryClient])
 
-  const handleRemoveProject = (index: number) => {
-    setFormData({
-      ...formData,
-      projects: formData.projects.filter((_, i) => i !== index),
-    })
-  }
-
-  const handleAddPayment = () => {
-    if (newPayment.amount > 0) {
-      setFormData({
-        ...formData,
-        payments: [...formData.payments, newPayment],
-      })
-      setNewPayment({
-        amount: 0,
-        date: new Date().toISOString().split("T")[0],
-        description: "",
-        reference: "",
-      })
-    }
-  }
-
-  const handleRemovePayment = (index: number) => {
-    setFormData({
-      ...formData,
-      payments: formData.payments.filter((_, i) => i !== index),
-    })
-  }
-
-  const handleEstimateChange = (estimateData: any) => {
-    if (estimateData) {
-      setNewProject({
-        ...newProject,
-        estimateId: estimateData.estimateId,
-        allocationLevel: estimateData.estimateLevel,
-        allocationRef: estimateData.estimateTargetId || "",
-        allocationModel: estimateData.estimateLevel.charAt(0).toUpperCase() + estimateData.estimateLevel.slice(1),
-      })
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (subcontractor?._id) {
-        await updateMutation.mutateAsync({
-          id: subcontractor._id,
-          data: formData,
-        })
-      } else {
-        await createMutation.mutateAsync(formData)
+  // ✅ Fetch project estimates
+  const {
+    data: estimates = [],
+    isLoading: loadingEstimates,
+    isError: estimateError,
+  } = useQuery({
+    queryKey: ["estimatesByProject", projectId],
+    queryFn: async () => {
+      try {
+        const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
+        return res.data
+      } catch (err: any) {
+        if (err.response?.status === 404) return []
+        throw err
       }
-      onSuccess?.()
-    } catch (error) {
-      console.error("[v0] Form submission error:", error)
+    },
+    enabled: !!projectId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // ✅ Choose first estimate if available
+  const estimateId = useMemo(() => estimates?.[0]?.estimateId ?? null, [estimates])
+
+  // ✅ Prefetch structure only if an estimate exists
+  useEffect(() => {
+    if (estimateId) {
+      queryClient.prefetchQuery({
+        queryKey: ["estimateData", estimateId],
+        queryFn: async () => {
+          try {
+            const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
+            return res.data
+          } catch (err: any) {
+            if (err.response?.status === 404) return null
+            throw err
+          }
+        },
+        staleTime: 5 * 60 * 1000,
+      })
     }
-  }
+  }, [estimateId, queryClient])
 
+  // ✅ Fetch the actual estimate structure
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["estimateData", estimateId],
+    queryFn: async () => {
+      try {
+        const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
+        return res.data
+      } catch (err: any) {
+        if (err.response?.status === 404) return null
+        throw err
+      }
+    },
+    enabled: !!estimateId,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const [estimateLevel, setEstimateLevel] = useState("estimate")
+  const [selected, setSelected] = useState({
+    groupId: "",
+    sectionId: "",
+    subsectionId: "",
+  })
+
+  // ✅ Memoized derived data
+  const allSections = useMemo(
+    () =>
+      data?.groups?.flatMap((g) =>
+        (g.sections || []).map((s) => ({ ...s, groupId: g.key }))
+      ) ?? [],
+    [data]
+  )
+
+  const allSubsections = useMemo(
+    () =>
+      data?.groups?.flatMap((g) =>
+        (g.sections || []).flatMap((s) =>
+          (s.subsections || []).map((sub) => ({
+            ...sub,
+            sectionId: s.key,
+            groupId: g.key,
+          }))
+        )
+      ) ?? [],
+    [data]
+  )
+
+  const filteredSections = useMemo(
+    () =>
+      selected.groupId
+        ? allSections.filter((s) => s.groupId === selected.groupId)
+        : allSections,
+    [allSections, selected.groupId]
+  )
+
+  const filteredSubsections = useMemo(
+    () =>
+      selected.sectionId
+        ? allSubsections.filter((sub) => sub.sectionId === selected.sectionId)
+        : allSubsections,
+    [allSubsections, selected.sectionId]
+  )
+
+  const emit = useCallback(
+    (targetId) => {
+      onChange?.({
+        estimateId: data?.estimateId || "",
+        estimateLevel,
+        estimateTargetId: targetId || null,
+      })
+    },
+    [onChange, data?.estimateId, estimateLevel]
+  )
+
+  const handleLevelChange = useCallback(
+    (e) => {
+      const level = e.target.value
+      setEstimateLevel(level)
+      setSelected({ groupId: "", sectionId: "", subsectionId: "" })
+      emit(null)
+    },
+    [emit]
+  )
+
+  const handleSelect = useCallback(
+    (key, value) => {
+      let next = { ...selected, [key]: value }
+
+      if (key === "groupId") {
+        next.sectionId = ""
+        next.subsectionId = ""
+      } else if (key === "sectionId") {
+        next.subsectionId = ""
+        const section = allSections.find((sec) => sec.key === value)
+        if (section) next.groupId = section.groupId
+      } else if (key === "subsectionId") {
+        const sub = allSubsections.find((ss) => ss.key === value)
+        if (sub) {
+          next.sectionId = sub.sectionId
+          next.groupId = sub.groupId
+        }
+      }
+
+      setSelected(next)
+
+      const target =
+        estimateLevel === "group"
+          ? next.groupId
+          : estimateLevel === "section"
+          ? next.sectionId
+          : estimateLevel === "subsection"
+          ? next.subsectionId
+          : null
+
+      emit(target)
+    },
+    [allSections, allSubsections, estimateLevel, emit, selected]
+  )
+
+  // ✅ User feedback UI
+  if (loadingEstimates || isLoading)
+    return <div className="text-gray-500 text-sm">Loading estimate…</div>
+
+  if (estimateError && estimates.length === 0)
+    return (
+      <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">
+        No estimates found for this project.
+      </div>
+    )
+
+  if (isError)
+    return (
+      <div className="text-red-500 text-sm">
+        Failed to load estimate data:{" "}
+        {error?.response?.data?.error || "Unexpected error"}
+      </div>
+    )
+
+  if (!data)
+    return (
+      <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">
+        No estimate structure available.
+      </div>
+    )
+
+  // ✅ Main render
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto pr-4">
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Basic Information</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="companyName">Company Name</Label>
-            <Input
-              id="companyName"
-              value={formData.companyName}
-              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="contactPerson">Contact Person</Label>
-            <Input
-              id="contactPerson"
-              value={formData.contactPerson}
-              onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="phoneNumber">Phone Number</Label>
-            <Input
-              id="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="typeOfWork">Type of Work</Label>
-            <Input
-              id="typeOfWork"
-              value={formData.typeOfWork}
-              onChange={(e) => setFormData({ ...formData, typeOfWork: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value) => setFormData({ ...formData, status: value as any })}
-            >
-              <SelectTrigger id="status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="declined">Declined</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+    <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md space-y-3">
+      {/* Estimate Level Selector */}
+      <div>
+        <label className="block text-sm font-medium text-blue-800 mb-1">
+          Estimate Level
+        </label>
+        <select
+          className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+          value={estimateLevel}
+          onChange={handleLevelChange}
+        >
+          <option value="estimate">Estimate (Whole)</option>
+          <option value="group">Group</option>
+          <option value="section">Section</option>
+          <option value="subsection">Subsection</option>
+        </select>
       </div>
 
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-lg font-semibold">Projects</h3>
-
-        {formData.projects.length > 0 && (
-          <div className="space-y-2">
-            {formData.projects.map((project, index) => (
-              <Card key={index} className="bg-slate-50">
-                <CardContent className="pt-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">Project ID: {project.projectId}</p>
-                      <p className="text-xs text-gray-600">Estimate: {project.estimateId}</p>
-                      <p className="text-xs text-gray-600">Level: {project.allocationLevel}</p>
-                      <p className="text-xs text-gray-600">
-                        Budget: KES {project.allocatedBudget.toLocaleString("en-KE")}
-                      </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveProject(index)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+      {/* Group Selector */}
+      {(estimateLevel === "group" ||
+        estimateLevel === "section" ||
+        estimateLevel === "subsection") && (
+        <div>
+          <label className="block text-sm font-medium text-blue-800 mb-1">
+            Group
+          </label>
+          <select
+            className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            value={selected.groupId}
+            onChange={(e) => handleSelect("groupId", e.target.value)}
+          >
+            <option value="">— Choose Group —</option>
+            {(data.groups || []).map((g) => (
+              <option key={g.key} value={g.key}>
+                {g.value}
+              </option>
             ))}
-          </div>
-        )}
+          </select>
+        </div>
+      )}
 
-        <Card className="bg-blue-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Add New Project</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="projectId" className="text-xs">
-                Project ID
-              </Label>
-              <Input
-                id="projectId"
-                value={newProject.projectId}
-                onChange={(e) => setNewProject({ ...newProject, projectId: e.target.value })}
-                placeholder="Enter project ID"
-                className="text-sm"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Select Estimate</Label>
-              <EstimateSelector onChange={handleEstimateChange} />
-            </div>
-
-            {newProject.estimateId && (
-              <div className="bg-white p-3 rounded border border-blue-200 space-y-2">
-                <p className="text-xs font-medium">Selected Estimate Details:</p>
-                <p className="text-xs text-gray-600">Estimate ID: {newProject.estimateId}</p>
-                <p className="text-xs text-gray-600">Level: {newProject.allocationLevel}</p>
-                <p className="text-xs text-gray-600">Reference: {newProject.allocationRef}</p>
-                <p className="text-xs text-gray-600">Model: {newProject.allocationModel}</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="allocatedBudget" className="text-xs">
-                  Allocated Budget (KES)
-                </Label>
-                <Input
-                  id="allocatedBudget"
-                  type="number"
-                  value={newProject.allocatedBudget}
-                  onChange={(e) =>
-                    setNewProject({ ...newProject, allocatedBudget: Number.parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="progress" className="text-xs">
-                  Progress (%)
-                </Label>
-                <Input
-                  id="progress"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={newProject.progress}
-                  onChange={(e) => setNewProject({ ...newProject, progress: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="totalWages" className="text-xs">
-                  Total Wages (KES)
-                </Label>
-                <Input
-                  id="totalWages"
-                  type="number"
-                  value={newProject.totalWages}
-                  onChange={(e) => setNewProject({ ...newProject, totalWages: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="totalExpenses" className="text-xs">
-                  Total Expenses (KES)
-                </Label>
-                <Input
-                  id="totalExpenses"
-                  type="number"
-                  value={newProject.totalExpenses}
-                  onChange={(e) =>
-                    setNewProject({ ...newProject, totalExpenses: Number.parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="totalPOS" className="text-xs">
-                  Total POS (KES)
-                </Label>
-                <Input
-                  id="totalPOS"
-                  type="number"
-                  value={newProject.totalPOS}
-                  onChange={(e) => setNewProject({ ...newProject, totalPOS: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              onClick={handleAddProject}
-              variant="outline"
-              className="w-full text-sm bg-transparent"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Project
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-lg font-semibold">Payments</h3>
-
-        {formData.payments.length > 0 && (
-          <div className="space-y-2">
-            {formData.payments.map((payment, index) => (
-              <Card key={index} className="bg-slate-50">
-                <CardContent className="pt-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">KES {payment.amount.toLocaleString("en-KE")}</p>
-                      <p className="text-xs text-gray-600">
-                        Date: {new Date(payment.date).toLocaleDateString("en-KE")}
-                      </p>
-                      {payment.description && (
-                        <p className="text-xs text-gray-600">Description: {payment.description}</p>
-                      )}
-                      {payment.reference && <p className="text-xs text-gray-600">Reference: {payment.reference}</p>}
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePayment(index)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+      {/* Section Selector */}
+      {(estimateLevel === "section" || estimateLevel === "subsection") && (
+        <div>
+          <label className="block text-sm font-medium text-blue-800 mb-1">
+            Section
+          </label>
+          <select
+            className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            value={selected.sectionId}
+            onChange={(e) => handleSelect("sectionId", e.target.value)}
+            disabled={!selected.groupId}
+          >
+            <option value="">— Choose Section —</option>
+            {filteredSections.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.value}
+              </option>
             ))}
-          </div>
-        )}
+          </select>
+        </div>
+      )}
 
-        <Card className="bg-green-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Add New Payment</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="paymentAmount" className="text-xs">
-                  Amount (KES)
-                </Label>
-                <Input
-                  id="paymentAmount"
-                  type="number"
-                  value={newPayment.amount}
-                  onChange={(e) => setNewPayment({ ...newPayment, amount: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="paymentDate" className="text-xs">
-                  Date
-                </Label>
-                <Input
-                  id="paymentDate"
-                  type="date"
-                  value={newPayment.date}
-                  onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
-                  className="text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="paymentDescription" className="text-xs">
-                Description
-              </Label>
-              <Input
-                id="paymentDescription"
-                value={newPayment.description}
-                onChange={(e) => setNewPayment({ ...newPayment, description: e.target.value })}
-                placeholder="Payment description"
-                className="text-sm"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="paymentReference" className="text-xs">
-                Reference
-              </Label>
-              <Input
-                id="paymentReference"
-                value={newPayment.reference}
-                onChange={(e) => setNewPayment({ ...newPayment, reference: e.target.value })}
-                placeholder="Payment reference"
-                className="text-sm"
-              />
-            </div>
-
-            <Button
-              type="button"
-              onClick={handleAddPayment}
-              variant="outline"
-              className="w-full text-sm bg-transparent"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Payment
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {subcontractor ? "Update Subcontractor" : "Create Subcontractor"}
-      </Button>
-    </form>
+      {/* Subsection Selector */}
+      {estimateLevel === "subsection" && (
+        <div>
+          <label className="block text-sm font-medium text-blue-800 mb-1">
+            Subsection
+          </label>
+          <select
+            className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            value={selected.subsectionId}
+            onChange={(e) => handleSelect("subsectionId", e.target.value)}
+            disabled={!selected.sectionId}
+          >
+            <option value="">— Choose Subsection —</option>
+            {filteredSubsections.map((ss) => (
+              <option key={ss.key} value={ss.key}>
+                {ss.value}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
   )
 }

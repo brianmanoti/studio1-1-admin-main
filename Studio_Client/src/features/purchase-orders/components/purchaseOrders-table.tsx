@@ -262,37 +262,47 @@ export function PurchaseOrderTable() {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-   const projectId = useProjectStore((state) => state.projectId)
+  const projectId = useProjectStore((state) => state.projectId)
 
-  /** ✅ Mutations with success-only dialog closing */
+  /** ✅ Fetch purchase orders */
+  const { data: purchaseOrders = [], isLoading, isError } = useQuery({
+    queryKey: ['purchaseOrders', projectId],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/api/purchase-orders/project/${projectId}`)
+      return res.data.data
+    },
+    enabled: !!projectId,
+  })
+
+  /** ✅ Mutations */
   const approveMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
     onSuccess: (_, id, context: any) => {
       toast.success('Purchase order approved.')
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
       context?.closeDialog?.()
     },
-    onError: () => toast.error('Failed to approve purchase order. Please try again.'),
+    onError: () => toast.error('Failed to approve purchase order.'),
   })
 
   const rejectMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/decline`),
     onSuccess: (_, id, context: any) => {
       toast.success('Purchase order rejected.')
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
       context?.closeDialog?.()
     },
-    onError: () => toast.error('Failed to reject purchase order. Please try again.'),
+    onError: () => toast.error('Failed to reject purchase order.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}`),
     onSuccess: (_, id, context: any) => {
       toast.success('Purchase order deleted.')
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
       context?.closeDialog?.()
     },
-    onError: () => toast.error('Failed to delete purchase order. Please try again.'),
+    onError: () => toast.error('Failed to delete purchase order.'),
   })
 
   const handleBulk = (rows: PurchaseOrder[], action: 'approve' | 'reject' | 'delete') => {
@@ -303,11 +313,9 @@ export function PurchaseOrderTable() {
     })
   }
 
+  /** ✅ Table */
   const table = useReactTable({
-    data: useQuery({
-      queryKey: ['purchaseOrders', projectId],
-      queryFn: async () => (await axiosInstance.get(`/api/purchase-orders/project/${projectId}`)).data.data,
-    }).data || [],
+    data: purchaseOrders,
     columns: getColumns({
       onView: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}` }),
       onEdit: (po) => navigate({ to: `/projects/${projectId}/purchaseOrders/${po._id}/edit` }),
@@ -325,6 +333,9 @@ export function PurchaseOrderTable() {
     getSortedRowModel: getSortedRowModel(),
     enableRowSelection: true,
   })
+
+  if (isLoading) return <div>Loading purchase orders...</div>
+  if (isError) return <div>Failed to load purchase orders.</div>
 
   return (
     <div className="space-y-4 p-2 sm:p-4">
@@ -359,7 +370,9 @@ export function PurchaseOrderTable() {
               <TableRow key={hg.id}>
                 {hg.headers.map((header) => (
                   <TableHead key={header.id} colSpan={header.colSpan}>
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>

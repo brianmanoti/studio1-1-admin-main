@@ -6,9 +6,11 @@ import { useDebounce } from "@/hooks/useDebounce"
 import { useItemsVendors } from "@/hooks/use-items-vendors"
 
 import type { Item, Vendor } from "@/contexts/items-vendors-context"
-import EstimateSelector from "../../estimates/estimates/components/estimate-selector"
+
 import { ItemFormModal } from "@/components/items/items-form-modal"
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
+import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
+import { useProjectStore } from "@/stores/projectStore"
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
 
@@ -30,8 +32,9 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   const isMountedRef = useRef(true)
   const { setFormState } = useItemsVendors()
 
+  const CurrentProjectId = useProjectStore((state) => state.projectId)
   const defaultForm = {
-    projectId: "68dea2f589c927f88ef8ff3",
+    projectId: CurrentProjectId || "",
     reference: "",
     company: "",
     status: "pending",
@@ -78,6 +81,12 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
     },
     staleTime: 1000 * 60 * 5,
   })
+
+  useEffect(() => {
+  if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
+    setField("projectId", CurrentProjectId)
+  }
+}, [isProjectsLoading, CurrentProjectId, form.projectId])
 
   // ------------------- Fetch Items (for autocomplete) -------------------
   const { data: itemList = [] } = useQuery({
@@ -304,29 +313,29 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
           <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Project</label>
-              {isProjectsLoading ? (
-                <p className="text-gray-500 text-sm">Loading projects...</p>
-              ) : isProjectsError ? (
-                <p className="text-red-500 text-sm">Failed to load projects</p>
-              ) : (
-                <select
-                  className="w-full border p-2 rounded"
-                  value={form.projectId}
-                  onChange={(e) => setField("projectId", e.target.value)}
-                  disabled={isLocked}
-                >
-                  <option value="">— Choose Project —</option>
-                  {(projects || []).map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name || p.title || p.projectName || p._id}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Project</label>
+            {isProjectsLoading ? (
+              <p className="text-gray-500 text-sm">Loading projects...</p>
+            ) : isProjectsError ? (
+              <p className="text-red-500 text-sm">Failed to load projects</p>
+            ) : (
+              <select
+                className="w-full border p-2 rounded"
+                value={form.projectId}
+                onChange={(e) => setField("projectId", e.target.value)}
+                disabled={isLocked}
+              >
+                <option value="">— Choose Project —</option>
+                {(projects || []).map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {`${p.name} (${p.projectNumber}) — ${p.client?.companyName || "No Client"}`}
+                  </option>
+                ))}
+              </select>
+            )}
+            {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
+          </div>
             <div>
               <label className="block text-sm font-medium">Company</label>
               <input
@@ -404,10 +413,10 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
                         key={v._id}
                         onClick={() => {
                           setField("vendorName", v.companyName || v.vendorName)
-                          setField("vendorEmail", v.vendorEmail || "")
-                          setField("vendorPhone", v.vendorPhone || "")
-                          setField("vendorAddress", v.vendorAddress || "")
-                          setField("vendorContact", v.vendorContact || "")
+                          setField("vendorEmail", v.email || "")
+                          setField("vendorPhone", v.phone || "")
+                          setField("vendorAddress", v.address || "")
+                          setField("vendorContact", v.contactPerson || "")
                           setActiveVendor(false)
                         }}
                         className="px-2 py-1 hover:bg-blue-100 cursor-pointer text-sm"

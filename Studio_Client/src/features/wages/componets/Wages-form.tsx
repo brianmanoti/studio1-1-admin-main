@@ -9,6 +9,7 @@ import type { Item, Vendor } from "@/contexts/items-vendors-context"
 import EstimateSelector from "../../estimates/estimates/components/estimate-selector"
 import { ItemFormModal } from "@/components/items/items-form-modal"
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
+import { useProjectStore } from "@/stores/projectStore"
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
 
@@ -29,9 +30,10 @@ export default function WageOrderForm({ wageId }) {
   const queryClient = useQueryClient()
   const isMountedRef = useRef(true)
   const { setFormState } = useItemsVendors()
+  const CurrentProjectId = useProjectStore((state) => state.projectId)
 
   const defaultForm = {
-    projectId: "68dea2f589c927f88ef8ff3",
+    projectId: CurrentProjectId || "",
     reference: "",
     company: "",
     status: "pending",
@@ -65,6 +67,7 @@ export default function WageOrderForm({ wageId }) {
   const debouncedSearch = useDebounce(searchTerm, 400)
   const debouncedVendorSearch = useDebounce(vendorSearch, 400)
 
+  
   // ------------------- Fetch Projects -------------------
   const {
     data: projects,
@@ -78,6 +81,12 @@ export default function WageOrderForm({ wageId }) {
     },
     staleTime: 1000 * 60 * 5,
   })
+
+    useEffect(() => {
+  if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
+    setField("projectId", CurrentProjectId)
+  }
+}, [isProjectsLoading, CurrentProjectId, form.projectId])
 
   // ------------------- Fetch Items (for autocomplete) -------------------
   const { data: itemList = [] } = useQuery({
