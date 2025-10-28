@@ -10,6 +10,7 @@ import type { Item } from "@/contexts/items-vendors-context"
 import { ItemFormModal } from "@/components/items/items-form-modal"
 import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { SubcontractorFormModal } from "@/components/subContractors/components/subcontractor-form-modal"
+import { useProjectStore } from "@/stores/projectStore"
 
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
@@ -28,8 +29,10 @@ export default function SubcontractorWagesForm({ wageId }) {
   const isMountedRef = useRef(true)
   const { setFormState } = useItemsVendors()
 
+  const CurrentProjectId = useProjectStore((state) => state.projectId)
+
   const defaultForm = {
-    projectId: "68dea2f589c927f88ef8ff3",
+    projectId: CurrentProjectId || "",
     subcontractorId: "",
     reference: "",
     status: "pending",
@@ -70,6 +73,12 @@ export default function SubcontractorWagesForm({ wageId }) {
     },
     staleTime: 1000 * 60 * 5,
   })
+
+    useEffect(() => {
+    if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
+      setField("projectId", CurrentProjectId)
+    }
+  }, [isProjectsLoading, CurrentProjectId, form.projectId])
 
   // ------------------- Fetch Items (for autocomplete) -------------------
   const { data: itemList = [] } = useQuery({
@@ -247,7 +256,7 @@ export default function SubcontractorWagesForm({ wageId }) {
   // ------------------- Render -------------------
   return (
     <>
-      <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 md:p-8 space-y-6 bg-white rounded-lg shadow-sm">
+      <form onSubmit={handleSubmit} className="w-full mx-auto p-4 md:p-8 space-y-6 bg-white rounded-lg shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <button type="button" onClick={handleBack} className="text-blue-600 hover:underline">
             ← Back
