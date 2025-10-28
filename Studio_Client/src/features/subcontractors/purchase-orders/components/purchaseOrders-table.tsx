@@ -1,5 +1,3 @@
-'use client'
-
 import * as React from 'react'
 import {
   type SortingState,
@@ -30,6 +28,7 @@ import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { useNavigate } from '@tanstack/react-router'
 import axiosInstance from '@/lib/axios'
 import { useProjectStore } from '@/stores/projectStore'
+import { toast } from 'sonner'
 
 /** Purchase Order type */
 export type PurchaseOrder = {
@@ -127,6 +126,19 @@ function getColumns({
   onApprove?: (po: PurchaseOrder) => void
   onReject?: (po: PurchaseOrder) => void
 }): ColumnDef<PurchaseOrder>[] {
+  // Kenyan date & currency formatters
+  const dateFormatter = new Intl.DateTimeFormat('en-KE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+
+  const currencyFormatter = new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    minimumFractionDigits: 2,
+  })
+
   return [
     {
       id: 'select',
@@ -154,12 +166,26 @@ function getColumns({
     { accessorKey: 'company', header: 'Company' },
     { accessorKey: 'vendorName', header: 'Vendor' },
     { accessorKey: 'status', header: 'Status' },
-    { accessorKey: 'date', header: 'Date' },
-    { accessorKey: 'deliveryDate', header: 'Delivery' },
+    {
+      accessorKey: 'date',
+      header: 'Date',
+      cell: ({ getValue }) => {
+        const value = getValue() as string
+        return value ? dateFormatter.format(new Date(value)) : '—'
+      },
+    },
+    {
+      accessorKey: 'deliveryDate',
+      header: 'Delivery',
+      cell: ({ getValue }) => {
+        const value = getValue() as string
+        return value ? dateFormatter.format(new Date(value)) : '—'
+      },
+    },
     {
       accessorKey: 'amount',
-      header: 'Amount',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
+      header: 'Amount (KES)',
+      cell: ({ getValue }) => currencyFormatter.format(getValue() as number),
     },
     {
       id: 'actions',
@@ -197,27 +223,29 @@ export function SubPurchaseOrderTable() {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
   const projectId = useProjectStore((state) => state.projectId)
-
   const navigate = useNavigate()
 
   // ------------------- Fetch Purchase Orders -------------------
   const { data: purchaseOrders = [], isLoading, isError } = useQuery({
     queryKey: ['purchaseOrders', projectId],
     queryFn: async () => {
-      const res = await axiosInstance.get(`/api/purchase-orders/projects/${projectId}`)
+      const res = await axiosInstance.get(`/api/purchase-orders/project/${projectId}`)
       return res.data.data
     },
     staleTime: 1000 * 60 * 5,
   })
 
   const table = useReactTable({
-    data: purchaseOrders, // ✅ use API data
+    data: purchaseOrders,
     columns: getColumns({
-      onView: (po) => alert(`Viewing ${po.poNumber}`),
-      onEdit: (po) => alert(`Editing ${po.poNumber}`),
-      onApprove: (po) => alert(`Approved ${po.poNumber}`),
-      onReject: (po) => alert(`Rejected ${po.poNumber}`),
-      onDelete: (po) => alert(`Deleted ${po.poNumber}`),
+      onView: (po) =>
+        navigate({
+          to: `/projects/${projectId}/subcontractors/purchase-orders/${po._id}`,
+        }),
+      onEdit: (po) => toast.info(`Editing ${po.poNumber}`),
+      onApprove: (po) => toast.success(`Approved ${po.poNumber}`),
+      onReject: (po) => toast.warning(`Rejected ${po.poNumber}`),
+      onDelete: (po) => toast.error(`Deleted ${po.poNumber}`),
     }),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
@@ -253,7 +281,13 @@ export function SubPurchaseOrderTable() {
             },
           ]}
         />
-        <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/purchase-orders/new` })}>
+        <Button
+          onClick={() =>
+            navigate({
+              to: `/projects/${projectId}/subcontractors/purchase-orders/new`,
+            })
+          }
+        >
           <Plus className="w-4 h-4 mr-2" />
           Add Purchase Order
         </Button>
@@ -300,9 +334,15 @@ export function SubPurchaseOrderTable() {
 
       <PurchaseOrdersBulkActions
         table={table}
-        onBulkApprove={(rows) => alert(`Bulk approved ${rows.length} purchase orders`)}
-        onBulkReject={(rows) => alert(`Bulk rejected ${rows.length} purchase orders`)}
-        onBulkDelete={(rows) => alert(`Bulk deleted ${rows.length} purchase orders`)}
+        onBulkApprove={(rows) => {
+          toast.success(`Approved ${rows.length} purchase orders`)
+        }}
+        onBulkReject={(rows) => {
+          toast.warning(`Rejected ${rows.length} purchase orders`)
+        }}
+        onBulkDelete={(rows) => {
+          toast.error(`${rows.length} purchase orders deleted`)
+        }}
       />
     </div>
   )
