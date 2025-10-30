@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -207,147 +206,236 @@ export default function EstimateForm() {
   }
 
   // --- Submit ---
-  const handleSubmit = () => {
-    if (!projectId) return toast.error("Select a project first")
-    if (!estimateName.trim()) return toast.error("Estimate name is required")
-
-    const cleanedGroups = groups.map(({ grpId, sections, ...group }) => ({
-      ...group,
-      sections: (sections || []).map(({ secId, subsections, ...section }) => ({
-        ...section,
-        subsections: (subsections || []).map(({ subId, ...sub }) => sub),
-      })),
-    }))
-
-    const grandTotals: TotalLine[] = []
-    let overallTotal = 0
-
-    cleanedGroups.forEach((g) => {
-      const groupSum =
-        g.total ||
-        g.sections?.reduce(
-          (s, sec) => s + (sec.quantity || 0) * (sec.rate || 0),
-          0
-        ) ||
-        0
-      overallTotal += groupSum
-      if (g.totals?.length) grandTotals.push(...g.totals)
-    })
-
-    const payload: EstimateData = {
-      projectId,
-      name: estimateName,
-      description,
-      status,
-      date,
-      notes,
-      groups: cleanedGroups,
-      totals: [
-        ...grandTotals,
-        { description: "GRAND TOTAL", amount: overallTotal },
-      ],
+// --- Submit ---
+const handleSubmit = async () => {
+  try {
+    if (!projectId) {
+      toast.error("Select a project first")
+      return
     }
 
-    mutation.mutate(payload)
+    if (!estimateName.trim()) {
+      toast.error("Estimate name is required")
+      return
+    }
+
+    // Clean and normalize the group data
+    const cleanedGroups = groups.map((group) => {
+      const cleanedSections = (group.sections || []).map((section) => {
+        const cleanedSubsections = (section.subsections || []).map((sub) => ({
+          code: sub.code || "",
+          name: sub.name || "",
+          description: sub.description || "",
+          quantity: Number(sub.quantity) || 0,
+          unit: sub.unit || "",
+          rate: Number(sub.rate) || 0,
+          amount:
+            Number(sub.amount) ||
+            (Number(sub.quantity) || 0) * (Number(sub.rate) || 0),
+        }))
+
+        const sectionAmount =
+          Number(section.amount) ||
+          (Number(section.quantity) || 0) * (Number(section.rate) || 0)
+
+        return {
+          code: section.code || "",
+          name: section.name || "",
+          description: section.description || "",
+          quantity: Number(section.quantity) || 0,
+          unit: section.unit || "",
+          rate: Number(section.rate) || 0,
+          amount: sectionAmount,
+          subsections: cleanedSubsections,
+        }
+      })
+
+      const groupAmount =
+        Number(group.total) ||
+        (group.sections?.reduce((sum, sec) => sum + (sec.amount || 0), 0) || 0)
+
+      return {
+        code: group.code || "",
+        name: group.name || "",
+        description: group.description || "",
+        quantity: Number(group.quantity) || 0,
+        unit: group.unit || "",
+        rate: Number(group.rate) || 0,
+        total: groupAmount,
+        amount:
+          Number(group.amount) ||
+          (Number(group.quantity) || 0) * (Number(group.rate) || 0),
+        sections: cleanedSections,
+        totals: (group.totals || []).map((t) => ({
+          description: t.description || "",
+          amount: Number(t.amount) || 0,
+        })),
+      }
+    })
+
+    // Compute the overall total
+    const overallTotal = cleanedGroups.reduce(
+      (sum, g) => sum + (g.total || 0),
+      0
+    )
+
+    const grandTotals: TotalLine[] = [
+      { description: "GRAND TOTAL", amount: overallTotal },
+    ]
+
+    // Construct payload
+    const payload: EstimateData = {
+      projectId,
+      name: estimateName.trim(),
+      description: description.trim(),
+      notes: notes.trim(),
+      date,
+      status,
+      groups: cleanedGroups,
+      totals: grandTotals,
+    }
+
+    console.log("🟢 Estimate Payload:", payload)
+
+    await mutation.mutateAsync(payload)
+  } catch (error: any) {
+    console.error("❌ Error submitting estimate:", error)
+    toast.error("Failed to submit estimate")
   }
+}
+
 
   // --- Renderers (same as before) ---
-  const renderImportedTable = () => (
-    <div className="overflow-x-auto rounded-lg border border-border mt-6">
-      <table className="w-full text-sm border-collapse text-center">
-        <thead className="bg-muted text-muted-foreground">
-          <tr>
-            <th></th>
-            <th>Code</th>
-            <th>Name</th>
-            <th>Description</th>
-            <th>Qty</th>
-            <th>Unit</th>
-            <th>Rate</th>
-            <th>Amount</th>
-          </tr>
-        </thead>
+const renderImportedTable = () => (
+  <div className="overflow-x-auto rounded-lg border border-border mt-6">
+    <table className="w-full text-sm border-collapse text-center">
+      <thead className="bg-muted text-muted-foreground">
+        <tr>
+          <th></th>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Unit</th>
+          <th>Rate</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
 
-        <tbody>
-          {groups.map((g) => {
-            const isOpen = expanded[g.id || g.name]
-            return (
-              <>
-                <tr
-                  key={g.id || g.name}
-                  className="hover:bg-muted/40 cursor-pointer"
-                  onClick={() =>
-                    setExpanded((prev) => ({
-                      ...prev,
-                      [g.id || g.name]: !prev[g.id || g.name],
-                    }))
-                  }
-                >
-                  <td>{g.sections?.length ? (isOpen ? <ChevronDown className="w-4 h-4 inline" /> : <ChevronRight className="w-4 h-4 inline" />) : "–"}</td>
-                  <td>{g.code || "—"}</td>
-                  <td className="font-semibold">{g.name}</td>
-                  <td>{g.description || "—"}</td>
-                  <td className="text-right">{g.quantity || 0}</td>
-                  <td>{g.unit || "—"}</td>
-                  <td className="text-right">{formatKES(g.rate)}</td>
-                  <td className="text-right font-semibold">
-                    {formatKES(g.total || g.rate * (g.quantity || 0))}
-                  </td>
-                </tr>
+      <tbody>
+        {groups.map((g) => {
+          const isOpen = expanded[g.id || g.name]
+          return (
+            <>
+              {/* ─── Group Row ─── */}
+              <tr
+                key={g.id || g.name}
+                className="hover:bg-muted/40 cursor-pointer"
+                onClick={() =>
+                  setExpanded((prev) => ({
+                    ...prev,
+                    [g.id || g.name]: !prev[g.id || g.name],
+                  }))
+                }
+              >
+                <td>
+                  {g.sections?.length ? (
+                    isOpen ? (
+                      <ChevronDown className="w-4 h-4 inline" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 inline" />
+                    )
+                  ) : (
+                    "–"
+                  )}
+                </td>
+                <td>{g.code || "—"}</td>
+                <td className="font-semibold">{g.name}</td>
+                <td>{g.description || "—"}</td>
+                <td className="text-right">{g.quantity || 0}</td>
+                <td>{g.unit || "—"}</td>
+                <td className="text-right">{formatKES(g.rate)}</td>
+                <td className="text-right font-semibold">
+                  {formatKES(g.total || g.rate * (g.quantity || 0))}
+                </td>
+              </tr>
 
-                {isOpen &&
-                  g.sections?.map((s) => (
-                    <>
-                      <tr key={s.id} className="bg-muted/20">
-                        <td></td>
-                        <td>{s.code || "—"}</td>
-                        <td className="pl-6">↳ {s.name}</td>
-                        <td>{s.description || "—"}</td>
-                        <td className="text-right">{s.quantity || 0}</td>
-                        <td>{s.unit || "—"}</td>
-                        <td className="text-right">{formatKES(s.rate)}</td>
-                        <td className="text-right">
-                          {formatKES(s.amount || s.rate * (s.quantity || 0))}
-                        </td>
-                      </tr>
-
-                      {s.subsections?.map((sub) => (
-                        <tr key={sub.id} className="bg-muted/10">
-                          <td></td>
-                          <td>{sub.code || "—"}</td>
-                          <td className="pl-10 text-sm">↳ {sub.name}</td>
-                          <td>{sub.description || "—"}</td>
-                          <td className="text-right">{sub.quantity || 0}</td>
-                          <td>{sub.unit || "—"}</td>
-                          <td className="text-right">{formatKES(sub.rate)}</td>
-                          <td className="text-right">
-                            {formatKES(sub.amount || sub.rate * (sub.quantity || 0))}
-                          </td>
-                        </tr>
-                      ))}
-                    </>
-                  ))}
-
-                {/* ✅ Render Excel totals under each group */}
-                {g.totals?.length > 0 && (
+              {/* ─── Section + Subsections ─── */}
+              {isOpen &&
+                g.sections?.map((s) => (
                   <>
-                    {g.totals.map((t, ti) => (
-                      <tr key={`total-${g.id}-${ti}`} className="bg-muted/30 font-semibold">
-                        <td colSpan={7} className="text-right pr-2 italic">
-                          {t.description}
+                    {/* Section Row */}
+                    <tr key={s.id} className="bg-muted/20">
+                      <td></td>
+                      <td>{s.code || "—"}</td>
+                      <td className="pl-6">↳ {s.name}</td>
+                      <td>{s.description || "—"}</td>
+                      <td className="text-right">{s.quantity || 0}</td>
+                      <td>{s.unit || "—"}</td>
+                      <td className="text-right">{formatKES(s.rate)}</td>
+                      <td className="text-right">
+                        {formatKES(s.amount || s.rate * (s.quantity || 0))}
+                      </td>
+                    </tr>
+
+                    {/* Subsections */}
+                    {s.subsections?.map((sub) => (
+                      <tr key={sub.id} className="bg-muted/10">
+                        <td></td>
+                        <td>{sub.code || "—"}</td>
+                        <td className="pl-10 text-sm">↳ {sub.name}</td>
+                        <td>{sub.description || "—"}</td>
+                        <td className="text-right">{sub.quantity || 0}</td>
+                        <td>{sub.unit || "—"}</td>
+                        <td className="text-right">{formatKES(sub.rate)}</td>
+                        <td className="text-right">
+                          {formatKES(
+                            sub.amount || sub.rate * (sub.quantity || 0)
+                          )}
                         </td>
-                        <td className="text-right">{formatKES(t.amount)}</td>
                       </tr>
                     ))}
+
+                    {/* ✅ Section Total Row */}
+                    {s.total && (
+                      <tr
+                        key={`section-total-${s.id}`}
+                        className="bg-muted/40 font-medium italic"
+                      >
+                        <td colSpan={7} className="text-right pr-2">
+                          {s.total.description}
+                        </td>
+                        <td className="text-right">
+                          {formatKES(s.total.amount)}
+                        </td>
+                      </tr>
+                    )}
                   </>
-                )}
-              </>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
+                ))}
+
+              {/* ✅ Group Totals */}
+              {g.totals?.length > 0 && (
+                <>
+                  {g.totals.map((t, ti) => (
+                    <tr
+                      key={`total-${g.id}-${ti}`}
+                      className="bg-muted/30 font-semibold"
+                    >
+                      <td colSpan={7} className="text-right pr-2 italic">
+                        {t.description}
+                      </td>
+                      <td className="text-right">{formatKES(t.amount)}</td>
+                    </tr>
+                  ))}
+                </>
+              )}
+            </>
+          )
+        })}
+      </tbody>
+    </table>
+  </div>
+)
 
   return (
     <div className="p-6 space-y-8">

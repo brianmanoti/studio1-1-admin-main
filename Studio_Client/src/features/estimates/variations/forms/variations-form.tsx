@@ -64,7 +64,7 @@ export default function VariationsForm() {
     mutationFn: async (data) => await axiosInstance.post("/api/variations", data),
     onSuccess: () => {
       queryClient.invalidateQueries(["variations"])
-      navigate({ to: "/variations" })
+      navigate({ to: "/projects/$projectId/estimates/variations" })
     },
   })
 
