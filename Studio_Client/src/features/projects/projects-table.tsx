@@ -25,6 +25,7 @@ import { ProfileDropdown } from "@/components/profile-dropdown"
 import { Main } from "@/components/layout/main"
 import { ProjectListSkeleton } from "./components/projects-skeleton"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import ProjectsEmpty from "./projects-empty"
 
 interface Project {
   _id: string
@@ -255,7 +256,7 @@ const ProjectList: React.FC = () => {
   if (isLoading) return <section className="p-6 text-sm text-muted-foreground"><ProjectListSkeleton /></section>
   if (isError) return <p className="p-6 text-sm text-destructive">Failed to load projects</p>
   if (!projects?.length && !isLoading)
-    return <p className="p-6 text-sm text-muted-foreground">No projects found. Start by creating one!</p>
+    return <><ProjectsEmpty /></>
 
   return (
     <>
