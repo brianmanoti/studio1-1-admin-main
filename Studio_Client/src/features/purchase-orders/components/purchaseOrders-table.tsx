@@ -1,3 +1,4 @@
+// src/features/purchase-orders/PurchaseOrderTable.tsx
 'use client'
 
 import * as React from 'react'
@@ -43,7 +44,7 @@ export type PurchaseOrder = {
   amount: number
 }
 
-/** Bulk Actions */
+/** ---------- Bulk Actions ---------- */
 function PurchaseOrdersBulkActions({
   table,
   onBulkApprove,
@@ -105,25 +106,19 @@ function PurchaseOrdersBulkActions({
   )
 }
 
-/** Status Badge Colors */
+/** ---------- Status Color Helper ---------- */
 function getStatusColor(status: PurchaseOrder['status']) {
   switch (status) {
-    case 'approved':
-      return 'bg-green-100 text-green-700'
-    case 'declined':
-      return 'bg-red-100 text-red-700'
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-700'
-    case 'in-transit':
-      return 'bg-blue-100 text-blue-700'
-    case 'delivered':
-      return 'bg-purple-100 text-purple-700'
-    default:
-      return 'bg-gray-100 text-gray-700'
+    case 'approved': return 'bg-green-100 text-green-700'
+    case 'declined': return 'bg-red-100 text-red-700'
+    case 'pending': return 'bg-yellow-100 text-yellow-700'
+    case 'in-transit': return 'bg-blue-100 text-blue-700'
+    case 'delivered': return 'bg-purple-100 text-purple-700'
+    default: return 'bg-gray-100 text-gray-700'
   }
 }
 
-/** Columns */
+/** ---------- Columns ---------- */
 function getColumns({
   onView,
   onEdit,
@@ -203,27 +198,30 @@ function getColumns({
           if (dialog.action === 'delete') onDelete?.(po, () => setDialog({ open: false }))
         }
 
+        /** prevent event bubbling to TableRow click */
+        const stop = (e: React.MouseEvent) => e.stopPropagation()
+
         return (
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => onView?.(po)} title="View">
+            <button onClick={(e) => { stop(e); onView?.(po) }} title="View">
               <Eye className="w-4 h-4" />
             </button>
-            <button onClick={() => onEdit?.(po)} title="Edit">
+            <button onClick={(e) => { stop(e); onEdit?.(po) }} title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
 
             {po.status !== 'approved' && po.status !== 'declined' && (
               <>
-                <button onClick={() => setDialog({ open: true, action: 'approve' })} title="Approve">
+                <button onClick={(e) => { stop(e); setDialog({ open: true, action: 'approve' }) }} title="Approve">
                   <Check className="w-4 h-4 text-green-600" />
                 </button>
-                <button onClick={() => setDialog({ open: true, action: 'reject' })} title="Reject">
+                <button onClick={(e) => { stop(e); setDialog({ open: true, action: 'reject' }) }} title="Reject">
                   <X className="w-4 h-4 text-red-600" />
                 </button>
               </>
             )}
 
-            <button onClick={() => setDialog({ open: true, action: 'delete' })} title="Delete">
+            <button onClick={(e) => { stop(e); setDialog({ open: true, action: 'delete' }) }} title="Delete">
               <Trash className="w-4 h-4 text-red-700" />
             </button>
 
@@ -255,7 +253,7 @@ function getColumns({
   ]
 }
 
-/** Main Table Component */
+/** ---------- Main Table ---------- */
 export function PurchaseOrderTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -264,56 +262,50 @@ export function PurchaseOrderTable() {
   const navigate = useNavigate()
   const projectId = useProjectStore((state) => state.projectId)
 
-  /** ✅ Fetch purchase orders */
+  /** Data */
   const { data: purchaseOrders = [], isLoading, isError } = useQuery({
     queryKey: ['purchaseOrders', projectId],
-    queryFn: async () => {
-      const res = await axiosInstance.get(`/api/purchase-orders/project/${projectId}`)
-      return res.data.data
-    },
+    queryFn: async () => (await axiosInstance.get(`/api/purchase-orders/project/${projectId}`)).data.data,
     enabled: !!projectId,
   })
 
-  /** ✅ Mutations */
+  /** Mutations */
   const approveMutation = useMutation({
-    mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
-    onSuccess: (_, id, context: any) => {
+    mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
+    onSuccess: (_, id, ctx: any) => {
       toast.success('Purchase order approved.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
-      context?.closeDialog?.()
+      ctx?.closeDialog?.()
     },
     onError: () => toast.error('Failed to approve purchase order.'),
   })
-
   const rejectMutation = useMutation({
-    mutationFn: async (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/decline`),
-    onSuccess: (_, id, context: any) => {
+    mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/decline`),
+    onSuccess: (_, id, ctx: any) => {
       toast.success('Purchase order rejected.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
-      context?.closeDialog?.()
+      ctx?.closeDialog?.()
     },
     onError: () => toast.error('Failed to reject purchase order.'),
   })
-
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}`),
-    onSuccess: (_, id, context: any) => {
+    mutationFn: (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}`),
+    onSuccess: (_, id, ctx: any) => {
       toast.success('Purchase order deleted.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
-      context?.closeDialog?.()
+      ctx?.closeDialog?.()
     },
     onError: () => toast.error('Failed to delete purchase order.'),
   })
 
-  const handleBulk = (rows: PurchaseOrder[], action: 'approve' | 'reject' | 'delete') => {
-    rows.forEach((row) => {
-      if (action === 'approve') approveMutation.mutate(row._id)
-      if (action === 'reject') rejectMutation.mutate(row._id)
-      if (action === 'delete') deleteMutation.mutate(row._id)
+  const handleBulk = (rows: PurchaseOrder[], action: 'approve' | 'reject' | 'delete') =>
+    rows.forEach((r) => {
+      if (action === 'approve') approveMutation.mutate(r._id)
+      if (action === 'reject') rejectMutation.mutate(r._id)
+      if (action === 'delete') deleteMutation.mutate(r._id)
     })
-  }
 
-  /** ✅ Table */
+  /** Table setup */
   const table = useReactTable({
     data: purchaseOrders,
     columns: getColumns({
@@ -368,20 +360,28 @@ export function PurchaseOrderTable() {
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
-                {hg.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                {hg.headers.map((h) => (
+                  <TableHead key={h.id} colSpan={h.colSpan}>
+                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
             ))}
           </TableHeader>
+
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  onClick={() =>
+                    navigate({
+                      to: `/projects/${projectId}/purchaseOrders/${row.original._id}`,
+                    })
+                  }
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
