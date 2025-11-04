@@ -7,23 +7,23 @@ import { Download, Printer, ArrowLeft, Loader2 } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Main } from "@/components/layout/main"
 import { useDownloadPOPDF } from "@/hooks/PDFs/purchase-order-PDF"
-import { usePurchaseOrder } from "@/hooks/use-purchase-order"
+import { useWageOrder } from "@/hooks/use-wage-order"
 
 export default function WageViewPage() {
-  const params = useParams({ strict: false }) as { purchaseId: string }
+  const params = useParams({ strict: false }) as { WageId: string }
   const [isLoading, setIsLoading] = useState(false)
 
-  const { data: po, isLoading: isQueryLoading, error } = usePurchaseOrder(params.purchaseId)
+  const { data: po, isLoading: isQueryLoading, error } = useWageOrder(params.WageId)
 
   const { mutateAsync: downloadPO, isPending } = useDownloadPOPDF()
 
   const handleDownloadPDF = async () => {
     try {
-      const blob = await downloadPO({ id: params.purchaseId })
+      const blob = await downloadPO({ id: params.WageId })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${po?.poNumber || "PO"}.pdf`
+      a.download = `${po?.wageNumber || "PO"}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -130,7 +130,7 @@ export default function WageViewPage() {
                     <p className="mt-1 text-blue-100">Professional Procurement Document</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold">{po.poNumber}</p>
+                    <p className="text-2xl font-bold">{po.wageNumber}</p>
                     <span
                       className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-semibold capitalize ${getStatusColor(po.status)}`}
                     >
