@@ -77,11 +77,11 @@ export default function POViewPage() {
           <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
             <div className="mx-auto max-w-4xl">
               <Link
-                to="/_authenticated/projects"
+                to="/projects/$projectId/purchaseOrders"
                 className="inline-flex items-center gap-2 text-primary hover:opacity-80 mb-6"
               >
                 <ArrowLeft className="h-5 w-5" />
-                <span>Back to Projects</span>
+                <span>Back to Purchase Order</span>
               </Link>
               <Card className="p-8 text-center">
                 <p className="text-red-600 text-lg">Failed to load purchase order</p>
@@ -101,11 +101,11 @@ export default function POViewPage() {
           <div className="mx-auto max-w-4xl">
             <div className="mb-6 flex items-center justify-between">
               <Link
-                to="/_authenticated/projects"
+                to="/projects/$projectId/purchaseOrders"
                 className="inline-flex items-center gap-2 text-primary hover:opacity-80"
               >
                 <ArrowLeft className="h-5 w-5" />
-                <span>Back to Projects</span>
+                <span>Back to Purchase Orders</span>
               </Link>
               <div className="flex gap-3 print:hidden">
                 <Button variant="outline" onClick={handlePrint} className="gap-2 bg-transparent">

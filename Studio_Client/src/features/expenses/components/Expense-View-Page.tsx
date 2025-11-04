@@ -7,8 +7,9 @@ import { Card } from "@/components/ui/card"
 import { Download, Printer, ArrowLeft, Loader2 } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Main } from "@/components/layout/main"
-import { useDownloadPOPDF } from "@/hooks/PDFs/purchase-order-PDF"
+
 import { useExpenseOrder } from "@/hooks/use-expense-order"
+import { useDownloadExpensePDF } from "@/hooks/PDFs/Expense-order-PDF"
 
 export default function EXPViewPage() {
   const params = useParams({ strict: false }) as { ExpenseId: string }
@@ -16,11 +17,11 @@ export default function EXPViewPage() {
 
   const { data: po, isLoading: isQueryLoading, error } = useExpenseOrder(params.ExpenseId)
 
-  const { mutateAsync: downloadPO, isPending } = useDownloadPOPDF()
+  const { mutateAsync: downloadExpense, isPending } = useDownloadExpensePDF()
 
   const handleDownloadPDF = async () => {
     try {
-      const blob = await downloadPO({ id: params.ExpenseId })
+      const blob = await downloadExpense({ id: params.ExpenseId })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -77,14 +78,14 @@ export default function EXPViewPage() {
           <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-6">
             <div className="mx-auto max-w-4xl">
               <Link
-                to="/_authenticated/projects"
+                to="/projects/$projectId/expenses"
                 className="inline-flex items-center gap-2 text-primary hover:opacity-80 mb-6"
               >
                 <ArrowLeft className="h-5 w-5" />
-                <span>Back to Projects</span>
+                <span>Back to Expenses</span>
               </Link>
               <Card className="p-8 text-center">
-                <p className="text-red-600 text-lg">Failed to load purchase order</p>
+                <p className="text-red-600 text-lg">Failed to load Expense order</p>
               </Card>
             </div>
           </div>
@@ -101,11 +102,11 @@ export default function EXPViewPage() {
           <div className="mx-auto max-w-4xl">
             <div className="mb-6 flex items-center justify-between">
               <Link
-                to="/_authenticated/projects"
+                to="/projects/$projectId/expenses"
                 className="inline-flex items-center gap-2 text-primary hover:opacity-80"
               >
                 <ArrowLeft className="h-5 w-5" />
-                <span>Back to Projects</span>
+                <span>Back to Expenses</span>
               </Link>
               <div className="flex gap-3 print:hidden">
                 <Button variant="outline" onClick={handlePrint} className="gap-2 bg-transparent">
@@ -127,7 +128,7 @@ export default function EXPViewPage() {
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-8 text-white">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h1 className="text-3xl font-bold">Purchase Order</h1>
+                    <h1 className="text-3xl font-bold">Expense Order</h1>
                     <p className="mt-1 text-blue-100">Professional Procurement Document</p>
                   </div>
                   <div className="text-right">
