@@ -8,22 +8,29 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
   useReactTable,
 } from '@tanstack/react-table'
-import { Eye, Pencil, Check, X, Trash, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axiosInstance from '@/lib/axios'
 import { useNavigate } from '@tanstack/react-router'
 import { useProjectStore } from '@/stores/projectStore'
+import { toast } from 'sonner'
 import { DataTableActionMenu } from './data-table-action-menu'
 
+/** Wage type */
 export type Wage = {
   _id: string
   wageNumber: string
@@ -35,8 +42,8 @@ export type Wage = {
   amount: number
 }
 
-/** Convert MongoDB ISO string to readable Kenyan date */
-export function formatKenyaDate(dateStr: string) {
+/** Format date as readable Kenyan date */
+function formatKenyaDate(dateStr: string) {
   if (!dateStr) return ''
   const date = new Date(dateStr)
   return date.toLocaleDateString('en-KE', {
@@ -46,153 +53,260 @@ export function formatKenyaDate(dateStr: string) {
   })
 }
 
-/** Format amount to Kenyan Shillings */
-export function formatKES(amount: number) {
+/** Format amount as KES */
+function formatKES(amount: number) {
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
     currency: 'KES',
   }).format(amount ?? 0)
 }
 
+/* ---------------- Bulk Actions ---------------- */
+function WagesBulkActions({
+  table,
+  onBulkApprove,
+  onBulkReject,
+  onBulkDelete,
+}: {
+  table: ReturnType<typeof useReactTable<Wage>>
+  onBulkApprove?: (rows: Wage[]) => void
+  onBulkReject?: (rows: Wage[]) => void
+  onBulkDelete?: (rows: Wage[]) => void
+}) {
+  const selected = table.getSelectedRowModel().rows.map((r) => r.original)
+  const [dialog, setDialog] = React.useState<{ open: boolean; action?: 'approve' | 'reject' | 'delete' }>({ open: false })
+
+  const handleConfirm = () => {
+    if (!dialog.action) return
+    if (dialog.action === 'approve') onBulkApprove?.(selected)
+    if (dialog.action === 'reject') onBulkReject?.(selected)
+    if (dialog.action === 'delete') onBulkDelete?.(selected)
+    setDialog({ open: false })
+  }
+
+  if (selected.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-gray-50">
+      <span className="text-sm text-gray-600">{selected.length} selected</span>
+      <Button size="sm" onClick={() => setDialog({ open: true, action: 'approve' })}>Approve</Button>
+      <Button size="sm" onClick={() => setDialog({ open: true, action: 'reject' })}>Reject</Button>
+      <Button size="sm" variant="destructive" onClick={() => setDialog({ open: true, action: 'delete' })}>
+        Delete
+      </Button>
+
+      <ConfirmDialog
+        open={dialog.open}
+        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+        title={
+          dialog.action === 'delete'
+            ? 'Delete Wages'
+            : dialog.action === 'approve'
+            ? 'Approve Wages'
+            : 'Reject Wages'
+        }
+        desc={`Are you sure you want to ${dialog.action} ${selected.length} wage(s)?`}
+        destructive={dialog.action === 'delete' || dialog.action === 'reject'}
+        handleConfirm={handleConfirm}
+        confirmText={dialog.action?.charAt(0).toUpperCase() + dialog.action?.slice(1)}
+      />
+    </div>
+  )
+}
+
+/* ---------------- Columns ---------------- */
+function getColumns({
+  onView,
+  onEdit,
+  onApprove,
+  onReject,
+  onDelete,
+  isMutating,
+}: {
+  onView?: (w: Wage) => void
+  onEdit?: (w: Wage) => void
+  onApprove?: (w: Wage, close: () => void) => void
+  onReject?: (w: Wage, close: () => void) => void
+  onDelete?: (w: Wage, close: () => void) => void
+  isMutating?: boolean
+}): ColumnDef<Wage>[] {
+  return [
+    {
+      id: 'select',
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          indeterminate={table.getIsSomePageRowsSelected()}
+          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          indeterminate={row.getIsSomeSelected()}
+          onCheckedChange={(v) => row.toggleSelected(!!v)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'wageNumber',
+      header: 'Wage #',
+      cell: ({ getValue, row }) => (
+        <Button variant="link" className="p-0" onClick={() => onView?.(row.original)}>
+          {getValue() as string}
+        </Button>
+      ),
+    },
+    {
+      accessorKey: 'company',
+      header: 'Company',
+      cell: ({ getValue, row }) => (
+        <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+          {getValue() as string}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'vendorName',
+      header: 'Vendor',
+      cell: ({ getValue, row }) => (
+        <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+          {getValue() as string}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ getValue, row }) => {
+        const status = getValue() as Wage['status']
+        return (
+          <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: 'date',
+      header: 'Date',
+      cell: ({ getValue, row }) => (
+        <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+          {formatKenyaDate(getValue() as string)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'deliveryDate',
+      header: 'Delivery',
+      cell: ({ getValue, row }) => (
+        <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+          {formatKenyaDate(getValue() as string)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'amount',
+      header: 'Amount',
+      cell: ({ getValue, row }) => (
+        <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+          {formatKES(getValue() as number)}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <DataTableActionMenu<Wage>
+          row={row.original}
+          entityName="wage"
+          isMutating={isMutating}
+          onView={onView}
+          onEdit={onEdit}
+          onApprove={onApprove}
+          onReject={onReject}
+          onDelete={onDelete}
+        />
+      ),
+    },
+  ]
+}
+
+/* ---------------- Main Component ---------------- */
 export function WagesTable() {
   const [rowSelection, setRowSelection] = React.useState({})
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [dialog, setDialog] = React.useState<{
-    open: boolean
-    action?: 'approve' | 'reject' | 'delete'
-    wage?: Wage
-    bulk?: boolean
-    rows?: Wage[]
-  }>({ open: false })
-
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const projectId = useProjectStore((state) => state.projectId)
 
   // --- Fetch wages ---
-const { data: wages = [], isLoading, isError } = useQuery({
-  queryKey: ['wages', projectId],
-  queryFn: async () => {
-    const res = await axiosInstance.get(`/api/wages/project/${projectId}`)
-    return res.data ?? []
-  },
-  staleTime: 1000 * 60 * 5,
-  enabled: !!projectId, // ✅ Only fetch when projectId is truthy
-})
-
-
-  // --- Mutations ---
-  const mutateAction = useMutation({
-    mutationFn: async ({
-      action,
-      ids,
-    }: {
-      action: 'approve' | 'reject' | 'delete'
-      ids: string[]
-    }) => {
-      const endpoint =
-        action === 'approve'
-          ? '/api/wages/approve'
-          : action === 'reject'
-          ? '/api/wages/reject'
-          : '/api/wages/delete'
-      await axiosInstance.post(endpoint, { ids })
+  const { data: wages = [], isLoading, isError } = useQuery({
+    queryKey: ['wages', projectId],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/api/wages/project/${projectId}`)
+      return res.data ?? []
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['wages', projectId])
-      setDialog({ open: false })
-      setRowSelection({})
-    },
+    enabled: !!projectId,
+    staleTime: 1000 * 60 * 5,
   })
 
-  const handleConfirm = () => {
-    if (!dialog.action) return
-    const ids = dialog.bulk
-      ? dialog.rows?.map((w) => w._id) ?? []
-      : dialog.wage
-      ? [dialog.wage._id]
-      : []
+  // --- Mutations ---
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => axiosInstance.patch(`/api/wages/${id}/approve`),
+    onSuccess: () => {
+      toast.success('Wage approved successfully')
+      queryClient.invalidateQueries({ queryKey: ['wages', projectId] })
+    },
+    onError: () => toast.error('Failed to approve wage'),
+  })
 
-    mutateAction.mutate({ action: dialog.action, ids })
-  }
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => axiosInstance.patch(`/api/wages/${id}/reject`),
+    onSuccess: () => {
+      toast.success('Wage rejected successfully')
+      queryClient.invalidateQueries({ queryKey: ['wages', projectId] })
+    },
+    onError: () => toast.error('Failed to reject wage'),
+  })
 
-  // --- Table config ---
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => axiosInstance.delete(`/api/wages/${id}`),
+    onSuccess: () => {
+      toast.success('Wage deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['wages', projectId] })
+    },
+    onError: () => toast.error('Failed to delete wage'),
+  })
+
   const table = useReactTable({
-    data: wages ?? [],
-    columns: React.useMemo<ColumnDef<Wage>[]>(
-      () => [
-        {
-          id: 'select',
-          header: ({ table }) => (
-            <Checkbox
-              checked={table.getIsAllPageRowsSelected()}
-              indeterminate={table.getIsSomePageRowsSelected()}
-              onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-              aria-label="Select all"
-            />
-          ),
-          cell: ({ row }) => (
-            <Checkbox
-              checked={row.getIsSelected()}
-              indeterminate={row.getIsSomeSelected()}
-              onCheckedChange={(v) => row.toggleSelected(!!v)}
-              aria-label="Select row"
-            />
-          ),
-          enableSorting: false,
-          enableHiding: false,
-        },
-        { accessorKey: 'wageNumber', header: 'Wage #' },
-        { accessorKey: 'company', header: 'Company' },
-        { accessorKey: 'vendorName', header: 'Vendor' },
-        { accessorKey: 'status', header: 'Status' },
-        {
-          accessorKey: 'date',
-          header: 'Date',
-          cell: ({ getValue }) => formatKenyaDate(getValue() as string),
-        },
-        {
-          accessorKey: 'deliveryDate',
-          header: 'Delivery',
-          cell: ({ getValue }) => formatKenyaDate(getValue() as string),
-        },
-        {
-          accessorKey: 'amount',
-          header: 'Amount',
-          cell: ({ getValue }) => formatKES(getValue() as number),
-        },
-      {
-        id: 'actions',
-        header: 'Actions',
-        cell: ({ row }) => {
-          const wage = row.original
-          return (
-            <DataTableActionMenu
-              row={wage}
-              entityName="wage"
-              isMutating={mutateAction.isPending}
-              onView={(w) => navigate({ to: `/projects/${projectId}/wages/${w._id}` })}
-              onEdit={(w) => navigate({ to: `/projects/${projectId}/wages/${w._id}/edit` })}
-              onApprove={(w, close) => {
-                mutateAction.mutate({ action: 'approve', ids: [w._id] })
-                close()
-              }}
-              onReject={(w, close) => {
-                mutateAction.mutate({ action: 'reject', ids: [w._id] })
-                close()
-              }}
-              onDelete={(w, close) => {
-                mutateAction.mutate({ action: 'delete', ids: [w._id] })
-                close()
-              }}
-            />
-          )
-        },
+    data: wages,
+    columns: getColumns({
+      onView: (w) => navigate({ to: `/projects/${projectId}/wages/${w._id}` }),
+      onEdit: (w) => navigate({ to: `/projects/${projectId}/wages/${w._id}/edit` }),
+      onApprove: (w, close) => {
+        approveMutation.mutate(w._id)
+        close()
       },
-      ],
-      [navigate]
-    ),
+      onReject: (w, close) => {
+        rejectMutation.mutate(w._id)
+        close()
+      },
+      onDelete: (w, close) => {
+        deleteMutation.mutate(w._id)
+        close()
+      },
+      isMutating:
+        approveMutation.isPending ||
+        rejectMutation.isPending ||
+        deleteMutation.isPending,
+    }),
     state: { sorting, columnVisibility, rowSelection },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -201,23 +315,28 @@ const { data: wages = [], isLoading, isError } = useQuery({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     enableRowSelection: true,
   })
 
-  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original)
+  const handleBulk = (rows: Wage[], action: 'approve' | 'reject' | 'delete') => {
+    rows.forEach((r) => {
+      if (action === 'approve') approveMutation.mutate(r._id)
+      if (action === 'reject') rejectMutation.mutate(r._id)
+      if (action === 'delete') deleteMutation.mutate(r._id)
+    })
+  }
 
   if (!projectId) return <div>Project ID is missing.</div>
-  if (isLoading) return <div>Loading wages...</div>
+  if (isLoading) return <div>Loading wages…</div>
   if (isError) return <div>Failed to load wages.</div>
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-2 sm:p-4">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <DataTableToolbar
           table={table}
-          searchPlaceholder="Search wages..."
+          searchPlaceholder="Search wages…"
           filters={[
             {
               columnId: 'status',
@@ -232,17 +351,15 @@ const { data: wages = [], isLoading, isError } = useQuery({
             },
           ]}
         />
-        <Button
-          onClick={() => navigate({ to: `/projects/${projectId}/wages/new` })}
-          className="ml-4"
-        >
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/wages/new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Wage
         </Button>
       </div>
 
-      <div className="overflow-auto rounded-md border">
-        <Table>
+      {/* Table */}
+      <div className="overflow-x-auto rounded-md border bg-background shadow-sm">
+        <Table className="min-w-full text-sm [&_tr:nth-child(even)]:bg-muted/30">
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id}>
@@ -261,10 +378,19 @@ const { data: wages = [], isLoading, isError } = useQuery({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-state={row.getIsSelected() ? 'selected' : undefined}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() =>
+                    navigate({ to: `/projects/${projectId}/wages/${row.original._id}` })
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      onClick={(e) => {
+                        if (cell.column.id === 'actions') e.stopPropagation()
+                      }}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -272,10 +398,7 @@ const { data: wages = [], isLoading, isError } = useQuery({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={table.getAllColumns().length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
                   No results.
                 </TableCell>
               </TableRow>
@@ -286,60 +409,12 @@ const { data: wages = [], isLoading, isError } = useQuery({
 
       <DataTablePagination table={table} />
 
-      {selectedRows.length > 0 && (
-        <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
-          <span className="text-sm text-gray-600">{selectedRows.length} selected</span>
-          <Button
-            size="sm"
-            onClick={() =>
-              setDialog({ open: true, action: 'approve', bulk: true, rows: selectedRows })
-            }
-          >
-            Approve
-          </Button>
-          <Button
-            size="sm"
-            onClick={() =>
-              setDialog({ open: true, action: 'reject', bulk: true, rows: selectedRows })
-            }
-          >
-            Reject
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() =>
-              setDialog({ open: true, action: 'delete', bulk: true, rows: selectedRows })
-            }
-          >
-            Delete
-          </Button>
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={dialog.open}
-        onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
-        title={
-          dialog.action === 'delete'
-            ? dialog.bulk
-              ? 'Delete Wages'
-              : 'Delete Wage'
-            : dialog.action === 'approve'
-            ? dialog.bulk
-              ? 'Approve Wages'
-              : 'Approve Wage'
-            : dialog.bulk
-            ? 'Reject Wages'
-            : 'Reject Wage'
-        }
-        desc={
-          dialog.bulk
-            ? `Are you sure you want to ${dialog.action} ${dialog.rows?.length ?? 0} wage(s)?`
-            : `Are you sure you want to ${dialog.action} ${dialog.wage?.wageNumber ?? ''}?`
-        }
-        destructive={dialog.action === 'delete' || dialog.action === 'reject'}
-        handleConfirm={handleConfirm}
+      {/* Bulk actions */}
+      <WagesBulkActions
+        table={table}
+        onBulkApprove={(rows) => handleBulk(rows, 'approve')}
+        onBulkReject={(rows) => handleBulk(rows, 'reject')}
+        onBulkDelete={(rows) => handleBulk(rows, 'delete')}
       />
     </div>
   )
