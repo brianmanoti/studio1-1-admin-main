@@ -22,6 +22,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axiosInstance from '@/lib/axios'
 import { useNavigate } from '@tanstack/react-router'
 import { useProjectStore } from '@/stores/projectStore'
+import { DataTableActionMenu } from './data-table-action-menu'
 
 export type Wage = {
   _id: string
@@ -161,39 +162,34 @@ const { data: wages = [], isLoading, isError } = useQuery({
           header: 'Amount',
           cell: ({ getValue }) => formatKES(getValue() as number),
         },
-        {
-          id: 'actions',
-          header: 'Actions',
-          cell: ({ row }) => {
-            const wage = row.original
-            if (!wage) return null
-            return (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => navigate({ to: `/projects/${projectId}/wages/${wage._id}` })}
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() =>
-                    navigate({ to: `/projects/${projectId}/wages/${wage._id}/edit` })
-                  }
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button onClick={() => setDialog({ open: true, wage, action: 'approve' })}>
-                  <Check className="w-4 h-4 text-green-600" />
-                </button>
-                <button onClick={() => setDialog({ open: true, wage, action: 'reject' })}>
-                  <X className="w-4 h-4 text-red-600" />
-                </button>
-                <button onClick={() => setDialog({ open: true, wage, action: 'delete' })}>
-                  <Trash className="w-4 h-4 text-red-700" />
-                </button>
-              </div>
-            )
-          },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => {
+          const wage = row.original
+          return (
+            <DataTableActionMenu
+              row={wage}
+              entityName="wage"
+              isMutating={mutateAction.isPending}
+              onView={(w) => navigate({ to: `/projects/${projectId}/wages/${w._id}` })}
+              onEdit={(w) => navigate({ to: `/projects/${projectId}/wages/${w._id}/edit` })}
+              onApprove={(w, close) => {
+                mutateAction.mutate({ action: 'approve', ids: [w._id] })
+                close()
+              }}
+              onReject={(w, close) => {
+                mutateAction.mutate({ action: 'reject', ids: [w._id] })
+                close()
+              }}
+              onDelete={(w, close) => {
+                mutateAction.mutate({ action: 'delete', ids: [w._id] })
+                close()
+              }}
+            />
+          )
         },
+      },
       ],
       [navigate]
     ),
