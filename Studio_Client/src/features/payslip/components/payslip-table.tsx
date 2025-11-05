@@ -333,7 +333,7 @@ export const PayslipTable = React.memo(function PayslipTableComponent() {
 
   const handleViewPayslip = React.useCallback(
     (id: string) => {
-      navigate({ to: `/payslips/${id}` })
+      navigate({ to: `${id}` })
     },
     [navigate],
   )
