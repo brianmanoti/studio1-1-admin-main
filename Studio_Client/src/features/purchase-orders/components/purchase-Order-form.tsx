@@ -111,29 +111,45 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   console.log("Vendor List:", vendorList)
 
   // ------------------- Fetch existing PO -------------------
-  useQuery({
-    queryKey: ["purchaseOrder", purchaseOrderId],
-    enabled: !!purchaseOrderId,
-    queryFn: async () => {
-      const res = await axiosInstance.get(`/api/purchase-orders/${purchaseOrderId}`)
-      return res.data
-    },
-    onSuccess(po) {
-      const normalized = {
-        ...defaultForm,
-        ...po,
-        date: formatDateToInput(po?.date),
-        deliveryDate: formatDateToInput(po?.deliveryDate),
-        items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
-      }
-      setForm(normalized)
-      setInitialSnapshot(JSON.stringify(normalized))
-      setIsDeletedMode(!!po?.isDeleted)
-    },
-    onError() {
-      setServerError("Failed to load purchase order data")
-    },
-  })
+// ------------------- Fetch existing Purchase Order -------------------
+const {
+  data: purchaseOrder,
+  isLoading: isPurchaseOrderLoading,
+  isError: isPurchaseOrderError,
+  error: purchaseOrderError,
+} = useQuery({
+  queryKey: ["purchaseOrder", purchaseOrderId],
+  enabled: Boolean(purchaseOrderId),
+  queryFn: async () => {
+    const res = await axiosInstance.get(`/api/purchase-orders/${purchaseOrderId}`)
+    return res.data
+  },
+  staleTime: 1000 * 60 * 5,
+  retry: 2,
+  onError: (err) => {
+    console.error("Failed to load purchase order:", err)
+    setServerError("Failed to load purchase order data")
+  },
+})
+
+useEffect(() => {
+  if (!purchaseOrder) return
+
+  const po = purchaseOrder
+  const normalized = {
+    ...defaultForm,
+    ...po,
+    date: formatDateToInput(po?.date),
+    deliveryDate: formatDateToInput(po?.deliveryDate),
+    items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
+  }
+
+  setForm(normalized)
+  setInitialSnapshot(JSON.stringify(normalized))
+  setIsDeletedMode(Boolean(po?.isDeleted))
+}, [purchaseOrder])
+
+
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
@@ -150,7 +166,7 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
       axiosInstance.put(`/api/purchase-orders/${purchaseOrderId}`, payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["purchaseOrders", purchaseOrderId] })
-      navigate({ to: `/purchase-orders/${data._id}` })
+      navigate({ to: `/projects/$projectId/purchaseOrders/${data._id}` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to update purchase order"),
   })

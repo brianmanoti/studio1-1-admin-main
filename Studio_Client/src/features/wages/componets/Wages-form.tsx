@@ -108,30 +108,44 @@ export default function WageOrderForm({ wageId }) {
     },
   })
 
-  // ------------------- Fetch existing PO -------------------
-  useQuery({
-    queryKey: ["wages", wageId],
-    enabled: !!wageId,
-    queryFn: async () => {
-      const res = await axiosInstance.get(`/api/wages/${wageId}`)
-      return res.data
-    },
-    onSuccess(po) {
-      const normalized = {
-        ...defaultForm,
-        ...po,
-        date: formatDateToInput(po?.date),
-        deliveryDate: formatDateToInput(po?.deliveryDate),
-        items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
-      }
-      setForm(normalized)
-      setInitialSnapshot(JSON.stringify(normalized))
-      setIsDeletedMode(!!po?.isDeleted)
-    },
-    onError() {
-      setServerError("Failed to load wages order data")
-    },
-  })
+// ------------------- Fetch existing Wage -------------------
+const {
+  data: wageData,
+  isLoading: isWageLoading,
+  isError: isWageError,
+  error: wageError,
+} = useQuery({
+  queryKey: ["wages", wageId],
+  enabled: Boolean(wageId),
+  queryFn: async () => {
+    const res = await axiosInstance.get(`/api/wages/${wageId}`)
+    return res.data
+  },
+  staleTime: 1000 * 60 * 5,
+  retry: 2,
+  onError: (err) => {
+    console.error("Failed to load wage:", err)
+    setServerError("Failed to load wages order data")
+  },
+})
+
+useEffect(() => {
+  if (!wageData) return
+
+  const wage = wageData
+  const normalized = {
+    ...defaultForm,
+    ...wage,
+    date: formatDateToInput(wage?.date),
+    deliveryDate: formatDateToInput(wage?.deliveryDate),
+    items: Array.isArray(wage?.items) && wage.items.length ? wage.items : [emptyItem()],
+  }
+
+  setForm(normalized)
+  setInitialSnapshot(JSON.stringify(normalized))
+  setIsDeletedMode(Boolean(wage?.isDeleted))
+}, [wageData])
+
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
@@ -148,7 +162,7 @@ export default function WageOrderForm({ wageId }) {
       axiosInstance.put(`/api/wages/${wageId}`, payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["wages", wageId] })
-      navigate({ to: `/wages/${data._id}` })
+      navigate({ to: `/projects/$projectId/wages/${data._id}` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to update wage order"),
   })

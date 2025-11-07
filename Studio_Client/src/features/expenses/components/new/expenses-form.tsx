@@ -109,30 +109,43 @@ export default function ExpenseForm({ expenseId }) {
     },
   })
 
-  // ------------------- Fetch existing PO -------------------
-  useQuery({
-    queryKey: ["expenses", expenseId],
-    enabled: !!expenseId,
-    queryFn: async () => {
-      const res = await axiosInstance.get(`/api/expenses/${expenseId}`)
-      return res.data
-    },
-    onSuccess(po) {
-      const normalized = {
-        ...defaultForm,
-        ...po,
-        date: formatDateToInput(po?.date),
-        deliveryDate: formatDateToInput(po?.deliveryDate),
-        items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
-      }
-      setForm(normalized)
-      setInitialSnapshot(JSON.stringify(normalized))
-      setIsDeletedMode(!!po?.isDeleted)
-    },
-    onError() {
-      setServerError("Failed to load expenses order data")
-    },
-  })
+// ------------------- Fetch existing Expense -------------------
+const {
+  data: expenseData,
+  isLoading: isExpenseLoading,
+  isError: isExpenseError,
+  error: expenseError,
+} = useQuery({
+  queryKey: ["expenses", expenseId],
+  enabled: Boolean(expenseId),
+  queryFn: async () => {
+    const res = await axiosInstance.get(`/api/expenses/${expenseId}`)
+    return res.data
+  },
+  staleTime: 1000 * 60 * 5, // cache for 5 minutes
+  retry: 2, // retry failed requests twice
+  onError: (err) => {
+    console.error("❌ Failed to load expense:", err)
+    setServerError("Failed to load expense data")
+  },
+})
+
+useEffect(() => {
+  if (!expenseData) return
+
+  const expense = expenseData
+  const normalized = {
+    ...defaultForm,
+    ...expense,
+    date: formatDateToInput(expense?.date),
+    deliveryDate: formatDateToInput(expense?.deliveryDate),
+    items: Array.isArray(expense?.items) && expense.items.length ? expense.items : [emptyItem()],
+  }
+
+  setForm(normalized)
+  setInitialSnapshot(JSON.stringify(normalized))
+  setIsDeletedMode(Boolean(expense?.isDeleted))
+}, [expenseData])
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
@@ -149,7 +162,7 @@ export default function ExpenseForm({ expenseId }) {
       axiosInstance.put(`/api/expenses/${expenseId}`, payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["expenses", expenseId] })
-      navigate({ to: `/expenses/${data._id}` })
+      navigate({ to: `/projects/$projectId/expenses/${data._id}` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to update expense order"),
   })
