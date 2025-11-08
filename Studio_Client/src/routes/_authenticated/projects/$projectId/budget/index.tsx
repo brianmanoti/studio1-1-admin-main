@@ -1,6 +1,6 @@
-import BudgetView from '@/features/budget/components/budget'
+import EstimateView from '@/features/estimates/estimates/components/Estimates-table'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/projects/$projectId/budget/')({
-  component: BudgetView,
+  component: EstimateView,
 })
