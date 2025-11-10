@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react"
 import {
   type SortingState,
   type VisibilityState,
@@ -10,11 +10,11 @@ import {
   useReactTable,
   type ColumnDef,
   Table as TanTable,
-} from '@tanstack/react-table'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Eye, Pencil, Trash, Check, X, Plus, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+} from "@tanstack/react-table"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { Eye, Pencil, Trash, Check, X, Plus, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -22,54 +22,52 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { DataTableToolbar, DataTablePagination } from '@/components/data-table'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import axiosInstance from '@/lib/axios'
-import { useNavigate } from '@tanstack/react-router'
+} from "@/components/ui/table"
+import { DataTableToolbar, DataTablePagination } from "@/components/data-table"
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { useNavigate } from "@tanstack/react-router"
+import {
+  approveVariation,
+  deleteVariation,
+  fetchVariations,
+  rejectVariation,
+} from "@/hooks/Variations/variations"
+import { useProjectStore } from "@/stores/projectStore"
+import { toast } from "sonner"
 
-// ✅ Type definition
+// --------------------- Types ---------------------
 export type Variation = {
   variationId: string
   name: string
-  projectId: string
+  projectId: { _id: string; name: string }
   estimateId: string
   date: string
-  status: 'Draft' | 'Approved' | 'Declined'
+  status: "Pending Approval" | "Approved" | "Rejected"
   description?: string
+  notes?: string
+  groups: any[]
   amount: number
   total: number
   spent: number
   balance: number
 }
 
-// ✅ Fetch all variations
-export async function fetchVariations(): Promise<Variation[]> {
-  const { data } = await axiosInstance.get<Variation[]>('/api/variations')
-  return data
+// --------------------- Helpers ---------------------
+function computeTotals(groups: any[]) {
+  const totals = groups.reduce(
+    (acc, g) => {
+      acc.amount += g.amount || 0
+      acc.total += g.total || 0
+      acc.spent += g.spent || 0
+      acc.balance += g.balance || 0
+      return acc
+    },
+    { amount: 0, total: 0, spent: 0, balance: 0 }
+  )
+  return totals
 }
 
-// ✅ Approve variation
-export async function approveVariation(id: string) {
-  const { data } = await axiosInstance.patch(`/api/variations/${id}/approve`)
-  return data
-}
-
-// ✅ Reject variation
-export async function rejectVariation(id: string) {
-  const { data } = await axiosInstance.patch(`/api/variations/${id}/reject`)
-  return data
-}
-
-// ✅ Delete variation
-export async function deleteVariation(id: string) {
-  const { data } = await axiosInstance.delete(`/api/variations/${id}`)
-  return data
-}
-
-
-
-/** Bulk actions */
+// --------------------- Bulk Actions ---------------------
 function VariationBulkActions({
   table,
   onBulkApprove,
@@ -82,13 +80,16 @@ function VariationBulkActions({
   onBulkDelete: (rows: Variation[]) => void
 }) {
   const selected = table.getSelectedRowModel().rows.map((r) => r.original)
-  const [dialog, setDialog] = React.useState<{ open: boolean; action?: 'approve' | 'reject' | 'delete' }>({ open: false })
+  const [dialog, setDialog] = React.useState<{
+    open: boolean
+    action?: "approve" | "reject" | "delete"
+  }>({ open: false })
 
   const handleConfirm = () => {
     if (!dialog.action) return
-    if (dialog.action === 'approve') onBulkApprove(selected)
-    if (dialog.action === 'reject') onBulkReject(selected)
-    if (dialog.action === 'delete') onBulkDelete(selected)
+    if (dialog.action === "approve") onBulkApprove(selected)
+    if (dialog.action === "reject") onBulkReject(selected)
+    if (dialog.action === "delete") onBulkDelete(selected)
     setDialog({ open: false })
   }
 
@@ -97,42 +98,54 @@ function VariationBulkActions({
   return (
     <div className="flex gap-2 p-2 border rounded-md bg-gray-50">
       <span className="text-sm text-gray-600">{selected.length} selected</span>
-      <Button size="sm" onClick={() => setDialog({ open: true, action: 'approve' })}>Approve</Button>
-      <Button size="sm" onClick={() => setDialog({ open: true, action: 'reject' })}>Reject</Button>
-      <Button size="sm" variant="destructive" onClick={() => setDialog({ open: true, action: 'delete' })}>Delete</Button>
+      <Button size="sm" onClick={() => setDialog({ open: true, action: "approve" })}>
+        Approve
+      </Button>
+      <Button size="sm" onClick={() => setDialog({ open: true, action: "reject" })}>
+        Reject
+      </Button>
+      <Button
+        size="sm"
+        variant="destructive"
+        onClick={() => setDialog({ open: true, action: "delete" })}
+      >
+        Delete
+      </Button>
 
       <ConfirmDialog
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
         title={
-          dialog.action === 'delete'
-            ? 'Delete Variations'
-            : dialog.action === 'approve'
-            ? 'Approve Variations'
-            : 'Reject Variations'
+          dialog.action === "delete"
+            ? "Delete Variations"
+            : dialog.action === "approve"
+            ? "Approve Variations"
+            : "Reject Variations"
         }
         desc={`Are you sure you want to ${dialog.action} ${selected.length} variation(s)?`}
-        destructive={dialog.action === 'delete' || dialog.action === 'reject'}
+        destructive={dialog.action === "delete" || dialog.action === "reject"}
         handleConfirm={handleConfirm}
         confirmText={
-          dialog.action === 'delete'
-            ? 'Delete'
-            : dialog.action === 'approve'
-            ? 'Approve'
-            : 'Reject'
+          dialog.action === "delete"
+            ? "Delete"
+            : dialog.action === "approve"
+            ? "Approve"
+            : "Reject"
         }
       />
     </div>
   )
 }
 
-/** ✅ Table columns */
+// --------------------- Table Columns ---------------------
 function getColumns(
-  handleAction: (id: string, action: 'approve' | 'reject' | 'delete') => void
+  projectId: string,
+  navigate: ReturnType<typeof useNavigate>,
+  handleConfirmAction: (id: string, action: "approve" | "reject" | "delete") => void
 ): ColumnDef<Variation>[] {
   return [
     {
-      id: 'select',
+      id: "select",
       header: ({ table }) => (
         <Checkbox
           checked={table.getIsAllPageRowsSelected()}
@@ -140,50 +153,107 @@ function getColumns(
         />
       ),
       cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(v) => row.toggleSelected(!!v)}
-        />
+        <Checkbox checked={row.getIsSelected()} onCheckedChange={(v) => row.toggleSelected(!!v)} />
       ),
     },
-    { accessorKey: 'variationId', header: 'Variation ID' },
-    { accessorKey: 'name', header: 'Name' },
-    { accessorKey: 'projectId', header: 'Project' },
-    { accessorKey: 'estimateId', header: 'Estimate' },
-    { accessorKey: 'date', header: 'Date' },
-    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: "variationId", header: "Variation ID" },
+    { accessorKey: "name", header: "Name" },
     {
-      accessorKey: 'amount',
-      header: 'Amount',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
+      accessorFn: (row) => row.projectId?.name || "N/A",
+      id: "project",
+      header: "Project",
+    },
+    { accessorKey: "estimateId", header: "Estimate" },
+    { accessorKey: "date", header: "Date" },
+    { accessorKey: "status", header: "Status" },
+    {
+      accessorFn: (row) => computeTotals(row.groups).amount,
+      id: "amount",
+      header: "Amount",
+      cell: ({ getValue }) => `$${getValue().toFixed(2)}`,
     },
     {
-      accessorKey: 'total',
-      header: 'Total',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
-    },
-    {
-      accessorKey: 'spent',
-      header: 'Spent',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
-    },
-    {
-      accessorKey: 'balance',
-      header: 'Balance',
-      cell: ({ getValue }) => `$${(getValue() as number).toFixed(2)}`,
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
+      id: "actions",
+      header: "Actions",
       cell: ({ row }) => {
         const v = row.original
+        const [dialog, setDialog] = React.useState<{
+          open: boolean
+          action?: "approve" | "reject" | "delete"
+        }>({ open: false })
+
+        const isApproved = v.status === "Approved"
+        const isRejected = v.status === "Rejected"
+        const isPending = v.status === "Pending Approval"
+
         return (
-          <div className="flex gap-2">
-            <button><Eye className="w-4 h-4" /></button>
-            <button><Pencil className="w-4 h-4" /></button>
-            <button onClick={() => handleAction(v.variationId, 'approve')}><Check className="w-4 h-4 text-green-600" /></button>
-            <button onClick={() => handleAction(v.variationId, 'reject')}><X className="w-4 h-4 text-red-600" /></button>
-            <button onClick={() => handleAction(v.variationId, 'delete')}><Trash className="w-4 h-4 text-red-700" /></button>
+          <div className="flex gap-2 items-center">
+            {/* View always available */}
+            <button
+              onClick={() =>
+                navigate({
+                  to: `/projects/${projectId}/estimates/variations/${v.variationId}`,
+                })
+              }
+            >
+              <Eye className="w-4 h-4 text-blue-600" />
+            </button>
+
+            {/* Edit only if not Approved */}
+            {!isApproved && (
+              <button
+                onClick={() =>
+                  navigate({
+                    to: `/projects/${projectId}/estimates/variations/${v.variationId}/edit`,
+                  })
+                }
+              >
+                <Pencil className="w-4 h-4 text-gray-700" />
+              </button>
+            )}
+
+            {/* Approve / Reject only if Pending */}
+            {isPending && (
+              <>
+                <button onClick={() => setDialog({ open: true, action: "approve" })}>
+                  <Check className="w-4 h-4 text-green-600" />
+                </button>
+                <button onClick={() => setDialog({ open: true, action: "reject" })}>
+                  <X className="w-4 h-4 text-red-600" />
+                </button>
+              </>
+            )}
+
+            {/* Delete always available */}
+            <button onClick={() => setDialog({ open: true, action: "delete" })}>
+              <Trash className="w-4 h-4 text-red-700" />
+            </button>
+
+            <ConfirmDialog
+              open={dialog.open}
+              onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
+              title={
+                dialog.action === "delete"
+                  ? "Delete Variation"
+                  : dialog.action === "approve"
+                  ? "Approve Variation"
+                  : "Reject Variation"
+              }
+              desc={`Are you sure you want to ${dialog.action} this variation?`}
+              destructive={dialog.action === "delete" || dialog.action === "reject"}
+              handleConfirm={() => {
+                if (!dialog.action) return
+                handleConfirmAction(v.variationId, dialog.action)
+                setDialog({ open: false })
+              }}
+              confirmText={
+                dialog.action === "delete"
+                  ? "Delete"
+                  : dialog.action === "approve"
+                  ? "Approve"
+                  : "Reject"
+              }
+            />
           </div>
         )
       },
@@ -191,36 +261,69 @@ function getColumns(
   ]
 }
 
-/** ✅ Main Table Component */
+// --------------------- Main Component ---------------------
 export function VariationTable() {
+  const projectId = useProjectStore((state) => state.projectId)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
-  // 🔹 Fetch variations
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['variations'],
-    queryFn: fetchVariations,
+    queryKey: ["variations", projectId],
+    queryFn: () => fetchVariations(projectId),
+    enabled: !!projectId,
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to load variations")
+    },
   })
 
-  // 🔹 Single mutations
-  const approveMutation = useMutation({ mutationFn: approveVariation, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['variations'] }) })
-  const rejectMutation = useMutation({ mutationFn: rejectVariation, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['variations'] }) })
-  const deleteMutation = useMutation({ mutationFn: deleteVariation, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['variations'] }) })
+  // --- Mutations ---
+  const approveMutation = useMutation({
+    mutationFn: approveVariation,
+    onSuccess: () => {
+      toast.success("Variation approved successfully")
+      queryClient.invalidateQueries({ queryKey: ["variations", projectId] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Failed to approve variation")
+    },
+  })
 
-  const handleAction = (id: string, action: 'approve' | 'reject' | 'delete') => {
-    if (action === 'approve') approveMutation.mutate(id)
-    if (action === 'reject') rejectMutation.mutate(id)
-    if (action === 'delete') deleteMutation.mutate(id)
+  const rejectMutation = useMutation({
+    mutationFn: rejectVariation,
+    onSuccess: () => {
+      toast.info("Variation rejected")
+      queryClient.invalidateQueries({ queryKey: ["variations", projectId] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Failed to reject variation")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteVariation,
+    onSuccess: () => {
+      toast.success("Variation deleted successfully")
+      queryClient.invalidateQueries({ queryKey: ["variations", projectId] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Failed to delete variation")
+    },
+  })
+
+  const handleConfirmAction = (id: string, action: "approve" | "reject" | "delete") => {
+    if (action === "approve") approveMutation.mutate(id)
+    if (action === "reject") rejectMutation.mutate(id)
+    if (action === "delete") deleteMutation.mutate(id)
   }
 
-  // ✅ Table states
+  // --- Table setup ---
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
 
   const table = useReactTable({
     data: data ?? [],
-    columns: getColumns(handleAction),
+    columns: getColumns(projectId, navigate, handleConfirmAction),
     state: { sorting, rowSelection, columnVisibility },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -232,12 +335,10 @@ export function VariationTable() {
     enableRowSelection: true,
   })
 
-  // ✅ Handle loading, error, empty
   if (isLoading)
     return (
       <div className="flex items-center justify-center h-48">
-        <Loader2 className="w-6 h-6 mr-2 animate-spin" />
-        <span>Loading variations...</span>
+        <Loader2 className="w-6 h-6 mr-2 animate-spin" /> Loading variations...
       </div>
     )
 
@@ -253,9 +354,7 @@ export function VariationTable() {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-gray-500">
         <p>No variations found.</p>
-        <Button
-          onClick={() => navigate({ to: `/projects/$projectId/estimates/variations/new` })}
-        >
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/estimates/variations/new` })}>
           <Plus className="w-4 h-4 mr-2" /> Add Variation
         </Button>
       </div>
@@ -265,9 +364,7 @@ export function VariationTable() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <DataTableToolbar table={table} searchPlaceholder="Search variations..." />
-        <Button
-          onClick={() => navigate({ to: `/projects/$projectId/estimates/variations/new` })}
-        >
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/estimates/variations/new` })}>
           <Plus className="w-4 h-4 mr-2" /> Add Variation
         </Button>
       </div>
@@ -287,7 +384,7 @@ export function VariationTable() {
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+              <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
