@@ -157,13 +157,13 @@ const PayslipDetailsPage = React.memo(() => {
               <div className="bg-card p-4 rounded-lg border shadow-xs">
                 <p className="text-sm text-muted-foreground">Total Deductions</p>
                 <p className="text-2xl font-semibold mt-1">
-                  {formatKES(payslip.totalDeductions)}
+                  {formatKES(payslip.calculations?.totalDeductions)}
                 </p>
               </div>
               <div className="bg-primary p-4 rounded-lg shadow-xs">
                 <p className="text-sm text-primary-foreground">Net Pay</p>
                 <p className="text-2xl font-semibold mt-1 text-primary-foreground">
-                  {formatKES(payslip.netPay)}
+                  {formatKES(payslip.calculations?.netPay)}
                 </p>
               </div>
             </div>

@@ -62,7 +62,7 @@ export default function VendorForm({
       {
         onSuccess: async () => {
           toast.success(`Vendor ${isEdit ? "updated" : "created"} successfully`)
-          await navigate({ to: "/vendors" }) // ✅ Redirect using TanStack Router
+          await navigate({ to: "/projects/$projectId/Vendors" }) // ✅ Redirect using TanStack Router
         },
         onError: (error: any) => {
           const message =
