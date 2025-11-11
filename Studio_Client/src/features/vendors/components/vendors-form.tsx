@@ -1,3 +1,5 @@
+"use client"
+
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -13,6 +15,9 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
+import { useCreateVendor, useUpdateVendor } from "@/hooks/use-vendors"
+import { toast } from "sonner"
+import { useNavigate } from "@tanstack/react-router"
 
 const vendorSchema = z.object({
   companyName: z.string().nonempty("Company name is required"),
@@ -34,71 +39,93 @@ const vendorSchema = z.object({
 type VendorFormData = z.infer<typeof vendorSchema>
 
 export default function VendorForm({
-  onSubmit,
   defaultValues,
 }: {
-  onSubmit: (data: VendorFormData) => void
-  defaultValues?: Partial<VendorFormData>
+  defaultValues?: Partial<VendorFormData> & { _id?: string }
 }) {
+  const navigate = useNavigate()
+  const { mutate: createVendor, isPending: creating } = useCreateVendor()
+  const { mutate: updateVendor, isPending: updating } = useUpdateVendor()
+
   const form = useForm<VendorFormData>({
     resolver: zodResolver(vendorSchema),
-    defaultValues: defaultValues || {
-      status: "Active",
-    },
+    defaultValues: defaultValues || { status: "Active" },
   })
 
   const { register, handleSubmit, formState, setValue, watch } = form
-  const { errors, isSubmitting } = formState
+  const { errors } = formState
+
+  const onSubmit = (data: VendorFormData) => {
+    const isEdit = !!defaultValues?._id
+    const mutation = isEdit ? updateVendor : createVendor
+
+    mutation(
+      isEdit ? { id: defaultValues!._id!, payload: data } : data,
+      {
+        onSuccess: async () => {
+          toast.success(`Vendor ${isEdit ? "updated" : "created"} successfully`)
+          await navigate({ to: "/vendors" }) // ✅ Redirect using TanStack Router
+        },
+        onError: (error: any) => {
+          const message =
+            error?.response?.data?.message ||
+            "Something went wrong while saving the vendor"
+          toast.error(message)
+        },
+      }
+    )
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-4xl mx-auto">
-      <Card className="p-6 shadow-lg">
-        <CardHeader>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="w-full space-y-6"
+    >
+      <Card className="w-full p-6 shadow-lg">
+        <CardHeader className="flex justify-between items-center">
           <CardTitle className="text-xl font-semibold">
             {defaultValues ? "Edit Vendor" : "Add New Vendor"}
           </CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate({ to: "/projects/$projectId/Vendors" })} // 
+          >
+            Back
+          </Button>
         </CardHeader>
 
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Company Info */}
           <div>
             <Label>Company Name</Label>
             <Input {...register("companyName")} placeholder="Enter company name" />
-            {errors.companyName && (
-              <p className="text-red-500 text-sm mt-1">{errors.companyName.message}</p>
-            )}
+            {errors.companyName && <p className="text-red-500 text-sm">{errors.companyName.message}</p>}
           </div>
 
           <div>
             <Label>Category</Label>
             <Input {...register("category")} placeholder="e.g. Electrical, Plumbing" />
-            {errors.category && (
-              <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>
-            )}
+            {errors.category && <p className="text-red-500 text-sm">{errors.category.message}</p>}
           </div>
 
           <div>
             <Label>Contact Person</Label>
             <Input {...register("contactPerson")} placeholder="Enter contact person" />
-            {errors.contactPerson && (
-              <p className="text-red-500 text-sm mt-1">{errors.contactPerson.message}</p>
-            )}
+            {errors.contactPerson && <p className="text-red-500 text-sm">{errors.contactPerson.message}</p>}
           </div>
 
+          {/* Contact Info */}
           <div>
             <Label>Email</Label>
             <Input type="email" {...register("email")} placeholder="Enter email" />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
           </div>
 
           <div>
             <Label>Phone</Label>
             <Input {...register("phone")} placeholder="Enter phone number" />
-            {errors.phone && (
-              <p className="text-red-500 text-sm mt-1">{errors.phone.message}</p>
-            )}
+            {errors.phone && <p className="text-red-500 text-sm">{errors.phone.message}</p>}
           </div>
 
           <div>
@@ -106,12 +133,11 @@ export default function VendorForm({
             <Input {...register("website")} placeholder="https://example.com" />
           </div>
 
-          <div className="md:col-span-2">
+          {/* Address */}
+          <div className="sm:col-span-2 lg:col-span-3">
             <Label>Address</Label>
             <Input {...register("address")} placeholder="Enter full address" />
-            {errors.address && (
-              <p className="text-red-500 text-sm mt-1">{errors.address.message}</p>
-            )}
+            {errors.address && <p className="text-red-500 text-sm">{errors.address.message}</p>}
           </div>
 
           <div>
@@ -137,11 +163,10 @@ export default function VendorForm({
           <div>
             <Label>Payment Terms</Label>
             <Input {...register("paymentTerms")} placeholder="e.g. Net 30, Advance" />
-            {errors.paymentTerms && (
-              <p className="text-red-500 text-sm mt-1">{errors.paymentTerms.message}</p>
-            )}
+            {errors.paymentTerms && <p className="text-red-500 text-sm">{errors.paymentTerms.message}</p>}
           </div>
 
+          {/* Status */}
           <div>
             <Label>Status</Label>
             <Select
@@ -158,19 +183,23 @@ export default function VendorForm({
             </Select>
           </div>
 
-          <div className="md:col-span-2">
+          {/* Notes */}
+          <div className="sm:col-span-2 lg:col-span-3">
             <Label>Notes</Label>
-            <Textarea
-              {...register("notes")}
-              placeholder="Additional comments or internal notes"
-              rows={3}
-            />
+            <Textarea {...register("notes")} placeholder="Additional comments or internal notes" rows={3} />
           </div>
         </CardContent>
 
-        <div className="flex justify-end p-6">
-          <Button type="submit" disabled={isSubmitting} className="px-6">
-            {isSubmitting ? "Saving..." : "Save Vendor"}
+        <div className="flex justify-end mt-6 space-x-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate({ to: "/projects/$projectId/Vendors" })}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={creating || updating} className="px-6">
+            {creating || updating ? "Saving..." : "Save Vendor"}
           </Button>
         </div>
       </Card>

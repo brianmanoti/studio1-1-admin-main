@@ -21,6 +21,18 @@ interface ItemsResponse {
     total: number
   }
 }
+export const useCreateItem = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload) => {
+      const response = await axiosInstance.post("/api/items", payload)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["items"] })
+    },
+  })
+}
 
 async function fetchItems(): Promise<Item[]> {
   const response = await axiosInstance.get<ItemsResponse>("/api/items")
