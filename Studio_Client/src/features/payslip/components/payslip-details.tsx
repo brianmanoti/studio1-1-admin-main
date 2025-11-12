@@ -222,7 +222,7 @@ const PayslipDetailsPage = React.memo(() => {
               <Button
                 variant="secondary"
                 className="flex-1"
-                onClick={() => navigate({ to: `/payslips/${id}/edit` })}
+                onClick={() => navigate({ to: `/projects/$projectId/payslip/${id}/edit` })}
               >
                 <Edit className="w-4 h-4 mr-2" /> Edit
               </Button>

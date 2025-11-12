@@ -71,6 +71,7 @@ import { Route as AuthenticatedProjectsProjectIdSubcontractorsPurchaseOrdersNewI
 import { Route as AuthenticatedProjectsProjectIdSubcontractorsExpensesNewIndexRouteImport } from './routes/_authenticated/projects/$projectId/subcontractors/expenses/new/index'
 import { Route as AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRouteImport } from './routes/_authenticated/projects/$projectId/subcontractors/expenses/$ExpenseId/index'
 import { Route as AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRouteImport } from './routes/_authenticated/projects/$projectId/purchaseOrders/$purchaseId/edit/index'
+import { Route as AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRouteImport } from './routes/_authenticated/projects/$projectId/payslip/$PayslipId/edit/index'
 import { Route as AuthenticatedProjectsProjectIdExpensesEditIdIndexRouteImport } from './routes/_authenticated/projects/$projectId/expenses/edit/$id/index'
 import { Route as AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRouteImport } from './routes/_authenticated/projects/$projectId/expenses/$ExpenseId/edit/index'
 import { Route as AuthenticatedProjectsProjectIdEstimatesVariationsNewIndexRouteImport } from './routes/_authenticated/projects/$projectId/estimates/variations/new/index'
@@ -438,6 +439,12 @@ const AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute =
       getParentRoute: () => AuthenticatedProjectsProjectIdRouteRoute,
     } as any,
   )
+const AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute =
+  AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRouteImport.update({
+    id: '/payslip/$PayslipId/edit/',
+    path: '/payslip/$PayslipId/edit/',
+    getParentRoute: () => AuthenticatedProjectsProjectIdRouteRoute,
+  } as any)
 const AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute =
   AuthenticatedProjectsProjectIdExpensesEditIdIndexRouteImport.update({
     id: '/expenses/edit/$id/',
@@ -521,6 +528,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/estimates/variations/new': typeof AuthenticatedProjectsProjectIdEstimatesVariationsNewIndexRoute
   '/projects/$projectId/expenses/$ExpenseId/edit': typeof AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRoute
   '/projects/$projectId/expenses/edit/$id': typeof AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute
+  '/projects/$projectId/payslip/$PayslipId/edit': typeof AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute
   '/projects/$projectId/purchaseOrders/$purchaseId/edit': typeof AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute
   '/projects/$projectId/subcontractors/expenses/$ExpenseId': typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRoute
   '/projects/$projectId/subcontractors/expenses/new': typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesNewIndexRoute
@@ -584,6 +592,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/estimates/variations/new': typeof AuthenticatedProjectsProjectIdEstimatesVariationsNewIndexRoute
   '/projects/$projectId/expenses/$ExpenseId/edit': typeof AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRoute
   '/projects/$projectId/expenses/edit/$id': typeof AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute
+  '/projects/$projectId/payslip/$PayslipId/edit': typeof AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute
   '/projects/$projectId/purchaseOrders/$purchaseId/edit': typeof AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute
   '/projects/$projectId/subcontractors/expenses/$ExpenseId': typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRoute
   '/projects/$projectId/subcontractors/expenses/new': typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesNewIndexRoute
@@ -653,6 +662,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$projectId/estimates/variations/new/': typeof AuthenticatedProjectsProjectIdEstimatesVariationsNewIndexRoute
   '/_authenticated/projects/$projectId/expenses/$ExpenseId/edit/': typeof AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRoute
   '/_authenticated/projects/$projectId/expenses/edit/$id/': typeof AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute
+  '/_authenticated/projects/$projectId/payslip/$PayslipId/edit/': typeof AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute
   '/_authenticated/projects/$projectId/purchaseOrders/$purchaseId/edit/': typeof AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute
   '/_authenticated/projects/$projectId/subcontractors/expenses/$ExpenseId/': typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRoute
   '/_authenticated/projects/$projectId/subcontractors/expenses/new/': typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesNewIndexRoute
@@ -721,6 +731,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/estimates/variations/new'
     | '/projects/$projectId/expenses/$ExpenseId/edit'
     | '/projects/$projectId/expenses/edit/$id'
+    | '/projects/$projectId/payslip/$PayslipId/edit'
     | '/projects/$projectId/purchaseOrders/$purchaseId/edit'
     | '/projects/$projectId/subcontractors/expenses/$ExpenseId'
     | '/projects/$projectId/subcontractors/expenses/new'
@@ -784,6 +795,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/estimates/variations/new'
     | '/projects/$projectId/expenses/$ExpenseId/edit'
     | '/projects/$projectId/expenses/edit/$id'
+    | '/projects/$projectId/payslip/$PayslipId/edit'
     | '/projects/$projectId/purchaseOrders/$purchaseId/edit'
     | '/projects/$projectId/subcontractors/expenses/$ExpenseId'
     | '/projects/$projectId/subcontractors/expenses/new'
@@ -852,6 +864,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$projectId/estimates/variations/new/'
     | '/_authenticated/projects/$projectId/expenses/$ExpenseId/edit/'
     | '/_authenticated/projects/$projectId/expenses/edit/$id/'
+    | '/_authenticated/projects/$projectId/payslip/$PayslipId/edit/'
     | '/_authenticated/projects/$projectId/purchaseOrders/$purchaseId/edit/'
     | '/_authenticated/projects/$projectId/subcontractors/expenses/$ExpenseId/'
     | '/_authenticated/projects/$projectId/subcontractors/expenses/new/'
@@ -1312,6 +1325,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRouteImport
       parentRoute: typeof AuthenticatedProjectsProjectIdRouteRoute
     }
+    '/_authenticated/projects/$projectId/payslip/$PayslipId/edit/': {
+      id: '/_authenticated/projects/$projectId/payslip/$PayslipId/edit/'
+      path: '/payslip/$PayslipId/edit'
+      fullPath: '/projects/$projectId/payslip/$PayslipId/edit'
+      preLoaderRoute: typeof AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRouteImport
+      parentRoute: typeof AuthenticatedProjectsProjectIdRouteRoute
+    }
     '/_authenticated/projects/$projectId/expenses/edit/$id/': {
       id: '/_authenticated/projects/$projectId/expenses/edit/$id/'
       path: '/expenses/edit/$id'
@@ -1394,6 +1414,7 @@ interface AuthenticatedProjectsProjectIdRouteRouteChildren {
   AuthenticatedProjectsProjectIdEstimatesVariationsNewIndexRoute: typeof AuthenticatedProjectsProjectIdEstimatesVariationsNewIndexRoute
   AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRoute: typeof AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRoute
   AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute: typeof AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute
+  AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute: typeof AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute
   AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute: typeof AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute
   AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRoute: typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRoute
   AuthenticatedProjectsProjectIdSubcontractorsExpensesNewIndexRoute: typeof AuthenticatedProjectsProjectIdSubcontractorsExpensesNewIndexRoute
@@ -1459,6 +1480,8 @@ const AuthenticatedProjectsProjectIdRouteRouteChildren: AuthenticatedProjectsPro
       AuthenticatedProjectsProjectIdExpensesExpenseIdEditIndexRoute,
     AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute:
       AuthenticatedProjectsProjectIdExpensesEditIdIndexRoute,
+    AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute:
+      AuthenticatedProjectsProjectIdPayslipPayslipIdEditIndexRoute,
     AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute:
       AuthenticatedProjectsProjectIdPurchaseOrdersPurchaseIdEditIndexRoute,
     AuthenticatedProjectsProjectIdSubcontractorsExpensesExpenseIdIndexRoute:
