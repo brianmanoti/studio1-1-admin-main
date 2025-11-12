@@ -10,6 +10,7 @@ import EstimateSelector from "../../estimates/estimates/components/estimate-sele
 import { ItemFormModal } from "@/components/items/items-form-modal"
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
 import { useProjectStore } from "@/stores/projectStore"
+import { Trash } from "lucide-react"
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
 
@@ -506,6 +507,7 @@ useEffect(() => {
                 <th className="p-2 border">Qty</th>
                 <th className="p-2 border">Unit</th>
                 <th className="p-2 border">Unit Price</th>
+                <th className="p-2 border">Total</th>
                 <th className="p-2 border"></th>
               </tr>
             </thead>
@@ -514,7 +516,7 @@ useEffect(() => {
               {form.items.map((it, idx) => (
                 <tr key={idx} className="relative">
                   {/* Name Field */}
-                  <td className="p-2 border relative">
+                  <td className="p-1 border relative">
                     <input
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
                       value={it.name || ""}
@@ -532,7 +534,7 @@ useEffect(() => {
                   </td>
 
                   {/* Description Field */}
-                  <td className="p-2 border relative">
+                  <td className="p-1 border relative">
                     <input
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
                       value={it.description || ""}
@@ -599,7 +601,7 @@ useEffect(() => {
                   </td>
 
                   {/* Quantity */}
-                  <td className="p-2 border">
+                  <td className="p-1 border">
                     <input
                       type="number"
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
@@ -610,7 +612,7 @@ useEffect(() => {
                   </td>
 
                   {/* Unit */}
-                  <td className="p-2 border">
+                  <td className="p-1 border">
                     <input
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
                       value={it.unit}
@@ -629,16 +631,20 @@ useEffect(() => {
                       disabled={isLocked}
                     />
                   </td>
+                  {/* Row Total */}
+                  <td className="p-0 border text-center font-medium">
+                     KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
+                  </td>
 
                   {/* Remove Button */}
                   <td className="p-2 border text-center">
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
-                      className="text-red-600 hover:underline disabled:opacity-50"
                       disabled={isLocked}
+                      className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200 disabled:opacity-50 disabled:hover:bg-transparent"
                     >
-                      ✕
+                      <Trash size={18} color="#ea343d" />
                     </button>
                   </td>
                 </tr>
