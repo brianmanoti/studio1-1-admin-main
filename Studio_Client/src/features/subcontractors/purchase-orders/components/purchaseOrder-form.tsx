@@ -4,6 +4,7 @@ import { useNavigate, useCanGoBack } from '@tanstack/react-router';
 import axiosInstance from '@/lib/axios';
 import EstimateSelector from '@/features/estimates/estimates/components/estimate-selector';
 import { useProjectStore } from '@/stores/projectStore';
+import { Trash } from 'lucide-react';
 ;
 
 const emptyItem = () => ({ description: '', quantity: 1, unit: '', unitPrice: 0 });
@@ -461,6 +462,7 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
                 <th className="p-2 border">Qty</th>
                 <th className="p-2 border">Unit</th>
                 <th className="p-2 border">Unit Price</th>
+                <th className="p-2 border">Total</th>
                 <th className="p-2 border"></th>
               </tr>
             </thead>
@@ -497,13 +499,20 @@ const { data: subcontractors = [], isLoading: loadingSubs, isError: subsError } 
                       onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
                     />
                   </td>
+                  {/* Row Total */}
+                  <td className="p-0 border text-center font-medium">
+                     KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
+                  </td>
+
+                  {/* Remove Button */}
                   <td className="p-2 border text-center">
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
-                      className="text-red-600 hover:underline"
+                      disabled={isLocked}
+                      className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200 disabled:opacity-50 disabled:hover:bg-transparent"
                     >
-                      ✕
+                      <Trash size={18} color="#ea343d" />
                     </button>
                   </td>
                 </tr>
