@@ -114,7 +114,7 @@ export default function PayrollEditForm() {
     onSuccess: () => {
       toast.success('Payslip updated successfully 🎉', { duration: 3000 })
       navigate({
-        to: '/_authenticated/projects/$projectId/payslip',
+        to: '/projects/$projectId/payslip',
         params: { projectId },
       })
     },
@@ -180,7 +180,7 @@ export default function PayrollEditForm() {
           <button
             onClick={() =>
               navigate({
-                to: '/_authenticated/projects/$projectId/payslip',
+                to: '/projects/$projectId/payslip',
                 params: { projectId },
               })
             }
