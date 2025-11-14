@@ -65,20 +65,28 @@ export function ItemFormModal({ onSave }: { onSave: (items: any[]) => void }) {
   })
 
   useEffect(() => {
-    if (formState.type?.includes("edit") && formState.data) {
+    // Add null checks for formState and formState.data
+    if (formState?.type && formState.type.includes("edit") && formState.data) {
       reset({ items: [formState.data] })
-    } else if (formState.type === "add-item") {
+    } else if (formState?.type === "add-item") {
       reset({ items: [{ name: "", description: "", unit: "", unitPrice: 0 }] })
     }
   }, [formState, reset])
 
-  if (!formState.type?.includes("item")) return null
+  // Add proper null checks before accessing .includes()
+  const isItemModalOpen = formState?.type && (
+    formState.type.includes("item") || 
+    formState.type === "add-item" || 
+    formState.type.includes("edit")
+  )
+
+  if (!isItemModalOpen) return null
 
   return (
     <div className="fixed inset-0 bg-blue-100/30 backdrop-blur-sm flex items-center justify-center z-50 px-4 sm:px-0">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-4xl border border-blue-200">
         <h2 className="text-2xl font-semibold mb-6 text-blue-700 text-center">
-          {formState.type === "add-item" ? "Add Items" : "Edit Item"}
+          {formState?.type === "add-item" ? "Add Items" : "Edit Item"}
         </h2>
 
         <form onSubmit={handleSubmit((data) => saveItemMutation.mutate(data))} className="space-y-6">
@@ -132,6 +140,7 @@ export function ItemFormModal({ onSave }: { onSave: (items: any[]) => void }) {
                   <label className="block text-sm font-medium text-blue-800 mb-1">Unit Price *</label>
                   <input
                     type="number"
+                    step="0.01"
                     {...register(`items.${index}.unitPrice`, { valueAsNumber: true })}
                     placeholder="Unit Price"
                     className="border border-blue-300 rounded-lg p-2 w-full focus:ring-2 focus:ring-blue-400"
@@ -146,7 +155,7 @@ export function ItemFormModal({ onSave }: { onSave: (items: any[]) => void }) {
                   <button
                     type="button"
                     onClick={() => remove(index)}
-                    className="absolute -top-3 -right-3 bg-red-500 text-white text-xs rounded-full w-6 h-6 hover:bg-red-600 shadow-md"
+                    className="absolute -top-3 -right-3 bg-red-500 text-white text-xs rounded-full w-6 h-6 hover:bg-red-600 shadow-md flex items-center justify-center"
                   >
                     ×
                   </button>
@@ -179,7 +188,7 @@ export function ItemFormModal({ onSave }: { onSave: (items: any[]) => void }) {
                 className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition-all disabled:opacity-50"
                 disabled={saveItemMutation.isPending}
               >
-                {saveItemMutation.isPending ? "Saving..." : "Save"}
+                {saveItemMutation.isPending ? "Saving..." : "Save Items"}
               </button>
             </div>
           </div>

@@ -4,7 +4,7 @@ import { useNavigate, useCanGoBack } from "@tanstack/react-router"
 import axiosInstance from "@/lib/axios"
 import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { useProjectStore } from "@/stores/projectStore"
-import { Trash } from "lucide-react"
+import { Trash, Search, X } from "lucide-react"
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
 
@@ -55,6 +55,11 @@ export default function SubWageOrderForm({ wageId }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeletedMode, setIsDeletedMode] = useState(false)
   const [initialSnapshot, setInitialSnapshot] = useState(null)
+  
+  // Search state for subcontractors
+  const [subcontractorSearch, setSubcontractorSearch] = useState("")
+  const [showSubcontractorDropdown, setShowSubcontractorDropdown] = useState(false)
+  const [searchTrigger, setSearchTrigger] = useState(0)
 
   // ------------------- Fetch Projects -------------------
   const {
@@ -108,37 +113,72 @@ export default function SubWageOrderForm({ wageId }) {
     },
   })
 
-  // Fetch subcontractors
+  // Fetch subcontractors with search - FIXED: Always enabled and uses searchTrigger
   const {
-    data: subcontractors = [],
+    data: subcontractorsData,
     isLoading: loadingSubs,
     isError: subsError,
   } = useQuery({
-    queryKey: ["subcontractors"],
+    queryKey: ["subcontractors", "search", subcontractorSearch, searchTrigger],
     queryFn: async () => {
-      const res = await axiosInstance.get("/api/subcontractors")
-      return Array.isArray(res.data) ? res.data : [] // ensure always an array
+      try {
+        console.log("Fetching subcontractors with search:", subcontractorSearch)
+        let url = "/api/subcontractors"
+        if (subcontractorSearch.trim()) {
+          url = `/api/subcontractors/search?q=${encodeURIComponent(subcontractorSearch.trim())}`
+        }
+        const res = await axiosInstance.get(url)
+        console.log("Subcontractors API response:", res.data)
+        // Extract results array from the paginated response
+        const results = Array.isArray(res.data?.results) ? res.data.results : []
+        console.log("Extracted subcontractors:", results)
+        return results
+      } catch (error) {
+        console.error("Error fetching subcontractors:", error)
+        return []
+      }
     },
     staleTime: 1000 * 60 * 10,
+    enabled: true, // Always enabled to allow searching
   })
+
+  // Find selected subcontractor for display
+  const selectedSubcontractor = useMemo(() => {
+    if (!form.subcontractorId) return null
+    const found = subcontractorsData?.find(sub => sub._id === form.subcontractorId)
+    console.log("Selected subcontractor:", found)
+    return found
+  }, [form.subcontractorId, subcontractorsData])
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.post("/api/wages", payload).then((res) => res.data),
+    mutationFn: (payload) => {
+      console.log("Creating wage with payload:", payload)
+      return axiosInstance.post("/api/wages", payload).then((res) => res.data)
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries(["wages"])
       navigate({ to: `/projects/$projectId/subcontractors/wages` })
     },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to create purchase order"),
+    onError: (err) => {
+      console.error("Create wage error:", err)
+      setServerError(err?.response?.data?.message || "Failed to create wage order")
+    },
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.put(`/api/wage/${wageId}`, payload).then((res) => res.data),
+    mutationFn: (payload) => {
+      console.log("Updating wage with payload:", payload)
+      return axiosInstance.put(`/api/wages/${wageId}`, payload).then((res) => res.data)
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries(["wages", wageId])
-      navigate({ to: `/wage/${data._id}` })
+      navigate({ to: `/wages/${data._id}` })
     },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to update Wage order"),
+    onError: (err) => {
+      console.error("Update wage error:", err)
+      setServerError(err?.response?.data?.message || "Failed to update wage order")
+    },
   })
 
   useEffect(() => () => (isMountedRef.current = false), [])
@@ -178,6 +218,43 @@ export default function SubWageOrderForm({ wageId }) {
       items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()],
     }))
 
+  // ------------------- Subcontractor Search Handlers -------------------
+  const handleSubcontractorSelect = (subcontractor) => {
+    console.log("Selecting subcontractor:", subcontractor)
+    setField("subcontractorId", subcontractor._id) // Store the _id
+    // Display contactPerson + companyName in the search input
+    const displayName = `${subcontractor.contactPerson} - ${subcontractor.companyName}`
+    setSubcontractorSearch(displayName)
+    setShowSubcontractorDropdown(false)
+  }
+
+  const handleSubcontractorClear = () => {
+    console.log("Clearing subcontractor selection")
+    setField("subcontractorId", "")
+    setSubcontractorSearch("")
+    setShowSubcontractorDropdown(false)
+  }
+
+  const handleSubcontractorSearchChange = (value) => {
+    console.log("Search input changed:", value)
+    setSubcontractorSearch(value)
+    setShowSubcontractorDropdown(true)
+    // Trigger search by updating the search trigger
+    setSearchTrigger(prev => prev + 1)
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.subcontractor-search-container')) {
+        setShowSubcontractorDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // ------------------- Validation -------------------
   const validate = () => {
     const e = {}
@@ -211,14 +288,44 @@ export default function SubWageOrderForm({ wageId }) {
     e.preventDefault()
     if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
     setIsSubmitting(true)
+    
+    // Clean the payload before sending
     const payload = {
       ...form,
+      projectId: form.projectId,
+      company: form.company.trim(),
+      vendorName: form.vendorName.trim(),
+      deliveryAddress: form.deliveryAddress.trim(),
       date: form.date ? new Date(form.date).toISOString() : null,
       deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
+      items: form.items.map(item => ({
+        description: item.description.trim(),
+        quantity: Number(item.quantity),
+        unit: item.unit.trim(),
+        unitPrice: Number(item.unitPrice)
+      })),
+      amount: Number(form.amount),
+      // Only include subcontractorId if it has a value
+      ...(form.subcontractorId && { subcontractorId: form.subcontractorId }),
+      // Only include estimate fields if they have values
+      ...(form.estimateId && { 
+        estimateId: form.estimateId,
+        estimateLevel: form.estimateLevel,
+        estimateTargetId: form.estimateTargetId 
+      })
     }
+
+    console.log("Submitting payload:", payload)
+
     try {
-      if (wageId) await updateMutation.mutateAsync(payload)
-      else await createMutation.mutateAsync(payload)
+      if (wageId) {
+        await updateMutation.mutateAsync(payload)
+      } else {
+        await createMutation.mutateAsync(payload)
+      }
+    } catch (error) {
+      console.error("Submission error:", error)
+      // Don't set serverError here - it's handled in the mutation
     } finally {
       if (isMountedRef.current) setIsSubmitting(false)
     }
@@ -227,16 +334,16 @@ export default function SubWageOrderForm({ wageId }) {
   const handleBack = () => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
     if (canGoBack) window.history.back()
-    else navigate({ to: "/purchase-orders" })
+    else navigate({ to: "/wages" })
   }
 
   const handleSoftDelete = async () => {
     if (!wageId) return
-    if (!confirm("Soft delete this purchase order?")) return
+    if (!confirm("Soft delete this wage order?")) return
     try {
-      await axiosInstance.delete(`/api/purchase-orders/${wageId}`)
+      await axiosInstance.delete(`/api/wages/${wageId}`)
       queryClient.invalidateQueries(["wages"])
-      navigate({ to: "/purchase-orders" })
+      navigate({ to: "/wages" })
     } catch (err) {
       setServerError(err?.response?.data?.message || "Delete failed")
     }
@@ -255,7 +362,11 @@ export default function SubWageOrderForm({ wageId }) {
         <h2 className="text-xl font-semibold text-gray-800">{wageId ? "Edit Wage Order" : "New Wage Order"}</h2>
       </div>
 
-      {serverError && <div className="bg-red-100 text-red-700 p-2 rounded">{serverError}</div>}
+      {serverError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <strong>Error: </strong>{serverError}
+        </div>
+      )}
 
       {/* Estimate Selector */}
       <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
@@ -283,7 +394,7 @@ export default function SubWageOrderForm({ wageId }) {
         <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium">Project</label>
+            <label className="block text-sm font-medium">Project *</label>
             {isProjectsLoading ? (
               <p className="text-gray-500 text-sm">Loading projects...</p>
             ) : isProjectsError ? (
@@ -291,9 +402,10 @@ export default function SubWageOrderForm({ wageId }) {
             ) : (
               <select
                 className="w-full border p-2 rounded"
-                value={form.projectId || ""} // important fallback to ""
+                value={form.projectId || ""}
                 onChange={(e) => setField("projectId", e.target.value)}
                 disabled={isLocked}
+                required
               >
                 <option value="">— Choose Project —</option>
                 {(projects || []).map((p) => (
@@ -307,12 +419,13 @@ export default function SubWageOrderForm({ wageId }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">Company</label>
+            <label className="block text-sm font-medium">Company *</label>
             <input
               className="w-full border p-2 rounded"
               value={form.company}
               onChange={(e) => setField("company", e.target.value)}
               disabled={isLocked}
+              required
             />
             {errors.company && <p className="text-red-500 text-sm">{errors.company}</p>}
           </div>
@@ -320,29 +433,33 @@ export default function SubWageOrderForm({ wageId }) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
             <input
               type="date"
               className="w-full border border-gray-300 rounded-md p-2"
               value={form.date || ""}
               onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
               disabled={isLocked}
+              required
             />
+            {errors.date && <p className="text-red-500 text-sm">{errors.date}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date *</label>
             <input
               type="date"
               className="w-full border border-gray-300 rounded-md p-2"
               value={form.deliveryDate || ""}
               onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
               disabled={isLocked}
+              required
             />
+            {errors.deliveryDate && <p className="text-red-500 text-sm">{errors.deliveryDate}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address *</label>
             <input
               type="text"
               className="w-full border border-gray-300 rounded-md p-2"
@@ -350,12 +467,11 @@ export default function SubWageOrderForm({ wageId }) {
               value={form.deliveryAddress || ""}
               onChange={(e) => setForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))}
               disabled={isLocked}
+              required
             />
+            {errors.deliveryAddress && <p className="text-red-500 text-sm">{errors.deliveryAddress}</p>}
           </div>
         </div>
-        {errors.date && <p className="text-red-500 text-sm">{errors.date}</p>}
-        {errors.deliveryDate && <p className="text-red-500 text-sm">{errors.deliveryDate}</p>}
-        {errors.deliveryAddress && <p className="text-red-500 text-sm">{errors.deliveryAddress}</p>}
       </section>
 
       {/* Vendor Info */}
@@ -363,11 +479,12 @@ export default function SubWageOrderForm({ wageId }) {
         <h3 className="font-semibold text-gray-700 border-b pb-2">Vendor Information</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium">Vendor Name</label>
+            <label className="block text-sm font-medium">Vendor Name *</label>
             <input
               className="w-full border p-2 rounded"
               value={form.vendorName}
               onChange={(e) => setField("vendorName", e.target.value)}
+              required
             />
             {errors.vendorName && <p className="text-red-500 text-sm">{errors.vendorName}</p>}
           </div>
@@ -412,27 +529,86 @@ export default function SubWageOrderForm({ wageId }) {
       <section className="space-y-4">
         <h3 className="font-semibold text-gray-700 border-b pb-2">Other Details</h3>
         <div className="grid md:grid-cols-2 gap-4">
-          <div>
+          {/* Subcontractor Search Field - FIXED */}
+          <div className="subcontractor-search-container relative">
             <label className="block text-sm font-medium">Subcontractor</label>
-            {loadingSubs ? (
-              <p className="text-gray-500 text-sm">Loading subcontractors…</p>
-            ) : subsError ? (
-              <p className="text-red-500 text-sm">Failed to load subcontractors</p>
-            ) : (
-              <select
-                className="w-full border p-2 rounded bg-white focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                value={form.subcontractorId}
-                onChange={(e) => setField("subcontractorId", e.target.value)}
-              >
-                <option value="">— Select Subcontractor —</option>
-                {(subcontractors || []).map((sub) => (
-                  <option key={sub._id} value={sub._id}>
-                    {sub.name || sub.companyName || `Subcontractor ${sub._id}`}
-                  </option>
-                ))}
-              </select>
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full border p-2 rounded pr-10 bg-white focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                placeholder="Search by contact person or company..."
+                value={subcontractorSearch}
+                onChange={(e) => handleSubcontractorSearchChange(e.target.value)}
+                onFocus={() => {
+                  console.log("Input focused, showing dropdown")
+                  setShowSubcontractorDropdown(true)
+                  setSearchTrigger(prev => prev + 1)
+                }}
+              />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex space-x-1">
+                {form.subcontractorId && (
+                  <button
+                    type="button"
+                    onClick={handleSubcontractorClear}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <Search size={16} className="text-gray-400" />
+              </div>
+            </div>
+
+            {/* Dropdown Results - FIXED */}
+            {showSubcontractorDropdown && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {loadingSubs ? (
+                  <div className="p-3 text-sm text-gray-500">Loading subcontractors...</div>
+                ) : subsError ? (
+                  <div className="p-3 text-sm text-red-500">Failed to load subcontractors</div>
+                ) : subcontractorsData?.length === 0 ? (
+                  <div className="p-3 text-sm text-gray-500">
+                    {subcontractorSearch ? "No subcontractors found" : "Start typing to search subcontractors"}
+                  </div>
+                ) : (
+                  subcontractorsData?.map((sub) => (
+                    <div
+                      key={sub._id}
+                      className={`p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 ${
+                        form.subcontractorId === sub._id ? 'bg-blue-50' : ''
+                      }`}
+                      onClick={() => handleSubcontractorSelect(sub)}
+                    >
+                      <div className="font-medium text-gray-900">
+                        {sub.contactPerson} - {sub.companyName}
+                      </div>
+                      <div className="text-sm text-gray-500 flex flex-wrap gap-2 mt-1">
+                        {sub.email && <span>{sub.email}</span>}
+                        {sub.phoneNumber && <span>• {sub.phoneNumber}</span>}
+                        {sub.typeOfWork && sub.typeOfWork !== 'user' && <span>• {sub.typeOfWork}</span>}
+                      </div>
+                      {sub.projects && sub.projects.length > 0 && (
+                        <div className="text-xs text-green-600 mt-1">
+                          {sub.projects.length} active project(s)
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Selected subcontractor info - FIXED */}
+            {selectedSubcontractor && !showSubcontractorDropdown && (
+              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                <span className="font-medium">Selected: </span>
+                {selectedSubcontractor.contactPerson} - {selectedSubcontractor.companyName}
+                {selectedSubcontractor.email && ` • ${selectedSubcontractor.email}`}
+                {selectedSubcontractor.phoneNumber && ` • ${selectedSubcontractor.phoneNumber}`}
+              </div>
             )}
           </div>
+
           <div>
             <label className="block text-sm font-medium">Status</label>
             <select
@@ -455,10 +631,10 @@ export default function SubWageOrderForm({ wageId }) {
           <table className="w-full text-sm border-collapse border border-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-2 border">Description</th>
-                <th className="p-2 border">Qty</th>
-                <th className="p-2 border">Unit</th>
-                <th className="p-2 border">Unit Price</th>
+                <th className="p-2 border">Description *</th>
+                <th className="p-2 border">Qty *</th>
+                <th className="p-2 border">Unit *</th>
+                <th className="p-2 border">Unit Price *</th>
                 <th className="p-2 border">Total</th>
                 <th className="p-2 border"></th>
               </tr>
@@ -471,7 +647,11 @@ export default function SubWageOrderForm({ wageId }) {
                       className="w-full border p-1 rounded"
                       value={it.description}
                       onChange={(e) => setItemField(idx, "description", e.target.value)}
+                      required
                     />
+                    {errors[`items.${idx}.description`] && (
+                      <p className="text-red-500 text-xs">{errors[`items.${idx}.description`]}</p>
+                    )}
                   </td>
                   <td className="p-2 border">
                     <input
@@ -479,14 +659,24 @@ export default function SubWageOrderForm({ wageId }) {
                       className="w-full border p-1 rounded"
                       value={it.quantity}
                       onChange={(e) => setItemField(idx, "quantity", e.target.value)}
+                      min="1"
+                      step="1"
+                      required
                     />
+                    {errors[`items.${idx}.quantity`] && (
+                      <p className="text-red-500 text-xs">{errors[`items.${idx}.quantity`]}</p>
+                    )}
                   </td>
                   <td className="p-2 border">
                     <input
                       className="w-full border p-1 rounded"
                       value={it.unit}
                       onChange={(e) => setItemField(idx, "unit", e.target.value)}
+                      required
                     />
+                    {errors[`items.${idx}.unit`] && (
+                      <p className="text-red-500 text-xs">{errors[`items.${idx}.unit`]}</p>
+                    )}
                   </td>
                   <td className="p-2 border">
                     <input
@@ -494,19 +684,22 @@ export default function SubWageOrderForm({ wageId }) {
                       className="w-full border p-1 rounded"
                       value={it.unitPrice}
                       onChange={(e) => setItemField(idx, "unitPrice", e.target.value)}
+                      min="0"
+                      step="0.01"
+                      required
                     />
+                    {errors[`items.${idx}.unitPrice`] && (
+                      <p className="text-red-500 text-xs">{errors[`items.${idx}.unitPrice`]}</p>
+                    )}
                   </td>
-                  {/* Row Total */}
-                  <td className="p-0 border text-center font-medium">
-                     KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
+                  <td className="p-2 border text-center font-medium">
+                    KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
                   </td>
-
-                  {/* Remove Button */}
                   <td className="p-2 border text-center">
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
-                      disabled={isLocked}
+                      disabled={isLocked || form.items.length === 1}
                       className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200 disabled:opacity-50 disabled:hover:bg-transparent"
                     >
                       <Trash size={18} color="#ea343d" />
@@ -534,6 +727,7 @@ export default function SubWageOrderForm({ wageId }) {
           className="w-full border p-2 rounded min-h-[100px]"
           value={form.notes}
           onChange={(e) => setField("notes", e.target.value)}
+          placeholder="Any additional notes..."
         />
       </section>
 
@@ -542,10 +736,10 @@ export default function SubWageOrderForm({ wageId }) {
         {!isLocked && (
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Saving…" : wageId ? "Save Changes" : "Create Purchase Order"}
+            {isSubmitting ? "Saving…" : wageId ? "Save Changes" : "Create Wage Order"}
           </button>
         )}
         {wageId && (
@@ -554,7 +748,7 @@ export default function SubWageOrderForm({ wageId }) {
             onClick={handleSoftDelete}
             className="text-gray-500 border px-4 py-2 rounded hover:bg-gray-50"
           >
-            {isDeletedMode ? "Restore (admin)" : "Soft Delete"}
+            {isDeletedMode ? "Restore" : "Soft Delete"}
           </button>
         )}
         <button type="button" onClick={handleBack} className="text-gray-700 border px-4 py-2 rounded hover:bg-gray-50">

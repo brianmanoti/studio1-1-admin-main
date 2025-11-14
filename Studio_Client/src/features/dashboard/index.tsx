@@ -16,9 +16,29 @@ import { DashboardTabs } from './components/dashboard-tabs'
 import { useProjectStore } from '@/stores/projectStore'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useReports } from '@/hooks/use-reports'
+import { useDownloadProjectPDF } from '@/hooks/PDFs/Project-PDF'
+import { Download } from 'lucide-react'
 
 export function Dashboard() {
   const projectId = useProjectStore((state) => state.projectId)
+
+    const { mutateAsync: downloadProject, isPending } = useDownloadProjectPDF()
+
+    const handleDownloadPDF = async () => {
+    try {
+      const blob = await downloadProject({ id: projectId})
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${projectId || "Project"}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Failed to download Project:", error)
+    }
+  }
 
    const { data: reports, isLoading: reportsLoading, error: reportsError } = useReports(projectId)
 
@@ -90,7 +110,14 @@ export function Dashboard() {
         <div className='mb-2 flex items-center justify-between space-y-2'>
           <h1 className='text-2xl font-bold tracking-tight'>Dashboard</h1>
           <div className='flex items-center space-x-2'>
-            <Button>Download</Button>
+          <Button
+            onClick={handleDownloadPDF}
+            disabled={ isPending}
+            className="gap-2 bg-blue-600 hover:bg-blue-700"
+          >
+            <Download className="h-4 w-4" />
+            { isPending ? "Generating..." : "Download"}
+          </Button>
           </div>
         </div>
         <DashboardTabs projectId={projectId} reports={reports} />         
