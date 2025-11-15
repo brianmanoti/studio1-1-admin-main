@@ -35,10 +35,6 @@ export default function EXPViewPage() {
     }
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
-
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       pending: "bg-yellow-100 text-yellow-800",
@@ -108,11 +104,7 @@ export default function EXPViewPage() {
                 <ArrowLeft className="h-5 w-5" />
                 <span>Back to Expenses</span>
               </Link>
-              <div className="flex gap-3 print:hidden">
-                <Button variant="outline" onClick={handlePrint} className="gap-2 bg-transparent">
-                  <Printer className="h-4 w-4" />
-                  Print
-                </Button>
+              <div className="flex gap-2 print:hidden">
                 <Button
                   onClick={handleDownloadPDF}
                   disabled={isLoading || isPending}
