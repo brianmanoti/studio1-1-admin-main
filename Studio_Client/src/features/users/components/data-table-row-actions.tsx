@@ -1,6 +1,6 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2, UserPen } from 'lucide-react'
+import { ConstructionIcon, Trash2, UserPen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { type User } from '../data/schema'
 import { useUsers } from './users-provider'
+import { useNavigate } from '@tanstack/react-router'
 
 type DataTableRowActionsProps = {
   row: Row<User>
@@ -19,6 +20,7 @@ type DataTableRowActionsProps = {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useUsers()
+  const navigate = useNavigate()
   return (
     <>
       <DropdownMenu modal={false}>
@@ -41,6 +43,16 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             Edit
             <DropdownMenuShortcut>
               <UserPen size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+            navigate({ to: `/users/$userId/permissions` })
+          }
+          >
+            Permissions
+            <DropdownMenuShortcut>
+              <ConstructionIcon size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
