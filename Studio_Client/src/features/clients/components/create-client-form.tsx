@@ -42,7 +42,7 @@ export function CreateClientForm({ open, onClose }: CreateClientFormProps) {
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: typeof initialFormData) => axiosInstance.post("/clients", data),
+    mutationFn: (data: typeof initialFormData) => axiosInstance.post("/api/clients", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] })
       setFormData(initialFormData)
