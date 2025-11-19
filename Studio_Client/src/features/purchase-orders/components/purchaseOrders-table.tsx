@@ -273,7 +273,7 @@ export function PurchaseOrderTable() {
 
   const rejectMutation = useMutation({
     mutationFn: (id: string) =>
-      axiosInstance.patch(`/api/purchase-orders/${id}/decline`),
+      axiosInstance.patch(`/api/purchase-orders/${id}/unapprove`),
     onSuccess: (_, id, ctx: any) => {
       toast.success('Purchase order rejected.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })
@@ -283,7 +283,7 @@ export function PurchaseOrderTable() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}`),
+    mutationFn: (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}/hard`),
     onSuccess: (_, id, ctx: any) => {
       toast.success('Purchase order deleted.')
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] })

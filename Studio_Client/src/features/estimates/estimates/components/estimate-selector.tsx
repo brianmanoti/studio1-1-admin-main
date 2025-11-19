@@ -7,7 +7,7 @@ export default function EstimateSelector({ onChange }) {
   const projectId = useProjectStore((state) => state.projectId)
   const queryClient = useQueryClient()
 
-  // ✅ Prefetch estimates safely
+  // Prefetch estimates safely
   useEffect(() => {
     if (projectId) {
       queryClient.prefetchQuery({
@@ -26,12 +26,8 @@ export default function EstimateSelector({ onChange }) {
     }
   }, [projectId, queryClient])
 
-  // ✅ Fetch project estimates
-  const {
-    data: estimates = [],
-    isLoading: loadingEstimates,
-    isError: estimateError,
-  } = useQuery({
+  // Fetch project estimates
+  const { data: estimates = [], isLoading: loadingEstimates, isError: estimateError } = useQuery({
     queryKey: ["estimatesByProject", projectId],
     queryFn: async () => {
       try {
@@ -46,10 +42,9 @@ export default function EstimateSelector({ onChange }) {
     staleTime: 5 * 60 * 1000,
   })
 
-  // ✅ Choose first estimate if available
   const estimateId = useMemo(() => estimates?.[0]?.estimateId ?? null, [estimates])
 
-  // ✅ Prefetch structure only if an estimate exists
+  // Prefetch estimate structure
   useEffect(() => {
     if (estimateId) {
       queryClient.prefetchQuery({
@@ -68,13 +63,8 @@ export default function EstimateSelector({ onChange }) {
     }
   }, [estimateId, queryClient])
 
-  // ✅ Fetch the actual estimate structure
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
+  // Fetch estimate structure
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["estimateData", estimateId],
     queryFn: async () => {
       try {
@@ -89,17 +79,16 @@ export default function EstimateSelector({ onChange }) {
     staleTime: 5 * 60 * 1000,
   })
 
-  const [estimateLevel, setEstimateLevel] = useState("estimate")
+  const [estimateLevel, setEstimateLevel] = useState("group")
   const [selected, setSelected] = useState({
     groupId: "",
     sectionId: "",
     subsectionId: "",
   })
 
-  // ✅ Transform API data to match component expectations
+  // Transform API data
   const transformedData = useMemo(() => {
     if (!data?.hierarchical?.groups) return { groups: [] }
-    
     return {
       ...data,
       groups: data.hierarchical.groups.map(group => ({
@@ -111,32 +100,28 @@ export default function EstimateSelector({ onChange }) {
           value: section.name,
           code: section.code,
           groupId: group.grpId,
-          subsections: (section.subsections || []).map(subsection => ({
-            key: subsection.subId,
-            value: subsection.name,
-            code: subsection.code,
+          subsections: (section.subsections || []).map(sub => ({
+            key: sub.subId,
+            value: sub.name,
+            code: sub.code,
             sectionId: section.secId,
-            groupId: group.grpId
-          }))
-        }))
-      }))
+            groupId: group.grpId,
+          })),
+        })),
+      })),
     }
   }, [data])
 
-  // ✅ Memoized derived data using transformed data
   const allSections = useMemo(
-    () =>
-      transformedData.groups.flatMap((g) =>
-        (g.sections || []).map((s) => ({ ...s, groupId: g.key }))
-      ) ?? [],
+    () => transformedData.groups.flatMap(g => (g.sections || []).map(s => ({ ...s, groupId: g.key }))) ?? [],
     [transformedData]
   )
 
   const allSubsections = useMemo(
     () =>
-      transformedData.groups.flatMap((g) =>
-        (g.sections || []).flatMap((s) =>
-          (s.subsections || []).map((sub) => ({
+      transformedData.groups.flatMap(g =>
+        (g.sections || []).flatMap(s =>
+          (s.subsections || []).map(sub => ({
             ...sub,
             sectionId: s.key,
             groupId: g.key,
@@ -147,21 +132,16 @@ export default function EstimateSelector({ onChange }) {
   )
 
   const filteredSections = useMemo(
-    () =>
-      selected.groupId
-        ? allSections.filter((s) => s.groupId === selected.groupId)
-        : allSections,
+    () => (selected.groupId ? allSections.filter(s => s.groupId === selected.groupId) : allSections),
     [allSections, selected.groupId]
   )
 
   const filteredSubsections = useMemo(
-    () =>
-      selected.sectionId
-        ? allSubsections.filter((sub) => sub.sectionId === selected.sectionId)
-        : allSubsections,
+    () => (selected.sectionId ? allSubsections.filter(sub => sub.sectionId === selected.sectionId) : allSubsections),
     [allSubsections, selected.sectionId]
   )
 
+  // Emit selection callback
   const emit = useCallback(
     (targetId) => {
       onChange?.({
@@ -173,38 +153,60 @@ export default function EstimateSelector({ onChange }) {
     [onChange, data?.estimateId, estimateLevel]
   )
 
-  const handleLevelChange = useCallback(
-    (e) => {
-      const level = e.target.value
-      setEstimateLevel(level)
-      setSelected({ groupId: "", sectionId: "", subsectionId: "" })
-      emit(null)
-    },
-    [emit]
-  )
+  // Auto-select first available options professionally
+  useEffect(() => {
+    if (!transformedData.groups.length) return
 
+    let firstGroupId = selected.groupId || transformedData.groups[0]?.key
+    const group = transformedData.groups.find(g => g.key === firstGroupId)
+
+    let firstSectionId = group?.sections?.[0]?.key || ""
+    let firstSubsectionId = group?.sections?.[0]?.subsections?.[0]?.key || ""
+
+    setSelected({
+      groupId: firstGroupId,
+      sectionId: firstSectionId,
+      subsectionId: firstSubsectionId,
+    })
+
+    // Emit based on level
+    let targetId =
+      estimateLevel === "group"
+        ? firstGroupId
+        : estimateLevel === "section"
+        ? firstSectionId
+        : estimateLevel === "subsection"
+        ? firstSubsectionId
+        : null
+
+    emit(targetId)
+  }, [transformedData, estimateLevel, emit])
+
+  // Handle level change
+  const handleLevelChange = useCallback((e) => setEstimateLevel(e.target.value), [])
+
+  // Handle select changes
   const handleSelect = useCallback(
     (key, value) => {
       let next = { ...selected, [key]: value }
 
       if (key === "groupId") {
-        next.sectionId = ""
-        next.subsectionId = ""
+        const group = transformedData.groups.find(g => g.key === value)
+        next.sectionId = group?.sections?.[0]?.key || ""
+        next.subsectionId = group?.sections?.[0]?.subsections?.[0]?.key || ""
       } else if (key === "sectionId") {
-        next.subsectionId = ""
-        const section = allSections.find((sec) => sec.key === value)
-        if (section) next.groupId = section.groupId
+        const section = allSections.find(s => s.key === value)
+        next.groupId = section?.groupId || next.groupId
+        next.subsectionId = section?.subsections?.[0]?.key || ""
       } else if (key === "subsectionId") {
-        const sub = allSubsections.find((ss) => ss.key === value)
-        if (sub) {
-          next.sectionId = sub.sectionId
-          next.groupId = sub.groupId
-        }
+        const sub = allSubsections.find(ss => ss.key === value)
+        next.sectionId = sub?.sectionId || next.sectionId
+        next.groupId = sub?.groupId || next.groupId
       }
 
       setSelected(next)
 
-      const target =
+      const targetId =
         estimateLevel === "group"
           ? next.groupId
           : estimateLevel === "section"
@@ -213,12 +215,12 @@ export default function EstimateSelector({ onChange }) {
           ? next.subsectionId
           : null
 
-      emit(target)
+      emit(targetId)
     },
-    [allSections, allSubsections, estimateLevel, emit, selected]
+    [allSections, allSubsections, estimateLevel, emit, selected, transformedData]
   )
 
-  // ✅ User feedback UI
+  // Loading / Error UI
   if (loadingEstimates || isLoading)
     return <div className="text-gray-500 text-sm">Loading estimate…</div>
 
@@ -232,26 +234,22 @@ export default function EstimateSelector({ onChange }) {
   if (isError)
     return (
       <div className="text-red-500 text-sm">
-        Failed to load estimate data:{" "}
-        {error?.response?.data?.error || "Unexpected error"}
+        Failed to load estimate data: {error?.response?.data?.error || "Unexpected error"}
       </div>
     )
 
-  if (!transformedData.groups || transformedData.groups.length === 0)
+  if (!transformedData.groups.length)
     return (
       <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">
         No estimate structure available.
       </div>
     )
 
-  // ✅ Main render
   return (
     <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md space-y-3">
-      {/* Estimate Level Selector */}
+      {/* Level Selector */}
       <div>
-        <label className="block text-sm font-medium text-blue-800 mb-1">
-          Estimate Level
-        </label>
+        <label className="block text-sm font-medium text-blue-800 mb-1">Estimate Level</label>
         <select
           className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
           value={estimateLevel}
@@ -265,20 +263,15 @@ export default function EstimateSelector({ onChange }) {
       </div>
 
       {/* Group Selector */}
-      {(estimateLevel === "group" ||
-        estimateLevel === "section" ||
-        estimateLevel === "subsection") && (
+      {(estimateLevel === "group" || estimateLevel === "section" || estimateLevel === "subsection") && (
         <div>
-          <label className="block text-sm font-medium text-blue-800 mb-1">
-            Group
-          </label>
+          <label className="block text-sm font-medium text-blue-800 mb-1">Group</label>
           <select
             className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
             value={selected.groupId}
             onChange={(e) => handleSelect("groupId", e.target.value)}
           >
-            <option value="">— Choose Group —</option>
-            {transformedData.groups.map((g) => (
+            {transformedData.groups.map(g => (
               <option key={g.key} value={g.key}>
                 {g.code} - {g.value}
               </option>
@@ -287,20 +280,16 @@ export default function EstimateSelector({ onChange }) {
         </div>
       )}
 
-      {/* Section Selector */}
-      {(estimateLevel === "section" || estimateLevel === "subsection") && (
+      {/* Section Selector (only if group has sections) */}
+      {estimateLevel !== "group" && filteredSections.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-blue-800 mb-1">
-            Section
-          </label>
+          <label className="block text-sm font-medium text-blue-800 mb-1">Section</label>
           <select
             className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
             value={selected.sectionId}
             onChange={(e) => handleSelect("sectionId", e.target.value)}
-            disabled={!selected.groupId}
           >
-            <option value="">— Choose Section —</option>
-            {filteredSections.map((s) => (
+            {filteredSections.map(s => (
               <option key={s.key} value={s.key}>
                 {s.code} - {s.value}
               </option>
@@ -309,20 +298,16 @@ export default function EstimateSelector({ onChange }) {
         </div>
       )}
 
-      {/* Subsection Selector */}
-      {estimateLevel === "subsection" && (
+      {/* Subsection Selector (only if section has subsections) */}
+      {estimateLevel === "subsection" && filteredSubsections.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-blue-800 mb-1">
-            Subsection
-          </label>
+          <label className="block text-sm font-medium text-blue-800 mb-1">Subsection</label>
           <select
             className="w-full border border-blue-300 bg-white rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
             value={selected.subsectionId}
             onChange={(e) => handleSelect("subsectionId", e.target.value)}
-            disabled={!selected.sectionId}
           >
-            <option value="">— Choose Subsection —</option>
-            {filteredSubsections.map((ss) => (
+            {filteredSubsections.map(ss => (
               <option key={ss.key} value={ss.key}>
                 {ss.code} - {ss.value}
               </option>
