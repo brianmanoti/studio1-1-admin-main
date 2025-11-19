@@ -17,6 +17,7 @@ interface Subsection {
   rate: number
   amount?: number
   spent?: number
+  total?: number
   balance?: number
 }
 
@@ -30,6 +31,7 @@ interface Section {
   rate: number
   amount?: number
   spent?: number
+  total?: number
   balance?: number
   subsections?: Subsection[]
 }
@@ -44,6 +46,7 @@ interface Group {
   rate?: number
   amount?: number
   spent?: number
+  total?: number
   balance?: number
   sections?: Section[]
 }
@@ -55,6 +58,12 @@ interface Project {
   projectNumber?: string
 }
 
+interface Total {
+  description: string
+  amount: number
+  _id: string
+}
+
 interface Estimate {
   id: string
   projectId?: Project
@@ -64,6 +73,7 @@ interface Estimate {
   date?: string
   status?: string
   total?: number
+  totals?: Total[]
   spent?: number
   balance?: number
   groups?: Group[]
@@ -73,57 +83,54 @@ export default function EstimateView() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const navigate = useNavigate()
 
-  const projectId = useProjectStore((state) => state.projectId) // Replace with your actual project ID
+  const projectId = useProjectStore((state) => state.projectId)
 
-const { data = [], isLoading, isError, error } = useQuery({
-  queryKey: ["estimates", projectId],
-  queryFn: async () => {
-    try {
-      const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
-      return res.data as Estimate[]
-    } catch (err: any) {
-      // 👇 If backend returns 404 (no estimates), return an empty array instead of throwing
-      if (err.response?.status === 404) {
-        return []
+  const { data = [], isLoading, isError, error } = useQuery({
+    queryKey: ["estimates", projectId],
+    queryFn: async () => {
+      try {
+        const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
+        return res.data as Estimate[]
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          return []
+        }
+        throw err
       }
-      throw err // rethrow other errors (e.g., 500, network)
-    }
-  },
-  enabled: !!projectId,
-})
+    },
+    enabled: !!projectId,
+  })
 
-const formatKES = (value?: number) =>
-  new Intl.NumberFormat("en-KE", {
-    style: "currency",
-    currency: "KES",
-    minimumFractionDigits: 2,
-  }).format(value || 0)
+  const formatKES = (value?: number) =>
+    new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      minimumFractionDigits: 2,
+    }).format(value || 0)
 
-if (isLoading)
-  return (
-    <p className="text-center mt-10 text-blue-600 font-medium text-lg">
-      Loading estimates...
-    </p>
-  )
+  if (isLoading)
+    return (
+      <p className="text-center mt-10 text-blue-600 font-medium text-lg">
+        Loading estimates...
+      </p>
+    )
 
-// Only show this if it's a real error (not a 404)
-if (isError && !Array.isArray(data))
-  return (
-    <p className="text-center mt-10 text-red-600 font-medium text-lg">
-      Failed to load estimates: {error?.response?.data?.error || "Unknown error"}
-    </p>
-  )
+  if (isError && !Array.isArray(data))
+    return (
+      <p className="text-center mt-10 text-red-600 font-medium text-lg">
+        Failed to load estimates: {(error as any)?.response?.data?.error || "Unknown error"}
+      </p>
+    )
 
-if (!data.length)
-  return (
-    <div className="text-center p-8 border rounded-lg bg-blue-50">
-      <p className="mb-4 text-blue-700 font-medium">No estimates yet.</p>
-      <Button onClick={() => navigate({ to: `/projects/${projectId}/estimates/estimate/new` })} className="bg-blue-600 text-white hover:bg-blue-700">
-        + Add New Estimate
-      </Button>
-    </div>
-  )
-
+  if (!data.length)
+    return (
+      <div className="text-center p-8 border rounded-lg bg-blue-50">
+        <p className="mb-4 text-blue-700 font-medium">No estimates yet.</p>
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/estimates/estimate/new` })} className="bg-blue-600 text-white hover:bg-blue-700">
+          + Add New Estimate
+        </Button>
+      </div>
+    )
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -134,7 +141,10 @@ if (!data.length)
           <Button variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50">
             <FileText className="w-4 h-4" /> Export
           </Button>
-          <Button className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button 
+            onClick={() => navigate({ to: `/projects/${projectId}/estimates/estimate/new` })}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+          >
             + Add New Estimate
           </Button>
         </div>
@@ -142,7 +152,7 @@ if (!data.length)
 
       {data.map((estimate) => {
         const isOpen = expanded[estimate.id] ?? true
-        const totalAmount = estimate.total ?? 0
+        const totalAmount = estimate.totals?.[0]?.amount ?? estimate.total ?? 0
         const totalSpent = estimate.spent ?? 0
         const totalBalance = estimate.balance ?? 0
 
@@ -217,6 +227,7 @@ if (!data.length)
                       <th className="px-3 py-2 text-right">Rate</th>
                       <th className="px-3 py-2 text-right">Amount</th>
                       <th className="px-3 py-2 text-right">Spent</th>
+                      <th className="px-3 py-2 text-right">Total</th>
                       <th className="px-3 py-2 text-right">Balance</th>
                     </tr>
                   </thead>
@@ -227,12 +238,12 @@ if (!data.length)
                           key={g.id}
                           className="bg-blue-50 font-semibold cursor-pointer"
                           onClick={() =>
-                            setExpanded((prev) => ({ ...prev, [g.id]: !prev[g.id] }))
+                            setExpanded((prev) => ({ ...prev, [g.id || '']: !prev[g.id || ''] }))
                           }
                         >
                           <td className="px-3 py-2 text-center">
                             {g.sections?.length ? (
-                              expanded[g.id] ? (
+                              expanded[g.id || ''] ? (
                                 <ChevronDown className="w-4 h-4 inline" />
                               ) : (
                                 <ChevronRight className="w-4 h-4 inline" />
@@ -252,9 +263,10 @@ if (!data.length)
                           </td>
                           <td className="text-right">{formatKES(g.spent)}</td>
                           <td className="text-right">{formatKES(g.balance)}</td>
+                          <td className="text-right">{formatKES(g.total)}</td>
                         </tr>
 
-                        {expanded[g.id] &&
+                        {expanded[g.id || ''] &&
                           g.sections?.map((s) => (
                             <>
                               <tr key={s.id} className="bg-blue-100">
@@ -269,6 +281,7 @@ if (!data.length)
                                   {formatKES(s.amount ?? (s.rate || 0) * (s.quantity ?? 0))}
                                 </td>
                                 <td className="text-right">{formatKES(s.spent)}</td>
+                                <td className="text-right">{formatKES(s.total)}</td>
                                 <td className="text-right">{formatKES(s.balance)}</td>
                               </tr>
 
@@ -285,6 +298,7 @@ if (!data.length)
                                     {formatKES(sub.amount ?? (sub.rate || 0) * (sub.quantity ?? 0))}
                                   </td>
                                   <td className="text-right">{formatKES(sub.spent)}</td>
+                                  <td className="text-right">{formatKES(sub.total)}</td>
                                   <td className="text-right">{formatKES(sub.balance)}</td>
                                 </tr>
                               ))}

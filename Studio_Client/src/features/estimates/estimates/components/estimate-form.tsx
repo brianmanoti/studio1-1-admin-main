@@ -55,7 +55,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// --- Interfaces ---
+// --- Updated Interfaces to match the response ---
 interface EstimateData {
   projectId: string
   name: string
@@ -74,41 +74,48 @@ interface TotalLine {
 
 interface Group {
   id?: string
-  code?: string
-  name: string
-  description?: string
+  code: string
+  description: string
   quantity: number
   unit?: string
   rate: number
-  amount?: number
   total: number
+  calculatedTotal?: number
   sections?: Section[]
-  totals?: TotalLine[]
+  items?: any[]
+  rowNumber?: number
+  itemCount?: number
 }
 
 interface Section {
   id?: string
-  code?: string
-  name: string
-  description?: string
+  code: string
+  description: string
   quantity: number
   unit?: string
   rate: number
+  total: number
+  calculatedTotal?: number
   amount?: number
   subsections?: Subsection[]
-  totals?: TotalLine[]
   items?: any[]
+  rowNumber?: number
+  itemCount?: number
 }
 
 interface Subsection {
   id?: string
-  code?: string
-  name: string
-  description?: string
+  code: string
+  description: string
   quantity: number
   unit?: string
   rate: number
+  total: number
+  calculatedTotal?: number
   amount?: number
+  items?: any[]
+  rowNumber?: number
+  itemCount?: number
 }
 
 interface EstimateResponse {
@@ -122,6 +129,36 @@ interface EstimateResponse {
   totals: TotalLine[]
   createdAt: string
   updatedAt: string
+}
+
+// Excel Import Response Interface
+interface ExcelImportResponse {
+  success: boolean
+  message: string
+  summary: {
+    fileName: string
+    fileSize: number
+    totalAmount: number
+    totalItems: number
+    totalGroups: number
+    totalSections: number
+    totalSubsections: number
+    sheetCount: number
+  }
+  data: {
+    groups: Group[]
+    items: any[]
+    totals: {
+      grandTotal: number
+      totalItems: number
+      totalGroups: number
+      totalSections: number
+      totalSubsections: number
+    }
+  }
+  calculations: {
+    grandTotal: number
+  }
 }
 
 type CreationMode = "import" | "scratch"
@@ -177,7 +214,7 @@ export default function EstimateForm() {
 
   // Calculate totals
   const calculateTotals = () => {
-    const grandTotal = groups.reduce((sum, group) => sum + (group.total || 0), 0)
+    const grandTotal = groups.reduce((sum, group) => sum + (group.total || group.calculatedTotal || 0), 0)
     const totalItems = groups.reduce((sum, group) => 
       sum + (group.sections?.reduce((secSum, section) => 
         secSum + (section.subsections?.length || 0), 0) || 0), 0
@@ -298,74 +335,42 @@ export default function EstimateForm() {
   }
 
   // --- Handle Excel Import ---
-  const handleImportSuccess = (data: any) => {
+  const handleImportSuccess = (data: ExcelImportResponse) => {
     console.log("📥 Imported data:", data)
     
     let importedGroups: Group[] = []
-    let backendGrandTotal = 0
     
     // Extract the grand total from the backend response
-    if (data.calculations?.grandTotal) {
-      backendGrandTotal = data.calculations.grandTotal
-    } else if (data.summary?.totalAmount) {
-      backendGrandTotal = data.summary.totalAmount
-    }
-    
+    const backendGrandTotal = data.summary?.totalAmount || data.calculations?.grandTotal || 0
     console.log("💰 Backend Grand Total:", backendGrandTotal)
 
-    // Handle the new API response structure
-    if (data.data && typeof data.data === 'object') {
-      // Extract groups from all sheets in the data object
-      Object.values(data.data).forEach((sheetData: any) => {
-        if (sheetData.groups && Array.isArray(sheetData.groups)) {
-          // Process each group in the sheet
-          sheetData.groups.forEach((group: any) => {
-            // Only include groups that have actual items or meaningful data
-            if (group.itemCount > 0 || group.calculatedTotal > 0 || 
-                (group.sections && group.sections.some((section: any) => section.itemCount > 0))) {
-              
-              const processedGroup: Group = {
-                id: group.id || `group-${Date.now()}-${Math.random()}`,
-                code: group.code !== 'DEFAULT' ? group.code : '',
-                name: group.name !== 'Automatically Grouped Items' ? group.name : 'Unnamed Group',
-                description: group.description || '',
-                quantity: group.quantity || 0,
-                unit: group.unit || '',
-                rate: group.rate || 0,
-                total: group.calculatedTotal || group.amount || 0,
-                sections: processSections(group.sections || []),
-                totals: group.totals || [],
-              }
-              
-              importedGroups.push(processedGroup)
-            }
-          })
-        }
-      })
-    } else if (Array.isArray(data)) {
-      // Fallback to existing array handling
-      importedGroups = data
-    } else if (data.groups && Array.isArray(data.groups)) {
-      importedGroups = data.groups
+    // Handle the new API response structure - extract from data.groups
+    if (data.data && data.data.groups && Array.isArray(data.data.groups)) {
+      importedGroups = data.data.groups.map((group: Group) => ({
+        id: group.code || `group-${Date.now()}-${Math.random()}`,
+        code: group.code,
+        description: group.description || 'Unnamed Group',
+        quantity: group.quantity || 0,
+        unit: group.unit || '',
+        rate: group.rate || 0,
+        total: group.total || group.calculatedTotal || 0,
+        calculatedTotal: group.calculatedTotal,
+        sections: processSections(group.sections || []),
+        items: group.items || [],
+        rowNumber: group.rowNumber,
+        itemCount: group.itemCount,
+      }))
     }
 
-    // Remove duplicate groups and empty groups
-    const uniqueGroups = importedGroups.filter((group, index, self) =>
-      index === self.findIndex((g) => 
-        g.code === group.code && g.name === group.name
-      ) && (group.sections?.length > 0 || group.total > 0)
-    )
+    console.log("✅ Final arranged groups:", importedGroups)
 
-    console.log("✅ Final arranged groups:", uniqueGroups)
-
-    setGroups(uniqueGroups)
+    setGroups(importedGroups)
     setCreationMode("import")
     setDataView("table") // Switch to table view after import
     
-    // Create a summary object with the backend grand total
     const importSummary = {
-      totalGroups: uniqueGroups.length,
-      totalItems: calculateTotalItems(uniqueGroups),
+      totalGroups: importedGroups.length,
+      totalItems: calculateTotalItems(importedGroups),
       grandTotal: backendGrandTotal,
       backendCalculated: true
     }
@@ -377,55 +382,51 @@ export default function EstimateForm() {
   }
 
   // Helper function to process sections
-  const processSections = (sections: any[]): Section[] => {
+  const processSections = (sections: Section[]): Section[] => {
     return sections
       .filter(section => 
         section.itemCount > 0 || 
-        section.calculatedTotal > 0 ||
+        section.calculatedTotal !== undefined ||
         (section.items && section.items.length > 0)
       )
-      .map(section => {
-        // Extract section totals from backend if available
-        const sectionTotals: TotalLine[] = []
-        if (section.calculatedTotal > 0) {
-          sectionTotals.push({
-            description: "Section Total",
-            amount: section.calculatedTotal
-          })
-        }
-        
-        return {
-          id: section.id || `section-${Date.now()}-${Math.random()}`,
-          code: section.code !== 'undefined' ? section.code : '',
-          name: section.name || 'Unnamed Section',
-          description: section.description || '',
-          quantity: section.quantity || 0,
-          unit: section.unit || '',
-          rate: section.rate || 0,
-          amount: section.calculatedAmount || section.amount || 0,
-          subsections: processSubsections(section.items || []),
-          totals: [...sectionTotals, ...(section.totals || [])],
-        }
-      })
+      .map(section => ({
+        id: section.code || `section-${Date.now()}-${Math.random()}`,
+        code: section.code,
+        description: section.description || 'Unnamed Section',
+        quantity: section.quantity || 0,
+        unit: section.unit || '',
+        rate: section.rate || 0,
+        total: section.total || 0,
+        calculatedTotal: section.calculatedTotal,
+        amount: section.calculatedTotal || section.amount || 0,
+        subsections: processSubsections(section.subsections || section.items || []),
+        items: section.items || [],
+        rowNumber: section.rowNumber,
+        itemCount: section.itemCount,
+      }))
   }
 
-  // Helper function to process items as subsections
-  const processSubsections = (items: any[]): Subsection[] => {
+  // Helper function to process subsections
+  const processSubsections = (items: Subsection[]): Subsection[] => {
     return items
       .filter(item => 
-        item.amount > 0 || 
-        item.calculatedAmount > 0 ||
+        item.amount !== undefined || 
+        item.calculatedTotal !== undefined ||
         (item.quantity > 0 && item.rate > 0)
       )
       .map(item => ({
-        id: item.id || `sub-${Date.now()}-${Math.random()}`,
-        code: item.code !== 'undefined' ? item.code : '',
-        name: item.name || 'Unnamed Item',
-        description: item.description || '',
+        id: item.code || `sub-${Date.now()}-${Math.random()}`,
+        code: item.code,
+        description: item.description || 'Unnamed Item',
         quantity: item.quantity || 0,
-        unit: item.unit !== 'undefined' ? item.unit : '',
+        unit: item.unit || '',
         rate: item.rate || 0,
-        amount: item.calculatedAmount || item.amount || 0,
+        total: item.total || 0,
+        calculatedTotal: item.calculatedTotal,
+        amount: item.calculatedTotal || item.amount || 0,
+        items: item.items || [],
+        rowNumber: item.rowNumber,
+        itemCount: item.itemCount,
       }))
   }
 
@@ -439,12 +440,11 @@ export default function EstimateForm() {
     }, 0)
   }
 
-  // --- Create from Scratch Functions ---
+  // Update manual creation functions
   const addGroup = () => {
     const newGroup: Group = {
       id: `group-${Date.now()}`,
       code: "",
-      name: "",
       description: "",
       quantity: 0,
       unit: "",
@@ -464,11 +464,11 @@ export default function EstimateForm() {
     targetGroup.sections.push({
       id: `section-${Date.now()}`,
       code: "",
-      name: "",
       description: "",
       quantity: 0,
       unit: "",
       rate: 0,
+      total: 0,
       amount: 0,
       subsections: [],
     })
@@ -486,11 +486,11 @@ export default function EstimateForm() {
       targetSection.subsections.push({
         id: `sub-${Date.now()}`,
         code: "",
-        name: "",
         description: "",
         quantity: 0,
         unit: "",
         rate: 0,
+        total: 0,
         amount: 0,
       })
       
@@ -520,6 +520,7 @@ export default function EstimateForm() {
       
       if (field === 'quantity' || field === 'rate') {
         updatedGroups[groupIndex].sections![sectionIndex].amount = (section.quantity || 0) * (section.rate || 0)
+        updatedGroups[groupIndex].sections![sectionIndex].total = (section.quantity || 0) * (section.rate || 0)
       }
       
       setGroups(updatedGroups)
@@ -538,6 +539,8 @@ export default function EstimateForm() {
       
       if (field === 'quantity' || field === 'rate') {
         updatedGroups[groupIndex].sections![sectionIndex].subsections![subsectionIndex].amount = 
+          (subsection.quantity || 0) * (subsection.rate || 0)
+        updatedGroups[groupIndex].sections![sectionIndex].subsections![subsectionIndex].total = 
           (subsection.quantity || 0) * (subsection.rate || 0)
       }
       
@@ -568,26 +571,25 @@ export default function EstimateForm() {
         const cleanedSections = (group.sections || []).map((section) => {
           const cleanedSubsections = (section.subsections || []).map((sub) => ({
             code: sub.code || "",
-            name: sub.name || "",
             description: sub.description || "",
             quantity: Number(sub.quantity) || 0,
             unit: sub.unit || "",
             rate: Number(sub.rate) || 0,
             amount: Number(sub.amount) || (Number(sub.quantity) || 0) * (Number(sub.rate) || 0),
+            total: Number(sub.total) || (Number(sub.quantity) || 0) * (Number(sub.rate) || 0),
           }))
 
           const sectionAmount = Number(section.amount) || (Number(section.quantity) || 0) * (Number(section.rate) || 0)
 
           return {
             code: section.code || "",
-            name: section.name || "",
             description: section.description || "",
             quantity: Number(section.quantity) || 0,
             unit: section.unit || "",
             rate: Number(section.rate) || 0,
             amount: sectionAmount,
+            total: sectionAmount,
             subsections: cleanedSubsections,
-            totals: section.totals || [],
           }
         })
 
@@ -595,7 +597,6 @@ export default function EstimateForm() {
 
         return {
           code: group.code || "",
-          name: group.name || "",
           description: group.description || "",
           quantity: Number(group.quantity) || 0,
           unit: group.unit || "",
@@ -603,10 +604,6 @@ export default function EstimateForm() {
           total: groupTotal,
           amount: Number(group.amount) || (Number(group.quantity) || 0) * (Number(group.rate) || 0),
           sections: cleanedSections,
-          totals: (group.totals || []).map((t) => ({
-            description: t.description || "",
-            amount: Number(t.amount) || 0,
-          })),
         }
       })
 
@@ -685,16 +682,18 @@ export default function EstimateForm() {
                     <TableCell className="font-mono text-sm">{group.code}</TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-semibold">{group.name}</div>
-                        {group.description && (
-                          <div className="text-sm text-muted-foreground">{group.description}</div>
+                        <div className="font-semibold">{group.description}</div>
+                        {group.code && (
+                          <div className="text-sm text-muted-foreground">Code: {group.code}</div>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono">{group.quantity || '-'}</TableCell>
                     <TableCell>{group.unit || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{group.rate ? formatKES(group.rate) : '-'}</TableCell>
-                    <TableCell className="text-right font-mono font-bold">{formatKES(group.total)}</TableCell>
+                    <TableCell className="text-right font-mono font-bold">
+                      {formatKES(group.total || group.calculatedTotal || 0)}
+                    </TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -731,16 +730,15 @@ export default function EstimateForm() {
                         <TableCell className="font-mono text-sm pl-8">{section.code}</TableCell>
                         <TableCell>
                           <div className="pl-2">
-                            <div className="font-medium">{section.name}</div>
-                            {section.description && (
-                              <div className="text-sm text-muted-foreground">{section.description}</div>
-                            )}
+                            <div className="font-medium">{section.description}</div>
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-mono">{section.quantity || '-'}</TableCell>
                         <TableCell>{section.unit || '-'}</TableCell>
                         <TableCell className="text-right font-mono">{section.rate ? formatKES(section.rate) : '-'}</TableCell>
-                        <TableCell className="text-right font-mono">{formatKES(section.amount || 0)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatKES(section.amount || section.calculatedTotal || 0)}
+                        </TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -766,16 +764,15 @@ export default function EstimateForm() {
                           </TableCell>
                           <TableCell>
                             <div className="pl-4">
-                              <div className="text-sm">{subsection.name}</div>
-                              {subsection.description && (
-                                <div className="text-xs text-muted-foreground">{subsection.description}</div>
-                              )}
+                              <div className="text-sm">{subsection.description}</div>
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">{subsection.quantity}</TableCell>
                           <TableCell className="text-sm">{subsection.unit}</TableCell>
                           <TableCell className="text-right font-mono text-sm">{formatKES(subsection.rate)}</TableCell>
-                          <TableCell className="text-right font-mono text-sm">{formatKES(subsection.amount || 0)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatKES(subsection.amount || subsection.calculatedTotal || 0)}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -832,23 +829,18 @@ export default function EstimateForm() {
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Layers className="w-5 h-5" />
-                    {group.name || `Group ${groupIndex + 1}`}
+                    {group.description || `Group ${groupIndex + 1}`}
                     {group.code && (
                       <Badge variant="secondary" className="ml-2">
                         {group.code}
                       </Badge>
                     )}
                   </CardTitle>
-                  {group.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {group.description}
-                    </p>
-                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="font-mono">
-                  {formatKES(group.total)}
+                  {formatKES(group.total || group.calculatedTotal || 0)}
                 </Badge>
                 <Button
                   variant="destructive"
@@ -870,10 +862,7 @@ export default function EstimateForm() {
                       <div className="flex items-center gap-3">
                         <Building className="w-4 h-4 text-muted-foreground" />
                         <div>
-                          <h4 className="font-semibold">{section.name}</h4>
-                          {section.description && (
-                            <p className="text-sm text-muted-foreground">{section.description}</p>
-                          )}
+                          <h4 className="font-semibold">{section.description}</h4>
                         </div>
                         {section.code && (
                           <Badge variant="outline">{section.code}</Badge>
@@ -881,7 +870,7 @@ export default function EstimateForm() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="font-mono">
-                          {formatKES(section.amount || 0)}
+                          {formatKES(section.amount || section.calculatedTotal || 0)}
                         </Badge>
                         <Button
                           variant="destructive"
@@ -899,10 +888,7 @@ export default function EstimateForm() {
                           <div className="flex items-center gap-3">
                             <div className="w-2 h-2 rounded-full bg-primary/50" />
                             <div>
-                              <h5 className="text-sm font-medium">{subsection.name}</h5>
-                              {subsection.description && (
-                                <p className="text-xs text-muted-foreground">{subsection.description}</p>
-                              )}
+                              <h5 className="text-sm font-medium">{subsection.description}</h5>
                             </div>
                             {subsection.code && (
                               <Badge variant="outline" className="text-xs">
@@ -912,7 +898,9 @@ export default function EstimateForm() {
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-right">
-                              <div className="text-sm font-mono">{formatKES(subsection.amount || 0)}</div>
+                              <div className="text-sm font-mono">
+                                {formatKES(subsection.amount || subsection.calculatedTotal || 0)}
+                              </div>
                               <div className="text-xs text-muted-foreground">
                                 {subsection.quantity} {subsection.unit} × {formatKES(subsection.rate)}
                               </div>
@@ -962,23 +950,18 @@ export default function EstimateForm() {
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Layers className="w-5 h-5" />
-                    {group.name || `Group ${groupIndex + 1}`}
+                    {group.description || `Group ${groupIndex + 1}`}
                     {group.code && (
                       <Badge variant="secondary" className="ml-2">
                         {group.code}
                       </Badge>
                     )}
                   </CardTitle>
-                  {group.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {group.description}
-                    </p>
-                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="font-mono">
-                  {formatKES(group.total)}
+                  {formatKES(group.total || group.calculatedTotal || 0)}
                 </Badge>
                 <Button
                   variant="destructive"
@@ -1003,11 +986,11 @@ export default function EstimateForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs">Group Name *</Label>
+                <Label className="text-xs">Group Description *</Label>
                 <Input
                   placeholder="PRELIMINARIES"
-                  value={group.name}
-                  onChange={(e) => updateGroup(groupIndex, 'name', e.target.value)}
+                  value={group.description}
+                  onChange={(e) => updateGroup(groupIndex, 'description', e.target.value)}
                   className="font-medium"
                 />
               </div>
@@ -1040,14 +1023,6 @@ export default function EstimateForm() {
                   onChange={(e) => updateGroup(groupIndex, 'unit', e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Description</Label>
-                <Input
-                  placeholder="Group description..."
-                  value={group.description || ""}
-                  onChange={(e) => updateGroup(groupIndex, 'description', e.target.value)}
-                />
-              </div>
             </div>
 
             {/* Sections */}
@@ -1070,7 +1045,7 @@ export default function EstimateForm() {
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <h6 className="font-medium">
-                            {section.name || `Section ${sectionIndex + 1}`}
+                            {section.description || `Section ${sectionIndex + 1}`}
                           </h6>
                           {section.code && (
                             <Badge variant="outline" className="text-xs">
@@ -1080,7 +1055,7 @@ export default function EstimateForm() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="text-xs font-mono">
-                            {formatKES(section.amount || 0)}
+                            {formatKES(section.amount || section.calculatedTotal || 0)}
                           </Badge>
                           <Button
                             variant="destructive"
@@ -1100,9 +1075,9 @@ export default function EstimateForm() {
                           onChange={(e) => updateSection(groupIndex, sectionIndex, 'code', e.target.value)}
                         />
                         <Input
-                          placeholder="Section Name"
-                          value={section.name}
-                          onChange={(e) => updateSection(groupIndex, sectionIndex, 'name', e.target.value)}
+                          placeholder="Section Description"
+                          value={section.description}
+                          onChange={(e) => updateSection(groupIndex, sectionIndex, 'description', e.target.value)}
                         />
                         <Input
                           type="number"
@@ -1132,11 +1107,11 @@ export default function EstimateForm() {
                             <CardContent className="p-3 space-y-2">
                               <div className="flex justify-between items-center mb-2">
                                 <h6 className="text-sm font-medium">
-                                  {subsection.name || `Item ${subsectionIndex + 1}`}
+                                  {subsection.description || `Item ${subsectionIndex + 1}`}
                                 </h6>
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="text-xs font-mono">
-                                    {formatKES(subsection.amount || 0)}
+                                    {formatKES(subsection.amount || subsection.calculatedTotal || 0)}
                                   </Badge>
                                   <Button
                                     variant="destructive"
@@ -1154,9 +1129,9 @@ export default function EstimateForm() {
                                   onChange={(e) => updateSubsection(groupIndex, sectionIndex, subsectionIndex, 'code', e.target.value)}
                                 />
                                 <Input
-                                  placeholder="Item Name"
-                                  value={subsection.name}
-                                  onChange={(e) => updateSubsection(groupIndex, sectionIndex, subsectionIndex, 'name', e.target.value)}
+                                  placeholder="Item Description"
+                                  value={subsection.description}
+                                  onChange={(e) => updateSubsection(groupIndex, sectionIndex, subsectionIndex, 'description', e.target.value)}
                                 />
                                 <Input
                                   type="number"
@@ -1176,11 +1151,6 @@ export default function EstimateForm() {
                                   placeholder="Unit"
                                   value={subsection.unit || ""}
                                   onChange={(e) => updateSubsection(groupIndex, sectionIndex, subsectionIndex, 'unit', e.target.value)}
-                                />
-                                <Input
-                                  placeholder="Description"
-                                  value={subsection.description || ""}
-                                  onChange={(e) => updateSubsection(groupIndex, sectionIndex, subsectionIndex, 'description', e.target.value)}
                                 />
                               </div>
                             </CardContent>

@@ -16,7 +16,7 @@ export default function EstimateSelector({ onChange }) {
           try {
             const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
             return res.data
-          } catch (err: any) {
+          } catch (err) {
             if (err.response?.status === 404) return []
             throw err
           }
@@ -37,7 +37,7 @@ export default function EstimateSelector({ onChange }) {
       try {
         const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
         return res.data
-      } catch (err: any) {
+      } catch (err) {
         if (err.response?.status === 404) return []
         throw err
       }
@@ -58,7 +58,7 @@ export default function EstimateSelector({ onChange }) {
           try {
             const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
             return res.data
-          } catch (err: any) {
+          } catch (err) {
             if (err.response?.status === 404) return null
             throw err
           }
@@ -80,7 +80,7 @@ export default function EstimateSelector({ onChange }) {
       try {
         const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
         return res.data
-      } catch (err: any) {
+      } catch (err) {
         if (err.response?.status === 404) return null
         throw err
       }
@@ -96,18 +96,45 @@ export default function EstimateSelector({ onChange }) {
     subsectionId: "",
   })
 
-  // ✅ Memoized derived data
+  // ✅ Transform API data to match component expectations
+  const transformedData = useMemo(() => {
+    if (!data?.hierarchical?.groups) return { groups: [] }
+    
+    return {
+      ...data,
+      groups: data.hierarchical.groups.map(group => ({
+        key: group.grpId,
+        value: group.name,
+        code: group.code,
+        sections: (group.sections || []).map(section => ({
+          key: section.secId,
+          value: section.name,
+          code: section.code,
+          groupId: group.grpId,
+          subsections: (section.subsections || []).map(subsection => ({
+            key: subsection.subId,
+            value: subsection.name,
+            code: subsection.code,
+            sectionId: section.secId,
+            groupId: group.grpId
+          }))
+        }))
+      }))
+    }
+  }, [data])
+
+  // ✅ Memoized derived data using transformed data
   const allSections = useMemo(
     () =>
-      data?.groups?.flatMap((g) =>
+      transformedData.groups.flatMap((g) =>
         (g.sections || []).map((s) => ({ ...s, groupId: g.key }))
       ) ?? [],
-    [data]
+    [transformedData]
   )
 
   const allSubsections = useMemo(
     () =>
-      data?.groups?.flatMap((g) =>
+      transformedData.groups.flatMap((g) =>
         (g.sections || []).flatMap((s) =>
           (s.subsections || []).map((sub) => ({
             ...sub,
@@ -116,7 +143,7 @@ export default function EstimateSelector({ onChange }) {
           }))
         )
       ) ?? [],
-    [data]
+    [transformedData]
   )
 
   const filteredSections = useMemo(
@@ -210,7 +237,7 @@ export default function EstimateSelector({ onChange }) {
       </div>
     )
 
-  if (!data)
+  if (!transformedData.groups || transformedData.groups.length === 0)
     return (
       <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">
         No estimate structure available.
@@ -251,9 +278,9 @@ export default function EstimateSelector({ onChange }) {
             onChange={(e) => handleSelect("groupId", e.target.value)}
           >
             <option value="">— Choose Group —</option>
-            {(data.groups || []).map((g) => (
+            {transformedData.groups.map((g) => (
               <option key={g.key} value={g.key}>
-                {g.value}
+                {g.code} - {g.value}
               </option>
             ))}
           </select>
@@ -275,7 +302,7 @@ export default function EstimateSelector({ onChange }) {
             <option value="">— Choose Section —</option>
             {filteredSections.map((s) => (
               <option key={s.key} value={s.key}>
-                {s.value}
+                {s.code} - {s.value}
               </option>
             ))}
           </select>
@@ -297,7 +324,7 @@ export default function EstimateSelector({ onChange }) {
             <option value="">— Choose Subsection —</option>
             {filteredSubsections.map((ss) => (
               <option key={ss.key} value={ss.key}>
-                {ss.value}
+                {ss.code} - {ss.value}
               </option>
             ))}
           </select>
