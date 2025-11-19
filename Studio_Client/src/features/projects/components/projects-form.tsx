@@ -1,3 +1,4 @@
+// components/ProjectForm.tsx
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -27,7 +28,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "react-toastify"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import axiosInstance from "@/lib/axios"
@@ -51,35 +52,58 @@ const projectSchema = z.object({
 type ProjectFormValues = z.infer<typeof projectSchema>
 
 interface ProjectFormProps {
+  project?: any
   onSuccess?: () => void
   onClientSelected?: (id: string) => void
   redirectOnSuccess?: boolean
+  onSubmit?: (data: ProjectFormValues) => void
+  isLoading?: boolean
+  isEdit?: boolean
 }
 
 export default function ProjectForm({
+  project,
   onSuccess,
   onClientSelected,
   redirectOnSuccess,
+  onSubmit,
+  isLoading = false,
+  isEdit = false,
 }: ProjectFormProps) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: clientsResponse, isLoading } = useClients()
+  const { data: clientsResponse, isLoading: isLoadingClients } = useClients()
   const clients = clientsResponse?.data ?? []
 
   const form = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),
     defaultValues: {
-      name: "",
-      client: "",
-      location: "",
-      type: "",
-      startDate: "",
-      endDate: "",
-      status: "draft",
+      name: project?.name || "",
+      client: project?.client?._id || project?.client || "",
+      location: project?.location || "",
+      type: project?.type || "",
+      startDate: project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : "",
+      endDate: project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : "",
+      status: project?.status || "draft",
     },
   })
+
+  // Update form when project data changes
+  useEffect(() => {
+    if (project) {
+      form.reset({
+        name: project.name || "",
+        client: project.client?._id || project.client || "",
+        location: project.location || "",
+        type: project.type || "",
+        startDate: project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : "",
+        endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : "",
+        status: project.status || "draft",
+      })
+    }
+  }, [project, form])
 
   const createProject = useMutation({
     mutationFn: (data: ProjectFormValues) => axiosInstance.post("/api/projects", data),
@@ -95,35 +119,41 @@ export default function ProjectForm({
     },
   })
 
-  const onSubmit = (data: ProjectFormValues) => {
-    createProject.mutate(data)
+  const handleSubmit = (data: ProjectFormValues) => {
+    if (isEdit && onSubmit) {
+      onSubmit(data)
+    } else {
+      createProject.mutate(data)
+    }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-lg p-8 relative">
+    <div className={`${!isEdit ? 'min-h-screen bg-gray-50 flex items-center justify-center p-6' : ''}`}>
+      <div className={`${!isEdit ? 'w-full max-w-3xl bg-white rounded-2xl shadow-lg p-8 relative' : 'w-full'}`}>
         {/* ✅ Back Button */}
-        <Button
-          variant="ghost"
-          className="absolute top-4 left-4 text-gray-600 hover:text-blue-700 flex items-center gap-2"
-          onClick={() => {
-            if (window.history.length > 1) {
-              window.history.back()
-            } else {
-              navigate({ to: "/" }) // fallback
-            }
-          }}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </Button>
+        {!isEdit && (
+          <Button
+            variant="ghost"
+            className="absolute top-4 left-4 text-gray-600 hover:text-blue-700 flex items-center gap-2"
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back()
+              } else {
+                navigate({ to: "/" })
+              }
+            }}
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back
+          </Button>
+        )}
 
-        <h1 className="text-3xl font-bold text-center text-blue-700 mb-8">
-          Create New Project
+        <h1 className={`font-bold text-blue-700 mb-8 ${isEdit ? 'text-2xl' : 'text-3xl text-center'}`}>
+          {isEdit ? 'Edit Project' : 'Create New Project'}
         </h1>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
             {/* Project Name */}
             <FormField
               control={form.control}
@@ -159,7 +189,7 @@ export default function ProjectForm({
                         <CommandInput placeholder="Search clients..." />
                         <CommandList>
                           <CommandEmpty>
-                            {isLoading ? "Loading..." : "No clients found."}
+                            {isLoadingClients ? "Loading..." : "No clients found."}
                           </CommandEmpty>
                           <CommandGroup>
                             {clients.map((c: any) => (
@@ -206,34 +236,34 @@ export default function ProjectForm({
                 )}
               />
               
-            <FormField
-            control={form.control}
-            name="type"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Project Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select project type" />
-                    </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-60 overflow-y-auto">
-                    <SelectItem value="Residential">Residential</SelectItem>
-                    <SelectItem value="Commercial">Commercial</SelectItem>
-                    <SelectItem value="Renovation">Renovation</SelectItem>
-                    <SelectItem value="Infrastructure">Infrastructure</SelectItem>
-                    <SelectItem value="Industrial">Industrial</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                </Select>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select project type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        <SelectItem value="Residential">Residential</SelectItem>
+                        <SelectItem value="Commercial">Commercial</SelectItem>
+                        <SelectItem value="Renovation">Renovation</SelectItem>
+                        <SelectItem value="Infrastructure">Infrastructure</SelectItem>
+                        <SelectItem value="Industrial">Industrial</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            {/* Dates */}
+            {/* Dates & Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -262,44 +292,44 @@ export default function ProjectForm({
                 )}
               />
 
-             {/* Status */}
-            <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-                <FormItem>
-                <FormLabel>Status</FormLabel>
-                <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                >
-                    <FormControl>
-                    <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-60 overflow-y-auto ">
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                    <SelectItem value="On Hold">On Hold</SelectItem>
-                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    </SelectContent>
-                </Select>
-                <FormMessage />
-                </FormItem>
-            )}
-            />
+              {/* Status */}
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="On Hold">On Hold</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Submit Button */}
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg"
-              disabled={createProject.isPending}
+              disabled={isLoading || createProject.isPending}
             >
-              {createProject.isPending ? "Creating..." : "Create Project"}
+              {isLoading ? "Updating..." : createProject.isPending ? "Creating..." : isEdit ? "Update Project" : "Create Project"}
             </Button>
           </form>
         </Form>
