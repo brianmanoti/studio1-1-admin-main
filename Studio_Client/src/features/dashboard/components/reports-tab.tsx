@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Users, Package, DollarSign, BarChart3, Building2, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { TrendingUp, Users, Package, DollarSign, BarChart3, Building2 } from 'lucide-react'
 import type { ReportsData } from "@/hooks/use-reports"
 
 interface ReportsTabProps {

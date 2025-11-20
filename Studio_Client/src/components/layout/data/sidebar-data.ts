@@ -18,7 +18,6 @@ import {
   ShieldCheck,
   PieChartIcon,
   DollarSignIcon,
-  CreditCardIcon,
   ListOrderedIcon,
   HardHatIcon,
   TrendingDownIcon,
@@ -87,12 +86,6 @@ export const sidebarData: SidebarData = {
               url: '/projects/$projectId/subcontractors/expenses',
             },
           ],
-        },
-        {
-          title: 'Payroll',
-          url: '/projects/$projectId/payslip',
-          badge: '3',
-          icon: CreditCardIcon,
         },
         {
           title: 'Users',

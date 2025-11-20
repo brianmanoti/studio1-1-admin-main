@@ -31,8 +31,6 @@ export interface ReportsData {
   summaries: {
     [key: string]: {
       pending: { _id: string; totalValue: number; count: number }
-      "in-transit": { totalValue: number; count: number }
-      delivered: { totalValue: number; count: number }
       approved: { totalValue: number; count: number }
       declined: { totalValue: number; count: number }
     }
