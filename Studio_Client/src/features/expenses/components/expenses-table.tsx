@@ -40,7 +40,7 @@ export type Expense = {
   expenseNumber: string
   company: string
   vendorName: string
-  status: 'pending' | 'in-transit' | 'delivered' | 'declined' | 'approved'
+  status: 'pending' | 'declined' | 'approved'
   date: string
   deliveryDate: string
   amount: number
@@ -486,8 +486,6 @@ export function ExpensesTable() {
                   { value: 'pending', label: 'Pending' },
                   { value: 'approved', label: 'Approved' },
                   { value: 'declined', label: 'Declined' },
-                  { value: 'in-transit', label: 'In Transit' },
-                  { value: 'delivered', label: 'Delivered' },
                 ],
               },
             ]}

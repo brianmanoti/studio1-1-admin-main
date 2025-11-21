@@ -38,7 +38,7 @@ export type PurchaseOrder = {
   poNumber: string
   company: string
   vendorName: string
-  status: 'pending' | 'in-transit' | 'delivered' | 'declined' | 'approved'
+  status: 'pending' | 'declined' | 'approved'
   date: string
   deliveryDate: string
   amount: number
@@ -224,8 +224,6 @@ function getColumns({
           approved: 'bg-green-100 text-green-700',
           declined: 'bg-red-100 text-red-700',
           pending: 'bg-yellow-100 text-yellow-700',
-          'in-transit': 'bg-blue-100 text-blue-700',
-          delivered: 'bg-purple-100 text-purple-700',
         }
         return (
           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[status]}`}>
@@ -429,8 +427,6 @@ export function PurchaseOrderTable() {
                   { value: 'pending', label: 'Pending' },
                   { value: 'approved', label: 'Approved' },
                   { value: 'declined', label: 'Declined' },
-                  { value: 'in-transit', label: 'In Transit' },
-                  { value: 'delivered', label: 'Delivered' },
                 ],
               },
             ]}
