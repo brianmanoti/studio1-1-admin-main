@@ -153,24 +153,20 @@ export default function EstimateSelector({ onChange }) {
     [onChange, data?.estimateId, estimateLevel]
   )
 
-  // Auto-select first available options professionally
-  useEffect(() => {
-    if (!transformedData.groups.length) return
+ useEffect(() => {
+  if (!transformedData.groups.length) return
 
-    let firstGroupId = selected.groupId || transformedData.groups[0]?.key
-    const group = transformedData.groups.find(g => g.key === firstGroupId)
+  setSelected(prev => {
+    // Only update if empty
+    if (prev.groupId && prev.sectionId && prev.subsectionId) return prev
 
-    let firstSectionId = group?.sections?.[0]?.key || ""
-    let firstSubsectionId = group?.sections?.[0]?.subsections?.[0]?.key || ""
-
-    setSelected({
-      groupId: firstGroupId,
-      sectionId: firstSectionId,
-      subsectionId: firstSubsectionId,
-    })
+    const firstGroup = transformedData.groups[0]
+    const firstGroupId = prev.groupId || firstGroup.key
+    const firstSectionId = prev.sectionId || firstGroup.sections?.[0]?.key || ""
+    const firstSubsectionId = prev.subsectionId || firstGroup.sections?.[0]?.subsections?.[0]?.key || ""
 
     // Emit based on level
-    let targetId =
+    const targetId =
       estimateLevel === "group"
         ? firstGroupId
         : estimateLevel === "section"
@@ -180,7 +176,15 @@ export default function EstimateSelector({ onChange }) {
         : null
 
     emit(targetId)
-  }, [transformedData, estimateLevel, emit])
+
+    return {
+      groupId: firstGroupId,
+      sectionId: firstSectionId,
+      subsectionId: firstSubsectionId,
+    }
+  })
+}, [transformedData, estimateLevel, emit])
+
 
   // Handle level change
   const handleLevelChange = useCallback((e) => setEstimateLevel(e.target.value), [])
