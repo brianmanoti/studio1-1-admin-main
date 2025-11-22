@@ -12,7 +12,7 @@ import {
   Table as TanTable,
 } from "@tanstack/react-table"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Eye, Pencil, Trash, Check, X, Plus, Loader2 } from "lucide-react"
+import { Eye, Trash, Check, X, Plus, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -170,17 +170,16 @@ function getColumns(
       accessorFn: (row) => computeTotals(row.groups).amount,
       id: "amount",
       header: "Amount",
-      cell: ({ getValue }) => `$${getValue().toFixed(2)}`,
+      cell: ({ getValue }) => `KES ${getValue().toLocaleString()}`,
     },
     {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
         const v = row.original
-        const [dialog, setDialog] = React.useState<{
-          open: boolean
-          action?: "approve" | "reject" | "delete"
-        }>({ open: false })
+        const [approveDialog, setApproveDialog] = React.useState(false)
+        const [rejectDialog, setRejectDialog] = React.useState(false)
+        const [deleteDialog, setDeleteDialog] = React.useState(false)
 
         const isApproved = v.status === "Approved"
         const isRejected = v.status === "Rejected"
@@ -199,60 +198,62 @@ function getColumns(
               <Eye className="w-4 h-4 text-blue-600" />
             </button>
 
-            {/* Edit only if not Approved */}
-            {!isApproved && (
-              <button
-                onClick={() =>
-                  navigate({
-                    to: `/projects/${projectId}/estimates/variations/${v.variationId}/edit`,
-                  })
-                }
-              >
-                <Pencil className="w-4 h-4 text-gray-700" />
-              </button>
-            )}
-
             {/* Approve / Reject only if Pending */}
             {isPending && (
               <>
-                <button onClick={() => setDialog({ open: true, action: "approve" })}>
+                <button onClick={() => setApproveDialog(true)}>
                   <Check className="w-4 h-4 text-green-600" />
                 </button>
-                <button onClick={() => setDialog({ open: true, action: "reject" })}>
+                <button onClick={() => setRejectDialog(true)}>
                   <X className="w-4 h-4 text-red-600" />
                 </button>
               </>
             )}
 
             {/* Delete always available */}
-            <button onClick={() => setDialog({ open: true, action: "delete" })}>
+            <button onClick={() => setDeleteDialog(true)}>
               <Trash className="w-4 h-4 text-red-700" />
             </button>
 
+            {/* Approve Confirmation Dialog */}
             <ConfirmDialog
-              open={dialog.open}
-              onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
-              title={
-                dialog.action === "delete"
-                  ? "Delete Variation"
-                  : dialog.action === "approve"
-                  ? "Approve Variation"
-                  : "Reject Variation"
-              }
-              desc={`Are you sure you want to ${dialog.action} this variation?`}
-              destructive={dialog.action === "delete" || dialog.action === "reject"}
+              open={approveDialog}
+              onOpenChange={setApproveDialog}
+              title="Approve Variation"
+              desc="Are you sure you want to approve this variation?"
               handleConfirm={() => {
-                if (!dialog.action) return
-                handleConfirmAction(v.variationId, dialog.action)
-                setDialog({ open: false })
+                handleConfirmAction(v.variationId, "approve")
+                setApproveDialog(false)
               }}
-              confirmText={
-                dialog.action === "delete"
-                  ? "Delete"
-                  : dialog.action === "approve"
-                  ? "Approve"
-                  : "Reject"
-              }
+              confirmText="Approve"
+            />
+
+            {/* Reject Confirmation Dialog */}
+            <ConfirmDialog
+              open={rejectDialog}
+              onOpenChange={setRejectDialog}
+              title="Reject Variation"
+              desc="Are you sure you want to reject this variation?"
+              destructive
+              handleConfirm={() => {
+                handleConfirmAction(v.variationId, "reject")
+                setRejectDialog(false)
+              }}
+              confirmText="Reject"
+            />
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmDialog
+              open={deleteDialog}
+              onOpenChange={setDeleteDialog}
+              title="Delete Variation"
+              desc="Are you sure you want to delete this variation? This action cannot be undone."
+              destructive
+              handleConfirm={() => {
+                handleConfirmAction(v.variationId, "delete")
+                setDeleteDialog(false)
+              }}
+              confirmText="Delete"
             />
           </div>
         )
@@ -311,9 +312,13 @@ export function VariationTable() {
   })
 
   const handleConfirmAction = (id: string, action: "approve" | "reject" | "delete") => {
-    if (action === "approve") approveMutation.mutate(id)
-    if (action === "reject") rejectMutation.mutate(id)
-    if (action === "delete") deleteMutation.mutate(id)
+    if (action === "approve") {
+      approveMutation.mutate(id)
+    } else if (action === "reject") {
+      rejectMutation.mutate(id)
+    } else if (action === "delete") {
+      deleteMutation.mutate(id)
+    }
   }
 
   // --- Table setup ---

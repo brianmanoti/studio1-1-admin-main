@@ -1,10 +1,9 @@
-"use client"
 
 import { useState } from "react"
 import { useParams, Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Download, Printer, ArrowLeft, Loader2 } from "lucide-react"
+import { Download,  ArrowLeft, Loader2 } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Main } from "@/components/layout/main"
 import { useDownloadPOPDF } from "@/hooks/PDFs/purchase-order-PDF"

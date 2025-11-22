@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
+import { toast } from "sonner"
 import axiosInstance from "@/lib/axios"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -46,7 +47,7 @@ const parseNumber = (value) => {
   return parseFloat(value.replace(/,/g, '')) || 0
 }
 
-export default function ProjectForm({ onSave }) {
+export default function ProjectForm() {
   const navigate = useNavigate()
   const [variationName, setVariationName] = useState("")
   const [projectId, setProjectId] = useState("")
@@ -55,8 +56,24 @@ export default function ProjectForm({ onSave }) {
   const [notes, setNotes] = useState("")
   const [groups, setGroups] = useState([])
   const [expanded, setExpanded] = useState({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationErrors, setValidationErrors] = useState({})
+
+  // Use mutation for creating variation
+  const createVariationMutation = useMutation({
+    mutationFn: async (variationData) => {
+      const response = await axiosInstance.post("/api/variations", variationData)
+      return response.data
+    },
+    onSuccess: (data) => {
+      toast.success("Variation created successfully!")
+      // Redirect to variations list or the created variation
+      navigate("/variations")
+    },
+    onError: (error) => {
+      console.error("Error creating variation:", error)
+      toast.error("Failed to create variation. Please try again.")
+    }
+  })
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["projects"],
@@ -90,8 +107,8 @@ export default function ProjectForm({ onSave }) {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const errors = {}
-        error.errors.forEach((err) => {
-          errors[err.path[0]] = err.message
+        error.issues.forEach((issue) => {
+          errors[issue.path[0]] = issue.message
         })
         setValidationErrors(errors)
       }
@@ -261,7 +278,10 @@ export default function ProjectForm({ onSave }) {
   // Update operations with number formatting
   const updateGroup = (groupId, key, value) => {
     setGroups(groups.map(group => 
-      group.id === groupId ? { ...group, [key]: value } : group
+      group.id === groupId ? { 
+        ...group, 
+        [key]: value === undefined || value === null ? "" : value 
+      } : group
     ))
   }
 
@@ -271,7 +291,10 @@ export default function ProjectForm({ onSave }) {
         ? {
             ...group,
             sections: group.sections.map(section =>
-              section.id === sectionId ? { ...section, [key]: value } : section
+              section.id === sectionId ? { 
+                ...section, 
+                [key]: value === undefined || value === null ? "" : value 
+              } : section
             )
           }
         : group
@@ -288,7 +311,10 @@ export default function ProjectForm({ onSave }) {
                 ? {
                     ...section,
                     subsections: section.subsections.map(subsection =>
-                      subsection.id === subsectionId ? { ...subsection, [key]: value } : subsection
+                      subsection.id === subsectionId ? { 
+                        ...subsection, 
+                        [key]: value === undefined || value === null ? "" : value 
+                      } : subsection
                     )
                   }
                 : section
@@ -393,13 +419,13 @@ export default function ProjectForm({ onSave }) {
     }))
   }
 
-  // Save function - matches schema exactly
+  // Save function using mutation
   const handleSave = async () => {
     if (!validateForm()) {
+      toast.error("Please fix the validation errors before saving.")
       return
     }
 
-    setIsSubmitting(true)
     try {
       const variationData = {
         name: variationName,
@@ -426,13 +452,11 @@ export default function ProjectForm({ onSave }) {
         balance: calculatedData.balance
       }
       
-      console.log("Saving variation data:", variationData) // Debug log
-      await onSave?.(variationData)
+      console.log("Saving variation data:", variationData)
+      createVariationMutation.mutate(variationData)
     } catch (error) {
-      console.error("Error saving variation:", error)
-      alert("Failed to save variation. Please try again.")
-    } finally {
-      setIsSubmitting(false)
+      console.error("Error preparing variation data:", error)
+      toast.error("Failed to prepare variation data. Please try again.")
     }
   }
 
@@ -451,7 +475,7 @@ export default function ProjectForm({ onSave }) {
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => navigate({ to: -1 })}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -471,7 +495,7 @@ export default function ProjectForm({ onSave }) {
                 <Label className="text-sm font-medium">Variation Name *</Label>
                 <Input 
                   placeholder="Enter variation name" 
-                  value={variationName}
+                  value={variationName || ""}
                   onChange={(e) => {
                     setVariationName(e.target.value)
                     if (validationErrors.name) {
@@ -487,7 +511,7 @@ export default function ProjectForm({ onSave }) {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Project *</Label>
                 <Select 
-                  value={projectId} 
+                  value={projectId || ""}
                   onValueChange={(value) => {
                     setProjectId(value)
                     if (validationErrors.projectId) {
@@ -500,7 +524,7 @@ export default function ProjectForm({ onSave }) {
                   </SelectTrigger>
                   <SelectContent>
                     {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p._id} value={p._id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -511,7 +535,7 @@ export default function ProjectForm({ onSave }) {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Estimate *</Label>
                 <Select 
-                  value={estimateId} 
+                  value={estimateId || ""}
                   onValueChange={(value) => {
                     setEstimateId(value)
                     if (validationErrors.estimateId) {
@@ -550,7 +574,7 @@ export default function ProjectForm({ onSave }) {
                 <Textarea 
                   placeholder="Enter variation description" 
                   rows={3} 
-                  value={description}
+                  value={description || ""}
                   onChange={(e) => setDescription(e.target.value)}
                   className="bg-white"
                 />
@@ -560,7 +584,7 @@ export default function ProjectForm({ onSave }) {
                 <Textarea 
                   placeholder="Additional notes" 
                   rows={3} 
-                  value={notes}
+                  value={notes || ""}
                   onChange={(e) => setNotes(e.target.value)}
                   className="bg-white"
                 />
@@ -602,7 +626,7 @@ export default function ProjectForm({ onSave }) {
                           </div>
                           <div className="sm:col-span-7 min-w-0">
                             <Input
-                              value={group.description}
+                              value={group.description || ""}
                               onChange={(e) => updateGroup(group.id, "description", e.target.value)}
                               placeholder="Group description"
                               className="bg-white font-medium w-full"
@@ -674,7 +698,7 @@ export default function ProjectForm({ onSave }) {
                                     </div>
                                     <div className="sm:col-span-7 min-w-0">
                                       <Input
-                                        value={section.description}
+                                        value={section.description || ""}
                                         onChange={(e) => updateSection(group.id, section.id, "description", e.target.value)}
                                         placeholder="Section description"
                                         className="bg-white w-full"
@@ -740,7 +764,7 @@ export default function ProjectForm({ onSave }) {
                                             </div>
                                             <div className="col-span-5">
                                               <Input
-                                                value={subsection.description}
+                                                value={subsection.description || ""}
                                                 onChange={(e) => updateSubsection(group.id, section.id, subsection.id, "description", e.target.value)}
                                                 placeholder="Item description"
                                                 className="bg-gray-50"
@@ -757,7 +781,7 @@ export default function ProjectForm({ onSave }) {
                                             </div>
                                             <div className="col-span-1">
                                               <Input
-                                                value={subsection.unit}
+                                                value={subsection.unit || ""}
                                                 onChange={(e) => updateSubsection(group.id, section.id, subsection.id, "unit", e.target.value)}
                                                 className="bg-gray-50 text-center"
                                                 placeholder="m²"
@@ -808,9 +832,9 @@ export default function ProjectForm({ onSave }) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-lg min-w-[140px]"
                 onClick={handleSave}
-                disabled={isSubmitting}
+                disabled={createVariationMutation.isPending}
               >
-                {isSubmitting ? "Saving..." : "Save Variation"}
+                {createVariationMutation.isPending ? "Saving..." : "Save Variation"}
               </Button>
             </div>
           </CardContent>
