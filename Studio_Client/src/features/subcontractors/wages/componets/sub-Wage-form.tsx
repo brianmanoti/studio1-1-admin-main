@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, useRef } from "react"
+import { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useCanGoBack } from "@tanstack/react-router"
 import axiosInstance from "@/lib/axios"
 import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { useProjectStore } from "@/stores/projectStore"
 import { Trash, Search, X } from "lucide-react"
+import { useSubcontractorsSearch } from "@/components/export-use-subcontractor"
 
+// ------------------ Helpers ------------------
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
 
 function formatDateToInput(d) {
@@ -19,14 +21,52 @@ function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || "")
 }
 
+// Safe EstimateSelector Wrapper to prevent render issues
+const SafeEstimateSelector = React.memo(({ onChange }) => {
+  const [localData, setLocalData] = useState({
+    estimateId: "",
+    estimateLevel: "estimate",
+    estimateTargetId: ""
+  })
+  const isInitialRender = useRef(true)
+
+  const handleSafeChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }) => {
+    const newData = {
+      estimateId: estimateId || "",
+      estimateLevel: estimateLevel || "estimate",
+      estimateTargetId: estimateTargetId || ""
+    }
+    setLocalData(newData)
+  }, [])
+
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false
+      return
+    }
+
+    // Use setTimeout to defer the onChange call
+    const timeoutId = setTimeout(() => {
+      onChange(localData)
+    }, 0)
+
+    return () => clearTimeout(timeoutId)
+  }, [localData, onChange])
+
+  return <EstimateSelector onChange={handleSafeChange} />
+})
+
+SafeEstimateSelector.displayName = 'SafeEstimateSelector'
+
+// ------------------ Main Component ------------------
 export default function SubWageOrderForm({ wageId }) {
   const navigate = useNavigate()
   const canGoBack = useCanGoBack()
   const queryClient = useQueryClient()
   const isMountedRef = useRef(true)
+  const CurrentProjectId = useProjectStore(state => state.projectId)
 
-  const CurrentProjectId = useProjectStore((state) => state.projectId)
-
+  // ------------------ Form State ------------------
   const defaultForm = {
     projectId: CurrentProjectId || "",
     reference: "",
@@ -55,147 +95,168 @@ export default function SubWageOrderForm({ wageId }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeletedMode, setIsDeletedMode] = useState(false)
   const [initialSnapshot, setInitialSnapshot] = useState(null)
-  
-  // Search state for subcontractors
+
+  // ------------------ Estimate State ------------------
+  const [estimateData, setEstimateData] = useState({
+    estimateId: "",
+    estimateLevel: "estimate",
+    estimateTargetId: ""
+  })
+
+  // ------------------ Subcontractor Search ------------------
   const [subcontractorSearch, setSubcontractorSearch] = useState("")
   const [showSubcontractorDropdown, setShowSubcontractorDropdown] = useState(false)
   const [searchTrigger, setSearchTrigger] = useState(0)
 
-  // ------------------- Fetch Projects -------------------
   const {
-    data: projects,
-    isLoading: isProjectsLoading,
-    isError: isProjectsError,
-  } = useQuery({
+    subcontractorsData,
+    selectedSubcontractor,
+    isLoading: loadingSubs,
+    isError: subsError,
+  } = useSubcontractorsSearch(subcontractorSearch, searchTrigger, form)
+
+  const handleSubcontractorSelect = useCallback((sub) => {
+    setForm(f => ({ 
+      ...f, 
+      subcontractorId: sub._id,
+      vendorName: sub.contactPerson || sub.companyName || "",
+      vendorContact: sub.contactPerson || "",
+      vendorEmail: sub.email || "",
+      vendorPhone: sub.phoneNumber || "",
+      vendorAddress: sub.address || ""
+    }))
+    setSubcontractorSearch(`${sub.contactPerson} - ${sub.companyName}`)
+    setShowSubcontractorDropdown(false)
+  }, [])
+
+  const handleSubcontractorClear = useCallback(() => {
+    setForm(f => ({ 
+      ...f, 
+      subcontractorId: "",
+      vendorName: "",
+      vendorContact: "",
+      vendorEmail: "",
+      vendorPhone: "",
+      vendorAddress: ""
+    }))
+    setSubcontractorSearch("")
+    setShowSubcontractorDropdown(false)
+  }, [])
+
+  const handleSubcontractorSearchChange = useCallback((value) => {
+    setSubcontractorSearch(value)
+    setShowSubcontractorDropdown(true)
+    setSearchTrigger(prev => prev + 1)
+  }, [])
+
+  // ------------------ Click Outside Handler ------------------
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest(".subcontractor-search-container")) {
+        setShowSubcontractorDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  // ------------------ Projects ------------------
+  const { data: projects, isLoading: isProjectsLoading, isError: isProjectsError } = useQuery({
     queryKey: ["projectsList"],
-    queryFn: async () => {
-      const res = await axiosInstance.get("/api/projects")
-      return res.data
-    },
+    queryFn: async () => (await axiosInstance.get("/api/projects")).data,
     staleTime: 1000 * 60 * 5,
   })
 
   useEffect(() => {
-    if (isProjectsLoading || !projects) return
-    if (!CurrentProjectId) return
+    if (!CurrentProjectId || !projects) return
+    setForm(prev => (!prev.projectId || prev.projectId !== CurrentProjectId ? { ...prev, projectId: CurrentProjectId } : prev))
+  }, [projects, CurrentProjectId])
 
-    setForm((prev) => {
-      if (!prev.projectId || prev.projectId !== CurrentProjectId) {
-        console.log("Auto-selecting project:", CurrentProjectId)
-        return { ...prev, projectId: CurrentProjectId }
-      }
-      return prev
-    })
-  }, [isProjectsLoading, projects, CurrentProjectId])
-
-  // ------------------- Fetch existing wage -------------------
+  // ------------------ Fetch Existing Wage ------------------
   useQuery({
     queryKey: ["wages", wageId],
     enabled: !!wageId,
-    queryFn: async () => {
-      const res = await axiosInstance.get(`/api/wages/${wageId}`)
-      return res.data
-    },
-    onSuccess(po) {
-      const normalized = {
-        ...defaultForm,
-        ...po,
-        date: formatDateToInput(po?.date),
-        deliveryDate: formatDateToInput(po?.deliveryDate),
-        items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
+    queryFn: async () => (await axiosInstance.get(`/api/wages/${wageId}`)).data,
+    onSuccess: (po) => {
+      const normalized = { 
+        ...defaultForm, 
+        ...po, 
+        date: formatDateToInput(po.date), 
+        deliveryDate: formatDateToInput(po.deliveryDate), 
+        items: po.items?.length ? po.items : [emptyItem()] 
       }
       setForm(normalized)
       setInitialSnapshot(JSON.stringify(normalized))
       setIsDeletedMode(!!po?.isDeleted)
-    },
-    onError() {
-      setServerError("Failed to load wage data")
-    },
-  })
-
-  // Fetch subcontractors with search - FIXED: Always enabled and uses searchTrigger
-  const {
-    data: subcontractorsData,
-    isLoading: loadingSubs,
-    isError: subsError,
-  } = useQuery({
-    queryKey: ["subcontractors", "search", subcontractorSearch, searchTrigger],
-    queryFn: async () => {
-      try {
-        console.log("Fetching subcontractors with search:", subcontractorSearch)
-        let url = "/api/subcontractors"
-        if (subcontractorSearch.trim()) {
-          url = `/api/subcontractors/search?q=${encodeURIComponent(subcontractorSearch.trim())}`
-        }
-        const res = await axiosInstance.get(url)
-        console.log("Subcontractors API response:", res.data)
-        // Extract results array from the paginated response
-        const results = Array.isArray(res.data?.results) ? res.data.results : []
-        console.log("Extracted subcontractors:", results)
-        return results
-      } catch (error) {
-        console.error("Error fetching subcontractors:", error)
-        return []
+      
+      // Set estimate data if exists
+      if (po.estimateId) {
+        setEstimateData({
+          estimateId: po.estimateId,
+          estimateLevel: po.estimateLevel || "estimate",
+          estimateTargetId: po.estimateTargetId || ""
+        })
       }
     },
-    staleTime: 1000 * 60 * 10,
-    enabled: true, // Always enabled to allow searching
+    onError: () => setServerError("Failed to load wage data"),
   })
 
-  // Find selected subcontractor for display
-  const selectedSubcontractor = useMemo(() => {
-    if (!form.subcontractorId) return null
-    const found = subcontractorsData?.find(sub => sub._id === form.subcontractorId)
-    console.log("Selected subcontractor:", found)
-    return found
-  }, [form.subcontractorId, subcontractorsData])
+  // ------------------ Estimate Change Handler ------------------
+  const onEstimateChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }) => {
+    // Use requestAnimationFrame to defer state update
+    requestAnimationFrame(() => {
+      setEstimateData({ 
+        estimateId: estimateId || "", 
+        estimateLevel: estimateLevel || "estimate", 
+        estimateTargetId: estimateTargetId || "" 
+      })
+    })
+  }, [])
 
-  // ------------------- Mutations -------------------
+  // ------------------ Update Form when Estimate Data Changes ------------------
+  useEffect(() => {
+    setForm(f => ({
+      ...f,
+      estimateId: estimateData.estimateId,
+      estimateLevel: estimateData.estimateLevel,
+      estimateTargetId: estimateData.estimateTargetId
+    }))
+  }, [estimateData])
+
+  // ------------------ Mutations ------------------
   const createMutation = useMutation({
-    mutationFn: (payload) => {
-      console.log("Creating wage with payload:", payload)
-      return axiosInstance.post("/api/wages", payload).then((res) => res.data)
-    },
-    onSuccess: (data) => {
+    mutationFn: payload => axiosInstance.post("/api/wages", payload).then(res => res.data),
+    onSuccess: () => {
       queryClient.invalidateQueries(["wages"])
       navigate({ to: `/projects/$projectId/subcontractors/wages` })
     },
-    onError: (err) => {
-      console.error("Create wage error:", err)
-      setServerError(err?.response?.data?.message || "Failed to create wage order")
-    },
+    onError: (err) => setServerError(err?.response?.data?.message || "Failed to create wage order")
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload) => {
-      console.log("Updating wage with payload:", payload)
-      return axiosInstance.put(`/api/wages/${wageId}`, payload).then((res) => res.data)
-    },
+    mutationFn: payload => axiosInstance.put(`/api/wages/${wageId}`, payload).then(res => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries(["wages", wageId])
       navigate({ to: `/wages/${data._id}` })
     },
-    onError: (err) => {
-      console.error("Update wage error:", err)
-      setServerError(err?.response?.data?.message || "Failed to update wage order")
-    },
+    onError: (err) => setServerError(err?.response?.data?.message || "Failed to update wage order")
   })
 
   useEffect(() => () => (isMountedRef.current = false), [])
 
-  // ------------------- Auto Calculate Total -------------------
+  // ------------------ Auto Calculate Total ------------------
   useEffect(() => {
     const amount = form.items.reduce((acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0)
-    setForm((f) => ({ ...f, amount }))
+    setForm(f => ({ ...f, amount }))
   }, [JSON.stringify(form.items)])
 
-  // ------------------- Unsaved Changes -------------------
+  // ------------------ Unsaved Changes ------------------
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (!initialSnapshot) return
-      if (JSON.stringify(form) !== initialSnapshot) {
-        e.preventDefault()
-        e.returnValue = ""
+      if (JSON.stringify(form) !== initialSnapshot) { 
+        e.preventDefault(); 
+        e.returnValue = "" 
       }
     }
     window.addEventListener("beforeunload", handleBeforeUnload)
@@ -204,59 +265,18 @@ export default function SubWageOrderForm({ wageId }) {
 
   const isDirty = useMemo(() => JSON.stringify(form) !== initialSnapshot, [form, initialSnapshot])
 
-  // ------------------- Helpers -------------------
-  const setField = (name, value) => setForm((f) => ({ ...f, [name]: value }))
-  const setItemField = (i, name, value) =>
-    setForm((f) => ({
-      ...f,
-      items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)),
-    }))
-  const addItem = () => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }))
-  const removeItem = (i) =>
-    setForm((f) => ({
-      ...f,
-      items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()],
-    }))
+  // ------------------ Form Helpers ------------------
+  const setField = useCallback((name, value) => setForm(f => ({ ...f, [name]: value })), [])
+  
+  const setItemField = useCallback((i, name, value) =>
+    setForm(f => ({ ...f, items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)) })), [])
+  
+  const addItem = useCallback(() => setForm(f => ({ ...f, items: [...f.items, emptyItem()] })), [])
+  
+  const removeItem = useCallback((i) => 
+    setForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()] })), [])
 
-  // ------------------- Subcontractor Search Handlers -------------------
-  const handleSubcontractorSelect = (subcontractor) => {
-    console.log("Selecting subcontractor:", subcontractor)
-    setField("subcontractorId", subcontractor._id) // Store the _id
-    // Display contactPerson + companyName in the search input
-    const displayName = `${subcontractor.contactPerson} - ${subcontractor.companyName}`
-    setSubcontractorSearch(displayName)
-    setShowSubcontractorDropdown(false)
-  }
-
-  const handleSubcontractorClear = () => {
-    console.log("Clearing subcontractor selection")
-    setField("subcontractorId", "")
-    setSubcontractorSearch("")
-    setShowSubcontractorDropdown(false)
-  }
-
-  const handleSubcontractorSearchChange = (value) => {
-    console.log("Search input changed:", value)
-    setSubcontractorSearch(value)
-    setShowSubcontractorDropdown(true)
-    // Trigger search by updating the search trigger
-    setSearchTrigger(prev => prev + 1)
-  }
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (!event.target.closest('.subcontractor-search-container')) {
-        setShowSubcontractorDropdown(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // ------------------- Validation -------------------
-  const validate = () => {
+  const validate = useCallback(() => {
     const e = {}
     if (!form.projectId) e.projectId = "Project ID is required"
     if (!form.company) e.company = "Company name is required"
@@ -264,8 +284,7 @@ export default function SubWageOrderForm({ wageId }) {
     if (!form.deliveryAddress) e.deliveryAddress = "Delivery address is required"
     if (!form.date) e.date = "Order date is required"
     if (!form.deliveryDate) e.deliveryDate = "Delivery date is required"
-    if (form.date && form.deliveryDate && new Date(form.deliveryDate) < new Date(form.date))
-      e.deliveryDate = "Delivery date cannot be before order date"
+    if (form.date && form.deliveryDate && new Date(form.deliveryDate) < new Date(form.date)) e.deliveryDate = "Delivery date cannot be before order date"
     if (form.vendorEmail && !validateEmail(form.vendorEmail)) e.vendorEmail = "Invalid email"
 
     form.items.forEach((it, idx) => {
@@ -277,19 +296,14 @@ export default function SubWageOrderForm({ wageId }) {
 
     setErrors(e)
     return !Object.keys(e).length
-  }
+  }, [form])
 
-  const onEstimateChange = ({ estimateId, estimateLevel, estimateTargetId }) => {
-    setForm((f) => ({ ...f, estimateId, estimateLevel, estimateTargetId }))
-  }
-
-  // ------------------- Submit -------------------
+  // ------------------ Submit ------------------
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
     setIsSubmitting(true)
-    
-    // Clean the payload before sending
+
     const payload = {
       ...form,
       projectId: form.projectId,
@@ -298,44 +312,36 @@ export default function SubWageOrderForm({ wageId }) {
       deliveryAddress: form.deliveryAddress.trim(),
       date: form.date ? new Date(form.date).toISOString() : null,
       deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
-      items: form.items.map(item => ({
-        description: item.description.trim(),
-        quantity: Number(item.quantity),
-        unit: item.unit.trim(),
-        unitPrice: Number(item.unitPrice)
+      items: form.items.map(item => ({ 
+        description: item.description.trim(), 
+        quantity: Number(item.quantity), 
+        unit: item.unit.trim(), 
+        unitPrice: Number(item.unitPrice) 
       })),
       amount: Number(form.amount),
-      // Only include subcontractorId if it has a value
       ...(form.subcontractorId && { subcontractorId: form.subcontractorId }),
-      // Only include estimate fields if they have values
       ...(form.estimateId && { 
-        estimateId: form.estimateId,
-        estimateLevel: form.estimateLevel,
+        estimateId: form.estimateId, 
+        estimateLevel: form.estimateLevel, 
         estimateTargetId: form.estimateTargetId 
       })
     }
 
-    console.log("Submitting payload:", payload)
-
     try {
-      if (wageId) {
-        await updateMutation.mutateAsync(payload)
-      } else {
-        await createMutation.mutateAsync(payload)
-      }
-    } catch (error) {
-      console.error("Submission error:", error)
-      // Don't set serverError here - it's handled in the mutation
-    } finally {
-      if (isMountedRef.current) setIsSubmitting(false)
+      if (wageId) await updateMutation.mutateAsync(payload)
+      else await createMutation.mutateAsync(payload)
+    } catch (err) { 
+      console.error(err) 
+    } finally { 
+      if (isMountedRef.current) setIsSubmitting(false) 
     }
   }
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
     if (canGoBack) window.history.back()
     else navigate({ to: "/wages" })
-  }
+  }, [isDirty, canGoBack, navigate])
 
   const handleSoftDelete = async () => {
     if (!wageId) return
@@ -344,8 +350,8 @@ export default function SubWageOrderForm({ wageId }) {
       await axiosInstance.delete(`/api/wages/${wageId}`)
       queryClient.invalidateQueries(["wages"])
       navigate({ to: "/wages" })
-    } catch (err) {
-      setServerError(err?.response?.data?.message || "Delete failed")
+    } catch (err) { 
+      setServerError(err?.response?.data?.message || "Delete failed") 
     }
   }
 
@@ -354,11 +360,9 @@ export default function SubWageOrderForm({ wageId }) {
   // ------------------- Render -------------------
   return (
     <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 md:p-8 space-y-6 bg-white rounded-lg shadow-sm">
-      {/* Header */}
+      {/* --- Header --- */}
       <div className="flex items-center justify-between mb-4">
-        <button type="button" onClick={handleBack} className="text-blue-600 hover:underline">
-          ← Back
-        </button>
+        <button type="button" onClick={handleBack} className="text-blue-600 hover:underline">← Back</button>
         <h2 className="text-xl font-semibold text-gray-800">{wageId ? "Edit Wage Order" : "New Wage Order"}</h2>
       </div>
 
@@ -368,22 +372,16 @@ export default function SubWageOrderForm({ wageId }) {
         </div>
       )}
 
-      {/* Estimate Selector */}
+      {/* Estimate Selector - Fixed with Safe Wrapper */}
       <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
         <h3 className="font-medium text-blue-700 mb-2">Link to Estimate</h3>
-        <EstimateSelector onChange={onEstimateChange} />
-        {form.estimateId && (
+        <SafeEstimateSelector onChange={onEstimateChange} />
+        {estimateData.estimateId && (
           <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 p-3 rounded">
-            <p>
-              <span className="font-medium">Estimate ID:</span> {form.estimateId}
-            </p>
-            <p>
-              <span className="font-medium">Linked Level:</span> {form.estimateLevel}
-            </p>
-            {form.estimateTargetId && (
-              <p>
-                <span className="font-medium">Target ID:</span> {form.estimateTargetId}
-              </p>
+            <p><span className="font-medium">Estimate ID:</span> {estimateData.estimateId}</p>
+            <p><span className="font-medium">Linked Level:</span> {estimateData.estimateLevel}</p>
+            {estimateData.estimateTargetId && (
+              <p><span className="font-medium">Target ID:</span> {estimateData.estimateTargetId}</p>
             )}
           </div>
         )}
@@ -438,7 +436,7 @@ export default function SubWageOrderForm({ wageId }) {
               type="date"
               className="w-full border border-gray-300 rounded-md p-2"
               value={form.date || ""}
-              onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+              onChange={(e) => setField("date", e.target.value)}
               disabled={isLocked}
               required
             />
@@ -451,7 +449,7 @@ export default function SubWageOrderForm({ wageId }) {
               type="date"
               className="w-full border border-gray-300 rounded-md p-2"
               value={form.deliveryDate || ""}
-              onChange={(e) => setForm((prev) => ({ ...prev, deliveryDate: e.target.value }))}
+              onChange={(e) => setField("deliveryDate", e.target.value)}
               disabled={isLocked}
               required
             />
@@ -465,7 +463,7 @@ export default function SubWageOrderForm({ wageId }) {
               className="w-full border border-gray-300 rounded-md p-2"
               placeholder="Enter delivery address"
               value={form.deliveryAddress || ""}
-              onChange={(e) => setForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))}
+              onChange={(e) => setField("deliveryAddress", e.target.value)}
               disabled={isLocked}
               required
             />
@@ -529,7 +527,7 @@ export default function SubWageOrderForm({ wageId }) {
       <section className="space-y-4">
         <h3 className="font-semibold text-gray-700 border-b pb-2">Other Details</h3>
         <div className="grid md:grid-cols-2 gap-4">
-          {/* Subcontractor Search Field - FIXED */}
+          {/* Subcontractor Search Field */}
           <div className="subcontractor-search-container relative">
             <label className="block text-sm font-medium">Subcontractor</label>
             <div className="relative">
@@ -540,9 +538,10 @@ export default function SubWageOrderForm({ wageId }) {
                 value={subcontractorSearch}
                 onChange={(e) => handleSubcontractorSearchChange(e.target.value)}
                 onFocus={() => {
-                  console.log("Input focused, showing dropdown")
-                  setShowSubcontractorDropdown(true)
-                  setSearchTrigger(prev => prev + 1)
+                  setTimeout(() => {
+                    setShowSubcontractorDropdown(true)
+                    setSearchTrigger(prev => prev + 1)
+                  }, 0)
                 }}
               />
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex space-x-1">
@@ -559,7 +558,7 @@ export default function SubWageOrderForm({ wageId }) {
               </div>
             </div>
 
-            {/* Dropdown Results - FIXED */}
+            {/* Dropdown Results */}
             {showSubcontractorDropdown && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                 {loadingSubs ? (
@@ -598,7 +597,7 @@ export default function SubWageOrderForm({ wageId }) {
               </div>
             )}
 
-            {/* Selected subcontractor info - FIXED */}
+            {/* Selected subcontractor info */}
             {selectedSubcontractor && !showSubcontractorDropdown && (
               <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
                 <span className="font-medium">Selected: </span>

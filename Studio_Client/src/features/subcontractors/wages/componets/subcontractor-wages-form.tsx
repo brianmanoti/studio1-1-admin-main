@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react"
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useCanGoBack } from "@tanstack/react-router"
 import axiosInstance from "@/lib/axios"
@@ -12,6 +12,42 @@ import EstimateSelector from "@/features/estimates/estimates/components/estimate
 import { SubcontractorFormModal } from "@/components/subContractors/components/subcontractor-form-modal"
 import { useProjectStore } from "@/stores/projectStore"
 
+// Safe EstimateSelector Wrapper to prevent render issues
+const SafeEstimateSelector = React.memo(({ onChange }) => {
+  const [localData, setLocalData] = useState({
+    estimateId: "",
+    estimateLevel: "estimate",
+    estimateTargetId: ""
+  })
+  const isInitialRender = useRef(true)
+
+  const handleSafeChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }) => {
+    const newData = {
+      estimateId: estimateId || "",
+      estimateLevel: estimateLevel || "estimate",
+      estimateTargetId: estimateTargetId || ""
+    }
+    setLocalData(newData)
+  }, [])
+
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false
+      return
+    }
+
+    // Use setTimeout to defer the onChange call
+    const timeoutId = setTimeout(() => {
+      onChange(localData)
+    }, 0)
+
+    return () => clearTimeout(timeoutId)
+  }, [localData, onChange])
+
+  return <EstimateSelector onChange={handleSafeChange} />
+})
+
+SafeEstimateSelector.displayName = 'SafeEstimateSelector'
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
 
@@ -37,8 +73,16 @@ export default function SubcontractorWagesForm({ wageId }) {
     reference: "",
     status: "pending",
     date: formatDateToInput(new Date()),
+    deliveryDate: formatDateToInput(new Date()),
+    deliveryAddress: "",
     notes: "",
+    company: "",
     subcontractorName: "",
+    vendorName: "",
+    vendorContact: "",
+    vendorEmail: "",
+    vendorPhone: "",
+    vendorAddress: "",
     items: [emptyItem()],
     amount: 0,
     estimateId: "",
@@ -57,6 +101,13 @@ export default function SubcontractorWagesForm({ wageId }) {
   const [subcontractorSearch, setSubcontractorSearch] = useState("")
   const [activeSubcontractor, setActiveSubcontractor] = useState(false)
 
+  // ------------------ Estimate State ------------------
+  const [estimateData, setEstimateData] = useState({
+    estimateId: "",
+    estimateLevel: "estimate",
+    estimateTargetId: ""
+  })
+
   const debouncedSearch = useDebounce(searchTerm, 400)
   const debouncedSubcontractorSearch = useDebounce(subcontractorSearch, 400)
 
@@ -74,7 +125,7 @@ export default function SubcontractorWagesForm({ wageId }) {
     staleTime: 1000 * 60 * 5,
   })
 
-    useEffect(() => {
+  useEffect(() => {
     if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
       setField("projectId", CurrentProjectId)
     }
@@ -91,14 +142,23 @@ export default function SubcontractorWagesForm({ wageId }) {
   })
 
   // ------------------- Fetch Subcontractors (for autocomplete) -------------------
-  const { data: subcontractorList = [], isFetching: isSubcontractorLoading } = useQuery({
+  const { 
+    data: subcontractorData, 
+    isFetching: isSubcontractorLoading,
+    isError: isSubcontractorError 
+  } = useQuery({
     queryKey: ["subcontractorSearch", debouncedSubcontractorSearch],
     enabled: !!debouncedSubcontractorSearch,
     queryFn: async () => {
-      const res = await axiosInstance.get(`/api/subcontractors/search`, { params: { q: debouncedSubcontractorSearch } })
-      return res.data?.data || []
+      const res = await axiosInstance.get(`/api/subcontractors/search`, { 
+        params: { q: debouncedSubcontractorSearch } 
+      })
+      return res.data
     },
   })
+
+  // Extract subcontractors from the response data
+  const subcontractorList = subcontractorData?.results || []
 
   // ------------------- Fetch existing Wage Record -------------------
   useQuery({
@@ -113,11 +173,33 @@ export default function SubcontractorWagesForm({ wageId }) {
         ...defaultForm,
         ...wage,
         date: formatDateToInput(wage?.date),
-        items: Array.isArray(wage?.items) && wage.items.length ? wage.items : [emptyItem()],
+        deliveryDate: formatDateToInput(wage?.deliveryDate),
+        items: Array.isArray(wage?.items) && wage.items.length ? wage.items.map(item => ({
+          description: item.name || item.description || "",
+          quantity: item.quantity || 1,
+          unit: item.unit || "",
+          unitPrice: item.unitPrice || 0
+        })) : [emptyItem()],
+        subcontractorName: wage.vendorName || wage.subcontractorName || "",
+        vendorName: wage.vendorName || wage.subcontractorName || "",
       }
       setForm(normalized)
       setInitialSnapshot(JSON.stringify(normalized))
       setIsDeletedMode(!!wage?.isDeleted)
+      
+      // Set estimate data if exists
+      if (wage.estimateId) {
+        setEstimateData({
+          estimateId: wage.estimateId,
+          estimateLevel: wage.estimateLevel || "estimate",
+          estimateTargetId: wage.estimateTargetId || ""
+        })
+      }
+
+      // Set subcontractor search if exists
+      if (wage.vendorName || wage.subcontractorName) {
+        setSubcontractorSearch(wage.vendorName || wage.subcontractorName)
+      }
     },
     onError() {
       setServerError("Failed to load wage record data")
@@ -126,7 +208,7 @@ export default function SubcontractorWagesForm({ wageId }) {
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.post("/api/subcontractors/wages", payload).then((res) => res.data),
+    mutationFn: (payload) => axiosInstance.post("/api/wages", payload).then((res) => res.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wages"] })
       navigate({ to: `/projects/$projectId/wages` })
@@ -135,7 +217,7 @@ export default function SubcontractorWagesForm({ wageId }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.put(`/api/subcontractors/wages/${wageId}`, payload).then((res) => res.data),
+    mutationFn: (payload) => axiosInstance.put(`/api/wages/${wageId}`, payload).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["wages", wageId] })
       navigate({ to: `/wages/${data._id}` })
@@ -166,40 +248,98 @@ export default function SubcontractorWagesForm({ wageId }) {
 
   const isDirty = useMemo(() => JSON.stringify(form) !== initialSnapshot, [form, initialSnapshot])
 
+  // ------------------- Estimate Change Handler -------------------
+  const onEstimateChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }) => {
+    // Use requestAnimationFrame to defer state update
+    requestAnimationFrame(() => {
+      setEstimateData({ 
+        estimateId: estimateId || "", 
+        estimateLevel: estimateLevel || "estimate", 
+        estimateTargetId: estimateTargetId || "" 
+      })
+    })
+  }, [])
+
+  // ------------------ Update Form when Estimate Data Changes ------------------
+  useEffect(() => {
+    setForm(f => ({
+      ...f,
+      estimateId: estimateData.estimateId,
+      estimateLevel: estimateData.estimateLevel,
+      estimateTargetId: estimateData.estimateTargetId
+    }))
+  }, [estimateData])
+
   // ------------------- Handlers -------------------
-  const handleItemSave = (item: Item) => {
+  const handleItemSave = useCallback((item: Item) => {
     addItem()
     const newIndex = form.items.length
     setItemField(newIndex, "description", item.description)
     setItemField(newIndex, "unit", item.unit)
     setItemField(newIndex, "unitPrice", item.unitPrice)
-  }
+  }, [form.items.length])
 
-  const handleSubcontractorSave = (subcontractor) => {
+  const handleSubcontractorSave = useCallback((subcontractor) => {
     setField("subcontractorId", subcontractor._id)
     setField("subcontractorName", subcontractor.companyName)
-  }
+    setField("vendorName", subcontractor.companyName)
+    setField("vendorContact", subcontractor.contactPerson)
+    setField("vendorEmail", subcontractor.email)
+    setField("vendorPhone", subcontractor.phoneNumber)
+    setSubcontractorSearch(subcontractor.companyName)
+    setActiveSubcontractor(false)
+  }, [])
+
+  const handleSubcontractorSelect = useCallback((subcontractor) => {
+    setField("subcontractorId", subcontractor._id)
+    setField("subcontractorName", subcontractor.companyName)
+    setField("vendorName", subcontractor.companyName)
+    setField("vendorContact", subcontractor.contactPerson)
+    setField("vendorEmail", subcontractor.email)
+    setField("vendorPhone", subcontractor.phoneNumber)
+    setSubcontractorSearch(subcontractor.companyName)
+    setActiveSubcontractor(false)
+  }, [])
+
+  const handleSubcontractorClear = useCallback(() => {
+    setField("subcontractorId", "")
+    setField("subcontractorName", "")
+    setField("vendorName", "")
+    setField("vendorContact", "")
+    setField("vendorEmail", "")
+    setField("vendorPhone", "")
+    setSubcontractorSearch("")
+  }, [])
 
   // ------------------- Helpers -------------------
-  const setField = (name, value) => setForm((f) => ({ ...f, [name]: value }))
-  const setItemField = (i, name, value) =>
+  const setField = useCallback((name, value) => setForm((f) => ({ ...f, [name]: value })), [])
+  
+  const setItemField = useCallback((i, name, value) =>
     setForm((f) => ({
       ...f,
       items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)),
-    }))
-  const addItem = () => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] }))
-  const removeItem = (i) =>
+    })), [])
+  
+  const addItem = useCallback(() => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] })), [])
+  
+  const removeItem = useCallback((i) =>
     setForm((f) => ({
       ...f,
       items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()],
-    }))
+    })), [])
 
   // ------------------- Validation -------------------
-  const validate = () => {
+  const validate = useCallback(() => {
     const e = {}
     if (!form.projectId) e.projectId = "Project ID is required"
-    if (!form.subcontractorId) e.subcontractorId = "Subcontractor is required"
-    if (!form.date) e.date = "Date is required"
+    if (!form.company) e.company = "Company name is required"
+    if (!form.vendorName) e.vendorName = "Vendor name is required"
+    if (!form.deliveryAddress) e.deliveryAddress = "Delivery address is required"
+    if (!form.date) e.date = "Order date is required"
+    if (!form.deliveryDate) e.deliveryDate = "Delivery date is required"
+    if (form.date && form.deliveryDate && new Date(form.deliveryDate) < new Date(form.date)) {
+      e.deliveryDate = "Delivery date cannot be before order date"
+    }
 
     form.items.forEach((it, idx) => {
       if (!it.description) e[`items.${idx}.description`] = "Description required"
@@ -210,40 +350,59 @@ export default function SubcontractorWagesForm({ wageId }) {
 
     setErrors(e)
     return !Object.keys(e).length
-  }
-
-  const onEstimateChange = ({ estimateId, estimateLevel, estimateTargetId }) => {
-    setForm((f) => ({ ...f, estimateId, estimateLevel, estimateTargetId }))
-  }
+  }, [form])
 
   // ------------------- Submit -------------------
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
     setIsSubmitting(true)
+    
+    // Transform the data to match API expectations
     const payload = {
       ...form,
+      projectId: form.projectId,
+      company: form.company.trim(),
+      vendorName: form.vendorName.trim(),
+      deliveryAddress: form.deliveryAddress.trim(),
       date: form.date ? new Date(form.date).toISOString() : null,
+      deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
+      items: form.items.map(item => ({
+        name: item.description.trim(), // Map description to name for API
+        quantity: Number(item.quantity),
+        unit: item.unit.trim(),
+        unitPrice: Number(item.unitPrice)
+      })),
+      amount: Number(form.amount),
+      ...(form.subcontractorId && { subcontractorId: form.subcontractorId }),
+      ...(form.estimateId && {
+        estimateId: form.estimateId,
+        estimateLevel: form.estimateLevel,
+        estimateTargetId: form.estimateTargetId
+      })
     }
+
     try {
       if (wageId) await updateMutation.mutateAsync(payload)
       else await createMutation.mutateAsync(payload)
+    } catch (error) {
+      console.error("Submission error:", error)
     } finally {
       if (isMountedRef.current) setIsSubmitting(false)
     }
   }
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
     if (canGoBack) window.history.back()
     else navigate({ to: "/wages" })
-  }
+  }, [isDirty, canGoBack, navigate])
 
   const handleSoftDelete = async () => {
     if (!wageId) return
     if (!confirm("Soft delete this wage record?")) return
     try {
-      await axiosInstance.delete(`/api/subcontractors/wages/${wageId}`)
+      await axiosInstance.delete(`/api/wages/${wageId}`)
       queryClient.invalidateQueries({ queryKey: ["wages"] })
       navigate({ to: "/wages" })
     } catch (err) {
@@ -252,6 +411,14 @@ export default function SubcontractorWagesForm({ wageId }) {
   }
 
   const isLocked = ["approved", "delivered"].includes(form.status) || isDeletedMode
+
+  // ------------------- Filtered Items for Autocomplete -------------------
+  const filteredItems = useMemo(() => {
+    if (!searchTerm) return []
+    return itemList
+      .filter((item) => item.description?.toLowerCase().includes(searchTerm.toLowerCase()))
+      .slice(0, 10)
+  }, [itemList, searchTerm])
 
   // ------------------- Render -------------------
   return (
@@ -264,33 +431,39 @@ export default function SubcontractorWagesForm({ wageId }) {
           <h2 className="text-xl font-semibold text-gray-800">{wageId ? "Edit Wage Record" : "New Wage Record"}</h2>
         </div>
 
-        {serverError && <div className="bg-red-100 text-red-700 p-2 rounded">{serverError}</div>}
+        {serverError && (
+          <div className="bg-red-100 text-red-700 p-3 rounded border border-red-300">
+            <strong>Error: </strong>{serverError}
+          </div>
+        )}
 
+        {/* Estimate Selector - Fixed with Safe Wrapper */}
         <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
           <h3 className="font-medium text-blue-700 mb-2">Link to Estimate</h3>
-          <EstimateSelector onChange={onEstimateChange} />
-          {form.estimateId && (
+          <SafeEstimateSelector onChange={onEstimateChange} />
+          {estimateData.estimateId && (
             <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 p-3 rounded">
               <p>
-                <span className="font-medium">Estimate ID:</span> {form.estimateId}
+                <span className="font-medium">Estimate ID:</span> {estimateData.estimateId}
               </p>
               <p>
-                <span className="font-medium">Linked Level:</span> {form.estimateLevel}
+                <span className="font-medium">Linked Level:</span> {estimateData.estimateLevel}
               </p>
-              {form.estimateTargetId && (
+              {estimateData.estimateTargetId && (
                 <p>
-                  <span className="font-medium">Target ID:</span> {form.estimateTargetId}
+                  <span className="font-medium">Target ID:</span> {estimateData.estimateTargetId}
                 </p>
               )}
             </div>
           )}
         </div>
 
+        {/* Basic Information */}
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium">Project</label>
+              <label className="block text-sm font-medium">Project *</label>
               {isProjectsLoading ? (
                 <p className="text-gray-500 text-sm">Loading projects...</p>
               ) : isProjectsError ? (
@@ -301,6 +474,7 @@ export default function SubcontractorWagesForm({ wageId }) {
                   value={form.projectId}
                   onChange={(e) => setField("projectId", e.target.value)}
                   disabled={isLocked}
+                  required
                 >
                   <option value="">— Choose Project —</option>
                   {(projects || []).map((p) => (
@@ -312,31 +486,217 @@ export default function SubcontractorWagesForm({ wageId }) {
               )}
               {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
             </div>
+
             <div>
-              <label className="block text-sm font-medium">Reference</label>
+              <label className="block text-sm font-medium">Company *</label>
               <input
                 className="w-full border p-2 rounded"
-                value={form.reference}
-                onChange={(e) => setField("reference", e.target.value)}
+                value={form.company}
+                onChange={(e) => setField("company", e.target.value)}
                 disabled={isLocked}
+                placeholder="Your company name"
+                required
+              />
+              {errors.company && <p className="text-red-500 text-sm">{errors.company}</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Order Date *</label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-md p-2"
+                value={form.date || ""}
+                onChange={(e) => setField("date", e.target.value)}
+                disabled={isLocked}
+                required
+              />
+              {errors.date && <p className="text-red-500 text-sm">{errors.date}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date *</label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-md p-2"
+                value={form.deliveryDate || ""}
+                onChange={(e) => setField("deliveryDate", e.target.value)}
+                disabled={isLocked}
+                required
+              />
+              {errors.deliveryDate && <p className="text-red-500 text-sm">{errors.deliveryDate}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address *</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-2"
+                placeholder="Enter delivery address"
+                value={form.deliveryAddress || ""}
+                onChange={(e) => setField("deliveryAddress", e.target.value)}
+                disabled={isLocked}
+                required
+              />
+              {errors.deliveryAddress && <p className="text-red-500 text-sm">{errors.deliveryAddress}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">Reference</label>
+            <input
+              className="w-full border p-2 rounded"
+              value={form.reference}
+              onChange={(e) => setField("reference", e.target.value)}
+              disabled={isLocked}
+              placeholder="Optional reference number"
+            />
+          </div>
+        </section>
+
+        {/* Subcontractor Information */}
+        <section className="space-y-4">
+          <h3 className="font-semibold text-gray-700 border-b pb-2">Subcontractor Information</h3>
+          <div className="relative">
+            <label className="block text-sm font-medium">Subcontractor *</label>
+            <div className="relative">
+              <input
+                className="w-full border p-2 rounded pr-10"
+                value={subcontractorSearch}
+                onChange={(e) => {
+                  setSubcontractorSearch(e.target.value)
+                  setField("subcontractorName", e.target.value)
+                  setField("vendorName", e.target.value)
+                  if (e.target.value === "") {
+                    handleSubcontractorClear()
+                  }
+                }}
+                onFocus={() => setActiveSubcontractor(true)}
+                onBlur={() => setTimeout(() => setActiveSubcontractor(false), 150)}
+                disabled={isLocked}
+                placeholder="Search subcontractors by company name or contact person..."
+                required
+              />
+              {form.subcontractorId && (
+                <button
+                  type="button"
+                  onClick={handleSubcontractorClear}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            
+            {activeSubcontractor && subcontractorSearch && (
+              <div className="absolute z-10 bg-white border border-gray-200 rounded-md shadow-md w-full max-h-60 overflow-auto mt-1">
+                {isSubcontractorLoading && (
+                  <div className="px-4 py-2 text-gray-500 text-sm">Loading subcontractors...</div>
+                )}
+                {isSubcontractorError && (
+                  <div className="px-4 py-2 text-red-500 text-sm">Failed to load subcontractors</div>
+                )}
+                {!isSubcontractorLoading && !isSubcontractorError && subcontractorList.length > 0 ? (
+                  subcontractorList.map((subcontractor) => (
+                    <div
+                      key={subcontractor._id}
+                      onClick={() => handleSubcontractorSelect(subcontractor)}
+                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-900">
+                        {subcontractor.companyName}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Contact: {subcontractor.contactPerson}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {subcontractor.email} • {subcontractor.phoneNumber}
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        {subcontractor.typeOfWork && subcontractor.typeOfWork !== 'user' && (
+                          <span>Specialty: {subcontractor.typeOfWork}</span>
+                        )}
+                        {subcontractor.projects && subcontractor.projects.length > 0 && (
+                          <span> • {subcontractor.projects.length} active project(s)</span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  !isSubcontractorLoading && (
+                    <div className="px-4 py-3 text-gray-500 text-sm">
+                      <div>No subcontractors found</div>
+                      <button
+                        type="button"
+                        onClick={() => setFormState({ type: "add-subcontractor" })}
+                        className="text-blue-600 hover:underline mt-1"
+                      >
+                        + Add New Subcontractor
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+            {errors.vendorName && <p className="text-red-500 text-sm mt-1">{errors.vendorName}</p>}
+            
+            {form.subcontractorId && !activeSubcontractor && (
+              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                <span className="font-medium">Selected Subcontractor: </span>
+                {form.subcontractorName}
+                {form.vendorContact && ` • Contact: ${form.vendorContact}`}
+                {form.vendorEmail && ` • Email: ${form.vendorEmail}`}
+              </div>
+            )}
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium">Contact Person</label>
+              <input
+                className="w-full border p-2 rounded"
+                value={form.vendorContact}
+                onChange={(e) => setField("vendorContact", e.target.value)}
+                disabled={isLocked}
+                placeholder="Contact person name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Email</label>
+              <input
+                className="w-full border p-2 rounded"
+                type="email"
+                value={form.vendorEmail}
+                onChange={(e) => setField("vendorEmail", e.target.value)}
+                disabled={isLocked}
+                placeholder="vendor@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Phone</label>
+              <input
+                className="w-full border p-2 rounded"
+                value={form.vendorPhone}
+                onChange={(e) => setField("vendorPhone", e.target.value)}
+                disabled={isLocked}
+                placeholder="Phone number"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Address</label>
+              <input
+                className="w-full border p-2 rounded"
+                value={form.vendorAddress}
+                onChange={(e) => setField("vendorAddress", e.target.value)}
+                disabled={isLocked}
+                placeholder="Vendor address"
               />
             </div>
           </div>
         </section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <input
-              type="date"
-              className="w-full border border-gray-300 rounded-md p-2"
-              value={form.date || ""}
-              onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-              disabled={isLocked}
-            />
-            {errors.date && <p className="text-red-500 text-sm">{errors.date}</p>}
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
@@ -352,56 +712,7 @@ export default function SubcontractorWagesForm({ wageId }) {
           </div>
         </div>
 
-        <section className="space-y-4">
-          <h3 className="font-semibold text-gray-700 border-b pb-2">Subcontractor Information</h3>
-          <div className="relative">
-            <label className="block text-sm font-medium">Subcontractor</label>
-            <input
-              className="w-full border p-2 rounded"
-              value={form.subcontractorName}
-              onChange={(e) => {
-                setField("subcontractorName", e.target.value)
-                setSubcontractorSearch(e.target.value)
-              }}
-              onFocus={() => setActiveSubcontractor(true)}
-              onBlur={() => setTimeout(() => setActiveSubcontractor(false), 150)}
-              disabled={isLocked}
-            />
-            {activeSubcontractor && subcontractorSearch && (
-              <div className="absolute z-10 bg-white border border-gray-200 rounded-md shadow-md w-full max-h-40 overflow-auto mt-1">
-                {isSubcontractorLoading && <div className="px-2 py-1 text-gray-400 text-sm">Loading…</div>}
-                {subcontractorList.length > 0 ? (
-                  subcontractorList.slice(0, 10).map((s) => (
-                    <div
-                      key={s._id}
-                      onClick={() => {
-                        setField("subcontractorId", s._id)
-                        setField("subcontractorName", s.companyName)
-                        setActiveSubcontractor(false)
-                      }}
-                      className="px-2 py-1 hover:bg-blue-100 cursor-pointer text-sm"
-                    >
-                      {s.companyName}
-                      <span className="text-gray-500 text-xs"> ({s.typeOfWork})</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-2 py-1 text-gray-400 italic text-sm">
-                    No matches —{" "}
-                    <span
-                      className="text-blue-600 cursor-pointer hover:underline"
-                      onClick={() => setFormState({ type: "add-subcontractor" })}
-                    >
-                      + Add Subcontractor
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            {errors.subcontractorId && <p className="text-red-500 text-sm">{errors.subcontractorId}</p>}
-          </div>
-        </section>
-
+        {/* Items Section */}
         <section className="space-y-2 relative">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Wage Items</h3>
 
@@ -409,10 +720,11 @@ export default function SubcontractorWagesForm({ wageId }) {
             <table className="w-full text-sm border-collapse border border-gray-200">
               <thead className="bg-blue-50">
                 <tr>
-                  <th className="p-2 border">Description</th>
-                  <th className="p-2 border">Qty</th>
-                  <th className="p-2 border">Unit</th>
-                  <th className="p-2 border">Unit Price</th>
+                  <th className="p-2 border">Description *</th>
+                  <th className="p-2 border">Qty *</th>
+                  <th className="p-2 border">Unit *</th>
+                  <th className="p-2 border">Unit Price *</th>
+                  <th className="p-2 border">Total</th>
                   <th className="p-2 border"></th>
                 </tr>
               </thead>
@@ -434,47 +746,48 @@ export default function SubcontractorWagesForm({ wageId }) {
                         onBlur={() => setTimeout(() => setActiveRow(null), 200)}
                         placeholder="Enter description"
                         disabled={isLocked}
+                        required
                       />
 
                       {activeRow === idx && searchTerm && (
                         <div className="fixed left-0 right-0 top-4 z-50 flex justify-center pointer-events-none">
                           <div className="mt-[calc(100vh/2)] w-full max-w-lg pointer-events-auto bg-white border border-gray-200 rounded-md shadow-lg overflow-auto max-h-60">
-                            {itemList
-                              .filter((item) => item.description?.toLowerCase().includes(searchTerm.toLowerCase()))
-                              .slice(0, 10)
-                              .map((item) => (
-                                <div
-                                  key={item.id || item._id}
-                                  onClick={() => {
-                                    setItemField(idx, "description", item.description || "")
-                                    setItemField(idx, "unit", item.unit || "")
-                                    setItemField(idx, "unitPrice", item.unitPrice || 0)
-                                    setActiveRow(null)
-                                  }}
-                                  className="px-4 py-2 hover:bg-blue-100 cursor-pointer text-sm"
-                                >
-                                  <span className="font-medium">{item.description}</span>{" "}
-                                  <span className="text-gray-500 text-xs">
-                                    ({item.unit}, KES {item.unitPrice})
-                                  </span>
-                                </div>
-                              ))}
+                            {filteredItems.map((item) => (
+                              <div
+                                key={item.id || item._id}
+                                onClick={() => {
+                                  setItemField(idx, "description", item.description || "")
+                                  setItemField(idx, "unit", item.unit || "")
+                                  setItemField(idx, "unitPrice", item.unitPrice || 0)
+                                  setActiveRow(null)
+                                  setSearchTerm("")
+                                }}
+                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
+                              >
+                                <span className="font-medium">{item.description}</span>{" "}
+                                <span className="text-gray-500 text-xs">
+                                  ({item.unit}, KES {item.unitPrice?.toLocaleString()})
+                                </span>
+                              </div>
+                            ))}
 
-                            {itemList.filter((item) =>
-                              item.description?.toLowerCase().includes(searchTerm.toLowerCase()),
-                            ).length === 0 && (
+                            {filteredItems.length === 0 && (
                               <div className="px-4 py-2 text-gray-400 text-sm italic">
                                 No matches —{" "}
-                                <span
+                                <button
+                                  type="button"
                                   className="text-blue-600 cursor-pointer hover:underline"
                                   onClick={() => setFormState({ type: "add-item" })}
                                 >
-                                  + Add Item
-                                </span>
+                                  + Add New Item
+                                </button>
                               </div>
                             )}
                           </div>
                         </div>
+                      )}
+                      {errors[`items.${idx}.description`] && (
+                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.description`]}</p>
                       )}
                     </td>
 
@@ -485,7 +798,13 @@ export default function SubcontractorWagesForm({ wageId }) {
                         value={it.quantity}
                         onChange={(e) => setItemField(idx, "quantity", e.target.value)}
                         disabled={isLocked}
+                        min="1"
+                        step="1"
+                        required
                       />
+                      {errors[`items.${idx}.quantity`] && (
+                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.quantity`]}</p>
+                      )}
                     </td>
 
                     <td className="p-2 border">
@@ -494,7 +813,11 @@ export default function SubcontractorWagesForm({ wageId }) {
                         value={it.unit}
                         onChange={(e) => setItemField(idx, "unit", e.target.value)}
                         disabled={isLocked}
+                        required
                       />
+                      {errors[`items.${idx}.unit`] && (
+                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.unit`]}</p>
+                      )}
                     </td>
 
                     <td className="p-2 border">
@@ -504,15 +827,25 @@ export default function SubcontractorWagesForm({ wageId }) {
                         value={it.unitPrice}
                         onChange={(e) => setItemField(idx, "unitPrice", e.target.value)}
                         disabled={isLocked}
+                        min="0"
+                        step="0.01"
+                        required
                       />
+                      {errors[`items.${idx}.unitPrice`] && (
+                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.unitPrice`]}</p>
+                      )}
+                    </td>
+
+                    <td className="p-2 border text-center font-medium">
+                      KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
                     </td>
 
                     <td className="p-2 border text-center">
                       <button
                         type="button"
                         onClick={() => removeItem(idx)}
-                        className="text-red-600 hover:underline disabled:opacity-50"
-                        disabled={isLocked}
+                        className="text-red-600 hover:bg-red-100 w-6 h-6 rounded flex items-center justify-center disabled:opacity-50"
+                        disabled={isLocked || form.items.length === 1}
                       >
                         ✕
                       </button>
@@ -546,6 +879,7 @@ export default function SubcontractorWagesForm({ wageId }) {
             value={form.notes}
             onChange={(e) => setField("notes", e.target.value)}
             disabled={isLocked}
+            placeholder="Any additional notes or instructions..."
           />
         </section>
 

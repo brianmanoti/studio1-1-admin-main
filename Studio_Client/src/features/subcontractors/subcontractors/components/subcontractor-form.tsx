@@ -1,4 +1,8 @@
-import { useState } from "react"
+// SubcontractorForm.tsx
+// Purpose: Subcontractor create/update form including projects & payments, integrated with EstimateSelector
+
+import React, { useState } from "react"
+
 import { useCreateSubcontractor, useUpdateSubcontractor, type Subcontractor } from "@/hooks/use-subcontractors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -6,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 
 interface SubcontractorFormProps {
   subcontractor?: Subcontractor
@@ -15,9 +20,9 @@ interface SubcontractorFormProps {
 interface Project {
   projectId: string
   estimateId: string
-  allocationLevel: "group" | "section" | "subsection"
+  allocationLevel: "group" | "section" | "subsection" | "estimate"
   allocationRef: string
-  allocationModel: "Group" | "Section" | "Subsection"
+  allocationModel: "Group" | "Section" | "Subsection" | "Estimate"
   allocatedBudget: number
   totalWages: number
   totalExpenses: number
@@ -69,61 +74,73 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
   const isLoading = createMutation.isPending || updateMutation.isPending
 
   const handleAddProject = () => {
-    if (newProject.projectId && newProject.estimateId) {
-      setFormData({
-        ...formData,
-        projects: [...formData.projects, newProject],
-      })
-      setNewProject({
-        projectId: "",
-        estimateId: "",
-        allocationLevel: "group",
-        allocationRef: "",
-        allocationModel: "Group",
-        allocatedBudget: 0,
-        totalWages: 0,
-        totalExpenses: 0,
-        totalPOS: 0,
-        progress: 0,
-      })
+    // basic validation: require projectId and estimateId (estimateId may be filled by EstimateSelector)
+    if (!newProject.projectId?.trim()) {
+      alert("Please enter a Project ID.")
+      return
     }
+    if (!newProject.estimateId?.trim()) {
+      alert("Please select an Estimate using the selector above.")
+      return
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      projects: [...prev.projects, { ...newProject }],
+    }))
+
+    // reset newProject to sensible defaults but keep allocation model to group
+    setNewProject({
+      projectId: "",
+      estimateId: "",
+      allocationLevel: "group",
+      allocationRef: "",
+      allocationModel: "Group",
+      allocatedBudget: 0,
+      totalWages: 0,
+      totalExpenses: 0,
+      totalPOS: 0,
+      progress: 0,
+    })
   }
 
   const handleRemoveProject = (index: number) => {
-    setFormData({
-      ...formData,
-      projects: formData.projects.filter((_, i) => i !== index),
-    })
+    setFormData(prev => ({
+      ...prev,
+      projects: prev.projects.filter((_, i) => i !== index),
+    }))
   }
 
   const handleAddPayment = () => {
-    if (newPayment.amount > 0) {
-      setFormData({
-        ...formData,
-        payments: [...formData.payments, newPayment],
-      })
-      setNewPayment({
-        amount: 0,
-        date: new Date().toISOString().split("T")[0],
-        description: "",
-        reference: "",
-      })
+    if (newPayment.amount <= 0) {
+      alert("Please enter a payment amount greater than zero.")
+      return
     }
+    setFormData(prev => ({
+      ...prev,
+      payments: [...prev.payments, { ...newPayment }],
+    }))
+    setNewPayment({
+      amount: 0,
+      date: new Date().toISOString().split("T")[0],
+      description: "",
+      reference: "",
+    })
   }
 
   const handleRemovePayment = (index: number) => {
-    setFormData({
-      ...formData,
-      payments: formData.payments.filter((_, i) => i !== index),
-    })
+    setFormData(prev => ({
+      ...prev,
+      payments: prev.payments.filter((_, i) => i !== index),
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      if (subcontractor?._id) {
+      if ((subcontractor as any)?._id) {
         await updateMutation.mutateAsync({
-          id: subcontractor._id,
+          id: (subcontractor as any)._id,
           data: formData,
         })
       } else {
@@ -132,6 +149,7 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
       onSuccess?.()
     } catch (error) {
       console.error("[v0] Form submission error:", error)
+      alert("Failed to submit form — check console for details.")
     }
   }
 
@@ -223,8 +241,9 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
                     <div className="flex-1">
                       <p className="font-medium text-sm">Project ID: {project.projectId}</p>
                       <p className="text-xs text-gray-600">Estimate: {project.estimateId}</p>
+                      <p className="text-xs text-gray-600">Allocation: {project.allocationModel} - {project.allocationRef}</p>
                       <p className="text-xs text-gray-600">
-                        Budget: KES {project.allocatedBudget.toLocaleString("en-KE")}
+                        Budget: KES {project.allocatedBudget?.toLocaleString("en-KE")}
                       </p>
                     </div>
                     <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveProject(index)}>
@@ -259,53 +278,38 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
                 <Label htmlFor="estimateId" className="text-xs">
                   Estimate ID
                 </Label>
+                {/* Estimate ID is filled by EstimateSelector; show read-only input so user sees it */}
                 <Input
                   id="estimateId"
                   value={newProject.estimateId}
-                  onChange={(e) => setNewProject({ ...newProject, estimateId: e.target.value })}
-                  placeholder="Enter estimate ID"
-                  className="text-sm"
+                  readOnly
+                  placeholder="Select estimate with selector below"
+                  className="text-sm bg-white/60"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="allocationLevel" className="text-xs">
-                  Allocation Level
-                </Label>
-                <Select
-                  value={newProject.allocationLevel}
-                  onValueChange={(value) => setNewProject({ ...newProject, allocationLevel: value as any })}
-                >
-                  <SelectTrigger id="allocationLevel" className="text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="group">Group</SelectItem>
-                    <SelectItem value="section">Section</SelectItem>
-                    <SelectItem value="subsection">Subsection</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="allocationModel" className="text-xs">
-                  Allocation Model
-                </Label>
-                <Select
-                  value={newProject.allocationModel}
-                  onValueChange={(value) => setNewProject({ ...newProject, allocationModel: value as any })}
-                >
-                  <SelectTrigger id="allocationModel" className="text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Group">Group</SelectItem>
-                    <SelectItem value="Section">Section</SelectItem>
-                    <SelectItem value="Subsection">Subsection</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* EstimateSelector integration */}
+            <div className="space-y-3">
+              <Label className="text-xs font-medium">Select Allocation (Estimate / Group / Section / Subsection)</Label>
+              <EstimateSelector
+                onChange={(val: { estimateId: string; estimateLevel: string; estimateTargetId: string | null }) => {
+                  setNewProject(prev => ({
+                    ...prev,
+                    estimateId: val.estimateId || prev.estimateId,
+                    allocationLevel: (val.estimateLevel as Project["allocationLevel"]) || prev.allocationLevel,
+                    allocationRef: val.estimateTargetId ?? prev.allocationRef,
+                    allocationModel:
+                      val.estimateLevel === "group"
+                        ? "Group"
+                        : val.estimateLevel === "section"
+                        ? "Section"
+                        : val.estimateLevel === "subsection"
+                        ? "Subsection"
+                        : "Estimate",
+                  }))
+                }}
+              />
             </div>
 
             <div className="space-y-1">
@@ -316,7 +320,7 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
                 id="allocationRef"
                 value={newProject.allocationRef}
                 onChange={(e) => setNewProject({ ...newProject, allocationRef: e.target.value })}
-                placeholder="Enter allocation reference"
+                placeholder="Enter allocation reference (auto-filled by selector)"
                 className="text-sm"
               />
             </div>
@@ -344,8 +348,8 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
                 <Input
                   id="progress"
                   type="number"
-                  min="0"
-                  max="100"
+                  min={0}
+                  max={100}
                   value={newProject.progress}
                   onChange={(e) => setNewProject({ ...newProject, progress: Number.parseFloat(e.target.value) || 0 })}
                   placeholder="0"
@@ -422,12 +426,8 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
                       <p className="font-medium text-sm">KES {payment.amount.toLocaleString("en-KE")}</p>
-                      <p className="text-xs text-gray-600">
-                        Date: {new Date(payment.date).toLocaleDateString("en-KE")}
-                      </p>
-                      {payment.description && (
-                        <p className="text-xs text-gray-600">Description: {payment.description}</p>
-                      )}
+                      <p className="text-xs text-gray-600">Date: {new Date(payment.date).toLocaleDateString("en-KE")}</p>
+                      {payment.description && <p className="text-xs text-gray-600">Description: {payment.description}</p>}
                       {payment.reference && <p className="text-xs text-gray-600">Reference: {payment.reference}</p>}
                     </div>
                     <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePayment(index)}>
@@ -519,3 +519,5 @@ export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFor
     </form>
   )
 }
+
+export default SubcontractorForm

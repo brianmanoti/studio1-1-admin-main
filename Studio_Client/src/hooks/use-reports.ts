@@ -1,12 +1,16 @@
 import axiosInstance from "@/lib/axios"
 import { useQuery } from "@tanstack/react-query"
 
+interface ClientInfo {
+  name: string;
+  email?: string;
+}
 
 export interface ReportsData {
   project: {
     id: string
     name: string
-    client: string
+    client: ClientInfo
     value: string
     actualSpent: string
     balance: string

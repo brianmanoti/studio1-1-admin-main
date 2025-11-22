@@ -28,7 +28,7 @@ export type Wage = {
   wageNumber: string
   company: string
   vendorName: string
-  status: 'pending' | 'in-transit' | 'delivered' | 'declined' | 'approved'
+  status: 'pending' |'declined' | 'approved'
   date: string
   deliveryDate: string
   amount: number
@@ -78,7 +78,7 @@ export function SubWagesTable() {
     queryKey: ['wages', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const res = await axiosInstance.get(`/api/wages/project/${projectId}`)
+      const res = await axiosInstance.get(`/api/wages/project/${projectId}/wage-subcontractors`)
       return res.data ?? []
     },
     enabled: !!projectId,
@@ -260,8 +260,6 @@ export function SubWagesTable() {
                 { value: 'pending', label: 'Pending' },
                 { value: 'approved', label: 'Approved' },
                 { value: 'declined', label: 'Declined' },
-                { value: 'in-transit', label: 'In Transit' },
-                { value: 'delivered', label: 'Delivered' },
               ],
             },
           ]}

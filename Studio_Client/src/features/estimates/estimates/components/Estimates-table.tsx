@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Download, FileText } from "lucide-react"
 import axiosInstance from "@/lib/axios"
 import { useProjectStore } from "@/stores/projectStore"
 import { useNavigate } from "@tanstack/react-router"
+import { useDownloadEstimatePDF } from "@/hooks/PDFs/download-estimate-PDF"
 
 interface Subsection {
   id?: string
@@ -82,7 +83,25 @@ export default function EstimateView() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const navigate = useNavigate()
 
+  const { mutateAsync: downloadProject, isPending } = useDownloadEstimatePDF()
+
   const projectId = useProjectStore((state) => state.projectId)
+
+      const handleDownloadPDF = async () => {
+    try {
+      const blob = await downloadProject({ id: projectId})
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${projectId || "Project"}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Failed to download Project:", error)
+    }
+  }
 
   const { data = [], isLoading, isError, error } = useQuery({
     queryKey: ["estimates", projectId],
@@ -137,9 +156,6 @@ export default function EstimateView() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-semibold text-blue-700">Estimates</h2>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50">
-            <FileText className="w-4 h-4" /> Export
-          </Button>
           <Button 
             onClick={() => navigate({ to: `/projects/${projectId}/estimates/estimate/new` })}
             className="bg-blue-600 text-white hover:bg-blue-700"
@@ -170,7 +186,7 @@ export default function EstimateView() {
                 </p>
               </div>
               <div className="flex gap-2 mt-2 md:mt-0 flex-wrap">
-                <Button size="sm" variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50">
+                <Button onClick={handleDownloadPDF} disabled={ isPending} size="sm" variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50">
                   <Download className="w-4 h-4" /> Download
                 </Button>
                 <Button

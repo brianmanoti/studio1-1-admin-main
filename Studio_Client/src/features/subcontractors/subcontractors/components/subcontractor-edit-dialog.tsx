@@ -1,7 +1,8 @@
 import { useSubcontractor } from "@/hooks/use-subcontractors"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { SubcontractorForm } from "./subcontractor-form"
+
 import { Loader2 } from "lucide-react"
+import SubcontractorForm from "./subcontractor-form"
 
 interface SubcontractorEditDialogProps {
   subcontractorId: string | null

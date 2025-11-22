@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { SubcontractorForm } from "./subcontractor-form"
+import SubcontractorForm from "./subcontractor-form"
+
 
 interface SubcontractorCreateDialogProps {
   open: boolean
