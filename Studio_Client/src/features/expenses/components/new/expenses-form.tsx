@@ -33,8 +33,10 @@ export default function ExpenseForm({ expenseId }) {
   const isMountedRef = useRef(true)
   const { setFormState } = useItemsVendors()
 
-  const CurrentProjectId = useProjectStore((state) => state.projectId)
+  const [attachments, setAttachments] = useState([])
 
+
+  const CurrentProjectId = useProjectStore((state) => state.projectId)
   const defaultForm = {
     projectId: CurrentProjectId || "",
     reference: "",
@@ -84,11 +86,11 @@ export default function ExpenseForm({ expenseId }) {
     staleTime: 1000 * 60 * 5,
   })
 
-      useEffect(() => {
-    if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
-      setField("projectId", CurrentProjectId)
-    }
-  }, [isProjectsLoading, CurrentProjectId, form.projectId])
+  useEffect(() => {
+  if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
+    setField("projectId", CurrentProjectId)
+  }
+}, [isProjectsLoading, CurrentProjectId, form.projectId])
 
   // ------------------- Fetch Items (for autocomplete) -------------------
   const { data: itemList = [] } = useQuery({
@@ -106,16 +108,19 @@ export default function ExpenseForm({ expenseId }) {
     enabled: !!debouncedVendorSearch,
     queryFn: async () => {
       const res = await axiosInstance.get(`/api/vendors/search`, { params: { q: debouncedVendorSearch } })
-      return res.data?.data || []
+      return res.data?.results || []
     },
   })
 
-// ------------------- Fetch existing Expense -------------------
+  console.log("Vendor List:", vendorList)
+
+  // ------------------- Fetch existing Expense -------------------
+// ------------------- Fetch existing Expense Order -------------------
 const {
-  data: expenseData,
-  isLoading: isExpenseLoading,
-  isError: isExpenseError,
-  error: expenseError,
+  data: expenses,
+  isLoading: isExpenseOrderLoading,
+  isError: isExpenseOrderError,
+  error: expenseOrderError,
 } = useQuery({
   queryKey: ["expenses", expenseId],
   enabled: Boolean(expenseId),
@@ -123,50 +128,56 @@ const {
     const res = await axiosInstance.get(`/api/expenses/${expenseId}`)
     return res.data
   },
-  staleTime: 1000 * 60 * 5, // cache for 5 minutes
-  retry: 2, // retry failed requests twice
+  staleTime: 1000 * 60 * 5,
+  retry: 2,
   onError: (err) => {
-    console.error("❌ Failed to load expense:", err)
-    setServerError("Failed to load expense data")
+    console.error("Failed to load Expense order:", err)
+    setServerError("Failed to load Expense order data")
   },
 })
 
 useEffect(() => {
-  if (!expenseData) return
+  if (!expenses) return
 
-  const expense = expenseData
+  const po = expenses
   const normalized = {
     ...defaultForm,
-    ...expense,
-    date: formatDateToInput(expense?.date),
-    deliveryDate: formatDateToInput(expense?.deliveryDate),
-    items: Array.isArray(expense?.items) && expense.items.length ? expense.items : [emptyItem()],
+    ...po,
+    date: formatDateToInput(po?.date),
+    deliveryDate: formatDateToInput(po?.deliveryDate),
+    items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
   }
 
   setForm(normalized)
   setInitialSnapshot(JSON.stringify(normalized))
-  setIsDeletedMode(Boolean(expense?.isDeleted))
-}, [expenseData])
+  setIsDeletedMode(Boolean(po?.isDeleted))
+}, [expenses])
 
-  // ------------------- Mutations -------------------
-  const createMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.post("/api/expenses", payload).then((res) => res.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["expenses"] })
-      navigate({ to: `/projects/$projectId/expenses` })
-    },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to create expense order"),
-  })
 
-  const updateMutation = useMutation({
-    mutationFn: (payload) =>
-      axiosInstance.put(`/api/expenses/${expenseId}`, payload).then((res) => res.data),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["expenses", expenseId] })
-      navigate({ to: `/projects/$projectId/expenses/${data._id}` })
-    },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to update expense order"),
-  })
+
+const createMutation = useMutation({
+  mutationFn: (payload) =>
+    axiosInstance.post("/api/expenses", payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((res) => res.data),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["expenses"] })
+    navigate({ to: `/projects/$projectId/expenses` })
+  },
+  onError: (err) => setServerError(err?.response?.data?.message || "Failed to create Expense order"),
+})
+
+const updateMutation = useMutation({
+  mutationFn: (payload) =>
+    axiosInstance.put(`/api/expenses/${expenseId}`, payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((res) => res.data),
+  onSuccess: (data) => {
+    queryClient.invalidateQueries({ queryKey: ["expensess", expenseId] })
+    navigate({ to: `/projects/$projectId/expenses/${data._id}` })
+  },
+  onError: (err) => setServerError(err?.response?.data?.message || "Failed to update Expense order"),
+})
 
   useEffect(() => () => (isMountedRef.current = false), [])
 
@@ -251,22 +262,39 @@ useEffect(() => {
   }
 
   // ------------------- Submit -------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
-    setIsSubmitting(true)
-    const payload = {
-      ...form,
-      date: form.date ? new Date(form.date).toISOString() : null,
-      deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
+const handleSubmit = async (e) => {
+  e.preventDefault()
+  if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
+  setIsSubmitting(true)
+
+  try {
+    // Create FormData for multipart/form-data submission
+    const formData = new FormData()
+
+    // Add all regular fields
+    Object.keys(form).forEach((key) => {
+      if (key === "items") {
+        formData.append("items", JSON.stringify(form.items))
+      } else {
+        formData.append(key, form[key])
+      }
+    })
+
+    // Add attachments if any (assuming you have attachments state)
+    attachments.forEach((file) => {
+      formData.append("attachments", file)
+    })
+
+    if (expenseId) {
+      await updateMutation.mutateAsync(formData)
+    } else {
+      await createMutation.mutateAsync(formData)
     }
-    try {
-      if (expenseId) await updateMutation.mutateAsync(payload)
-      else await createMutation.mutateAsync(payload)
-    } finally {
-      if (isMountedRef.current) setIsSubmitting(false)
-    }
+  } finally {
+    if (isMountedRef.current) setIsSubmitting(false)
   }
+}
+  // ------------------- Navigation Handlers -------------------
 
   const handleBack = () => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
@@ -276,10 +304,10 @@ useEffect(() => {
 
   const handleSoftDelete = async () => {
     if (!expenseId) return
-    if (!confirm("Soft delete this expense order?")) return
+    if (!confirm("Soft delete this Expense order?")) return
     try {
       await axiosInstance.delete(`/api/expenses/${expenseId}`)
-      queryClient.invalidateQueries({ queryKey: ["expenses"] })
+      queryClient.invalidateQueries({ queryKey: ["expensess"] })
       navigate({ to: "/expenses" })
     } catch (err) {
       setServerError(err?.response?.data?.message || "Delete failed")
@@ -297,7 +325,7 @@ useEffect(() => {
             ← Back
           </button>
           <h2 className="text-xl font-semibold text-gray-800">
-            {expenseId ? "Edit expense Order" : "New expense Order"}
+            {expenseId ? "Edit Expense Order" : "New Expense Order"}
           </h2>
         </div>
 
@@ -326,29 +354,29 @@ useEffect(() => {
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
           <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Project</label>
-              {isProjectsLoading ? (
-                <p className="text-gray-500 text-sm">Loading projects...</p>
-              ) : isProjectsError ? (
-                <p className="text-red-500 text-sm">Failed to load projects</p>
-              ) : (
-                <select
-                  className="w-full border p-2 rounded"
-                  value={form.projectId}
-                  onChange={(e) => setField("projectId", e.target.value)}
-                  disabled={isLocked}
-                >
-                  <option value="">— Choose Project —</option>
-                  {(projects || []).map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name || p.title || p.projectName || p._id}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Project</label>
+            {isProjectsLoading ? (
+              <p className="text-gray-500 text-sm">Loading projects...</p>
+            ) : isProjectsError ? (
+              <p className="text-red-500 text-sm">Failed to load projects</p>
+            ) : (
+              <select
+                className="w-full border p-2 rounded"
+                value={form.projectId}
+                onChange={(e) => setField("projectId", e.target.value)}
+                disabled={isLocked}
+              >
+                <option value="">— Choose Project —</option>
+                {(projects || []).map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {`${p.name} (${p.projectNumber}) — ${p.client?.companyName || "No Client"}`}
+                  </option>
+                ))}
+              </select>
+            )}
+            {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
+          </div>
             <div>
               <label className="block text-sm font-medium">Company</label>
               <input
@@ -426,10 +454,10 @@ useEffect(() => {
                         key={v._id}
                         onClick={() => {
                           setField("vendorName", v.companyName || v.vendorName)
-                          setField("vendorEmail", v.vendorEmail || "")
-                          setField("vendorPhone", v.vendorPhone || "")
-                          setField("vendorAddress", v.vendorAddress || "")
-                          setField("vendorContact", v.vendorContact || "")
+                          setField("vendorEmail", v.email || "")
+                          setField("vendorPhone", v.phone || "")
+                          setField("vendorAddress", v.address || "")
+                          setField("vendorContact", v.contactPerson || "")
                           setActiveVendor(false)
                         }}
                         className="px-2 py-1 hover:bg-blue-100 cursor-pointer text-sm"
@@ -631,7 +659,7 @@ useEffect(() => {
                       disabled={isLocked}
                     />
                   </td>
-                  
+
                   {/* Row Total */}
                   <td className="p-2 border text-center font-medium">
                     KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
@@ -648,7 +676,6 @@ useEffect(() => {
                       <Trash size={18} color="#ea343d" />
                     </button>
                   </td>
-
                 </tr>
               ))}
             </tbody>
@@ -680,6 +707,33 @@ useEffect(() => {
             disabled={isLocked}
           />
         </section>
+
+        <section>
+          <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Attachments</h3>
+          <input
+            type="file"
+            multiple
+            onChange={(e) => setAttachments(Array.from(e.target.files))}
+            disabled={isLocked}
+          />
+          {attachments.length > 0 && (
+            <ul className="mt-2">
+              {attachments.map((file, idx) => (
+                <li key={idx} className="text-sm text-gray-700">
+                  {file.name} ({Math.round(file.size / 1024)} KB)
+                  <button
+                    type="button"
+                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    className="ml-2 text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
 
         <div className="flex flex-wrap gap-2 justify-end pt-4 border-t">
           {!isLocked && (
