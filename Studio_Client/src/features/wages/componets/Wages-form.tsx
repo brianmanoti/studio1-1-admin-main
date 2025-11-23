@@ -6,9 +6,10 @@ import { useDebounce } from "@/hooks/useDebounce"
 import { useItemsVendors } from "@/hooks/use-items-vendors"
 
 import type { Item, Vendor } from "@/contexts/items-vendors-context"
-import EstimateSelector from "../../estimates/estimates/components/estimate-selector"
+
 import { ItemFormModal } from "@/components/items/items-form-modal"
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
+import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { useProjectStore } from "@/stores/projectStore"
 import { Trash } from "lucide-react"
 
@@ -31,8 +32,11 @@ export default function WageOrderForm({ wageId }) {
   const queryClient = useQueryClient()
   const isMountedRef = useRef(true)
   const { setFormState } = useItemsVendors()
-  const CurrentProjectId = useProjectStore((state) => state.projectId)
 
+  const [attachments, setAttachments] = useState([])
+
+
+  const CurrentProjectId = useProjectStore((state) => state.projectId)
   const defaultForm = {
     projectId: CurrentProjectId || "",
     reference: "",
@@ -68,7 +72,6 @@ export default function WageOrderForm({ wageId }) {
   const debouncedSearch = useDebounce(searchTerm, 400)
   const debouncedVendorSearch = useDebounce(vendorSearch, 400)
 
-  
   // ------------------- Fetch Projects -------------------
   const {
     data: projects,
@@ -83,7 +86,7 @@ export default function WageOrderForm({ wageId }) {
     staleTime: 1000 * 60 * 5,
   })
 
-    useEffect(() => {
+  useEffect(() => {
   if (!isProjectsLoading && CurrentProjectId && !form.projectId) {
     setField("projectId", CurrentProjectId)
   }
@@ -105,18 +108,21 @@ export default function WageOrderForm({ wageId }) {
     enabled: !!debouncedVendorSearch,
     queryFn: async () => {
       const res = await axiosInstance.get(`/api/vendors/search`, { params: { q: debouncedVendorSearch } })
-      return res.data?.data || []
+      return res.data?.results || []
     },
   })
 
-// ------------------- Fetch existing Wage -------------------
+  console.log("Vendor List:", vendorList)
+
+  // ------------------- Fetch existing Wage -------------------
+// ------------------- Fetch existing Wage Order -------------------
 const {
-  data: wageData,
-  isLoading: isWageLoading,
-  isError: isWageError,
-  error: wageError,
+  data: wageOrder,
+  isLoading: isWageOrderLoading,
+  isError: isWageOrderError,
+  error: wageOrderError,
 } = useQuery({
-  queryKey: ["wages", wageId],
+  queryKey: ["wageOrder", wageId],
   enabled: Boolean(wageId),
   queryFn: async () => {
     const res = await axiosInstance.get(`/api/wages/${wageId}`)
@@ -125,48 +131,53 @@ const {
   staleTime: 1000 * 60 * 5,
   retry: 2,
   onError: (err) => {
-    console.error("Failed to load wage:", err)
-    setServerError("Failed to load wages order data")
+    console.error("Failed to load wage order:", err)
+    setServerError("Failed to load wage order data")
   },
 })
 
 useEffect(() => {
-  if (!wageData) return
+  if (!wageOrder) return
 
-  const wage = wageData
+  const po = wageOrder
   const normalized = {
     ...defaultForm,
-    ...wage,
-    date: formatDateToInput(wage?.date),
-    deliveryDate: formatDateToInput(wage?.deliveryDate),
-    items: Array.isArray(wage?.items) && wage.items.length ? wage.items : [emptyItem()],
+    ...po,
+    date: formatDateToInput(po?.date),
+    deliveryDate: formatDateToInput(po?.deliveryDate),
+    items: Array.isArray(po?.items) && po.items.length ? po.items : [emptyItem()],
   }
 
   setForm(normalized)
   setInitialSnapshot(JSON.stringify(normalized))
-  setIsDeletedMode(Boolean(wage?.isDeleted))
-}, [wageData])
+  setIsDeletedMode(Boolean(po?.isDeleted))
+}, [wageOrder])
 
 
-  // ------------------- Mutations -------------------
-  const createMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.post("/api/wages", payload).then((res) => res.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wages"] })
-      navigate({ to: `/projects/$projectId/wages` })
-    },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to create wage order"),
-  })
 
-  const updateMutation = useMutation({
-    mutationFn: (payload) =>
-      axiosInstance.put(`/api/wages/${wageId}`, payload).then((res) => res.data),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["wages", wageId] })
-      navigate({ to: `/projects/$projectId/wages/${data._id}` })
-    },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to update wage order"),
-  })
+const createMutation = useMutation({
+  mutationFn: (payload) =>
+    axiosInstance.post("/api/wages", payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((res) => res.data),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["wageOrders"] })
+    navigate({ to: `/projects/$projectId/wages` })
+  },
+  onError: (err) => setServerError(err?.response?.data?.message || "Failed to create wage order"),
+})
+
+const updateMutation = useMutation({
+  mutationFn: (payload) =>
+    axiosInstance.put(`/api/wages/${wageId}`, payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((res) => res.data),
+  onSuccess: (data) => {
+    queryClient.invalidateQueries({ queryKey: ["wageOrders", wageId] })
+    navigate({ to: `/projects/$projectId/wages/${data._id}` })
+  },
+  onError: (err) => setServerError(err?.response?.data?.message || "Failed to update wage order"),
+})
 
   useEffect(() => () => (isMountedRef.current = false), [])
 
@@ -251,22 +262,39 @@ useEffect(() => {
   }
 
   // ------------------- Submit -------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
-    setIsSubmitting(true)
-    const payload = {
-      ...form,
-      date: form.date ? new Date(form.date).toISOString() : null,
-      deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
+const handleSubmit = async (e) => {
+  e.preventDefault()
+  if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
+  setIsSubmitting(true)
+
+  try {
+    // Create FormData for multipart/form-data submission
+    const formData = new FormData()
+
+    // Add all regular fields
+    Object.keys(form).forEach((key) => {
+      if (key === "items") {
+        formData.append("items", JSON.stringify(form.items))
+      } else {
+        formData.append(key, form[key])
+      }
+    })
+
+    // Add attachments if any (assuming you have attachments state)
+    attachments.forEach((file) => {
+      formData.append("attachments", file)
+    })
+
+    if (wageId) {
+      await updateMutation.mutateAsync(formData)
+    } else {
+      await createMutation.mutateAsync(formData)
     }
-    try {
-      if (wageId) await updateMutation.mutateAsync(payload)
-      else await createMutation.mutateAsync(payload)
-    } finally {
-      if (isMountedRef.current) setIsSubmitting(false)
-    }
+  } finally {
+    if (isMountedRef.current) setIsSubmitting(false)
   }
+}
+  // ------------------- Navigation Handlers -------------------
 
   const handleBack = () => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
@@ -279,7 +307,7 @@ useEffect(() => {
     if (!confirm("Soft delete this wage order?")) return
     try {
       await axiosInstance.delete(`/api/wages/${wageId}`)
-      queryClient.invalidateQueries({ queryKey: ["wages"] })
+      queryClient.invalidateQueries({ queryKey: ["wageOrders"] })
       navigate({ to: "/wages" })
     } catch (err) {
       setServerError(err?.response?.data?.message || "Delete failed")
@@ -297,7 +325,7 @@ useEffect(() => {
             ← Back
           </button>
           <h2 className="text-xl font-semibold text-gray-800">
-            {wageId ? "Edit wage Order" : "New Wage Order"}
+            {wageId ? "Edit Wage Order" : "New Wage Order"}
           </h2>
         </div>
 
@@ -326,29 +354,29 @@ useEffect(() => {
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
           <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Project</label>
-              {isProjectsLoading ? (
-                <p className="text-gray-500 text-sm">Loading projects...</p>
-              ) : isProjectsError ? (
-                <p className="text-red-500 text-sm">Failed to load projects</p>
-              ) : (
-                <select
-                  className="w-full border p-2 rounded"
-                  value={form.projectId}
-                  onChange={(e) => setField("projectId", e.target.value)}
-                  disabled={isLocked}
-                >
-                  <option value="">— Choose Project —</option>
-                  {(projects || []).map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name || p.title || p.projectName || p._id}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Project</label>
+            {isProjectsLoading ? (
+              <p className="text-gray-500 text-sm">Loading projects...</p>
+            ) : isProjectsError ? (
+              <p className="text-red-500 text-sm">Failed to load projects</p>
+            ) : (
+              <select
+                className="w-full border p-2 rounded"
+                value={form.projectId}
+                onChange={(e) => setField("projectId", e.target.value)}
+                disabled={isLocked}
+              >
+                <option value="">— Choose Project —</option>
+                {(projects || []).map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {`${p.name} (${p.projectNumber}) — ${p.client?.companyName || "No Client"}`}
+                  </option>
+                ))}
+              </select>
+            )}
+            {errors.projectId && <p className="text-red-500 text-sm">{errors.projectId}</p>}
+          </div>
             <div>
               <label className="block text-sm font-medium">Company</label>
               <input
@@ -426,10 +454,10 @@ useEffect(() => {
                         key={v._id}
                         onClick={() => {
                           setField("vendorName", v.companyName || v.vendorName)
-                          setField("vendorEmail", v.vendorEmail || "")
-                          setField("vendorPhone", v.vendorPhone || "")
-                          setField("vendorAddress", v.vendorAddress || "")
-                          setField("vendorContact", v.vendorContact || "")
+                          setField("vendorEmail", v.email || "")
+                          setField("vendorPhone", v.phone || "")
+                          setField("vendorAddress", v.address || "")
+                          setField("vendorContact", v.contactPerson || "")
                           setActiveVendor(false)
                         }}
                         className="px-2 py-1 hover:bg-blue-100 cursor-pointer text-sm"
@@ -516,7 +544,7 @@ useEffect(() => {
               {form.items.map((it, idx) => (
                 <tr key={idx} className="relative">
                   {/* Name Field */}
-                  <td className="p-1 border relative">
+                  <td className="p-2 border relative">
                     <input
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
                       value={it.name || ""}
@@ -534,7 +562,7 @@ useEffect(() => {
                   </td>
 
                   {/* Description Field */}
-                  <td className="p-1 border relative">
+                  <td className="p-2 border relative">
                     <input
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
                       value={it.description || ""}
@@ -601,7 +629,7 @@ useEffect(() => {
                   </td>
 
                   {/* Quantity */}
-                  <td className="p-1 border">
+                  <td className="p-2 border">
                     <input
                       type="number"
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
@@ -612,7 +640,7 @@ useEffect(() => {
                   </td>
 
                   {/* Unit */}
-                  <td className="p-1 border">
+                  <td className="p-2 border">
                     <input
                       className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
                       value={it.unit}
@@ -631,9 +659,10 @@ useEffect(() => {
                       disabled={isLocked}
                     />
                   </td>
+
                   {/* Row Total */}
-                  <td className="p-0 border text-center font-medium">
-                     KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
+                  <td className="p-2 border text-center font-medium">
+                    KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
                   </td>
 
                   {/* Remove Button */}
@@ -678,6 +707,33 @@ useEffect(() => {
             disabled={isLocked}
           />
         </section>
+
+        <section>
+          <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Attachments</h3>
+          <input
+            type="file"
+            multiple
+            onChange={(e) => setAttachments(Array.from(e.target.files))}
+            disabled={isLocked}
+          />
+          {attachments.length > 0 && (
+            <ul className="mt-2">
+              {attachments.map((file, idx) => (
+                <li key={idx} className="text-sm text-gray-700">
+                  {file.name} ({Math.round(file.size / 1024)} KB)
+                  <button
+                    type="button"
+                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    className="ml-2 text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
 
         <div className="flex flex-wrap gap-2 justify-end pt-4 border-t">
           {!isLocked && (

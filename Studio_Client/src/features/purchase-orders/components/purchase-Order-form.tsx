@@ -33,6 +33,9 @@ export default function PurchaseOrderForm({ purchaseOrderId }) {
   const isMountedRef = useRef(true)
   const { setFormState } = useItemsVendors()
 
+  const [attachments, setAttachments] = useState([])
+
+
   const CurrentProjectId = useProjectStore((state) => state.projectId)
   const defaultForm = {
     projectId: CurrentProjectId || "",
@@ -152,25 +155,29 @@ useEffect(() => {
 
 
 
-  // ------------------- Mutations -------------------
-  const createMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.post("/api/purchase-orders", payload).then((res) => res.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] })
-      navigate({ to: `/projects/$projectId/purchaseOrders` })
-    },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to create purchase order"),
-  })
+const createMutation = useMutation({
+  mutationFn: (payload) =>
+    axiosInstance.post("/api/purchase-orders", payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((res) => res.data),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] })
+    navigate({ to: `/projects/$projectId/purchaseOrders` })
+  },
+  onError: (err) => setServerError(err?.response?.data?.message || "Failed to create purchase order"),
+})
 
-  const updateMutation = useMutation({
-    mutationFn: (payload) =>
-      axiosInstance.put(`/api/purchase-orders/${purchaseOrderId}`, payload).then((res) => res.data),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseOrders", purchaseOrderId] })
-      navigate({ to: `/projects/$projectId/purchaseOrders/${data._id}` })
-    },
-    onError: (err) => setServerError(err?.response?.data?.message || "Failed to update purchase order"),
-  })
+const updateMutation = useMutation({
+  mutationFn: (payload) =>
+    axiosInstance.put(`/api/purchase-orders/${purchaseOrderId}`, payload, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((res) => res.data),
+  onSuccess: (data) => {
+    queryClient.invalidateQueries({ queryKey: ["purchaseOrders", purchaseOrderId] })
+    navigate({ to: `/projects/$projectId/purchaseOrders/${data._id}` })
+  },
+  onError: (err) => setServerError(err?.response?.data?.message || "Failed to update purchase order"),
+})
 
   useEffect(() => () => (isMountedRef.current = false), [])
 
@@ -255,22 +262,39 @@ useEffect(() => {
   }
 
   // ------------------- Submit -------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
-    setIsSubmitting(true)
-    const payload = {
-      ...form,
-      date: form.date ? new Date(form.date).toISOString() : null,
-      deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
+const handleSubmit = async (e) => {
+  e.preventDefault()
+  if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
+  setIsSubmitting(true)
+
+  try {
+    // Create FormData for multipart/form-data submission
+    const formData = new FormData()
+
+    // Add all regular fields
+    Object.keys(form).forEach((key) => {
+      if (key === "items") {
+        formData.append("items", JSON.stringify(form.items))
+      } else {
+        formData.append(key, form[key])
+      }
+    })
+
+    // Add attachments if any (assuming you have attachments state)
+    attachments.forEach((file) => {
+      formData.append("attachments", file)
+    })
+
+    if (purchaseOrderId) {
+      await updateMutation.mutateAsync(formData)
+    } else {
+      await createMutation.mutateAsync(formData)
     }
-    try {
-      if (purchaseOrderId) await updateMutation.mutateAsync(payload)
-      else await createMutation.mutateAsync(payload)
-    } finally {
-      if (isMountedRef.current) setIsSubmitting(false)
-    }
+  } finally {
+    if (isMountedRef.current) setIsSubmitting(false)
   }
+}
+  // ------------------- Navigation Handlers -------------------
 
   const handleBack = () => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
@@ -683,6 +707,33 @@ useEffect(() => {
             disabled={isLocked}
           />
         </section>
+
+        <section>
+          <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Attachments</h3>
+          <input
+            type="file"
+            multiple
+            onChange={(e) => setAttachments(Array.from(e.target.files))}
+            disabled={isLocked}
+          />
+          {attachments.length > 0 && (
+            <ul className="mt-2">
+              {attachments.map((file, idx) => (
+                <li key={idx} className="text-sm text-gray-700">
+                  {file.name} ({Math.round(file.size / 1024)} KB)
+                  <button
+                    type="button"
+                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    className="ml-2 text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
 
         <div className="flex flex-wrap gap-2 justify-end pt-4 border-t">
           {!isLocked && (
