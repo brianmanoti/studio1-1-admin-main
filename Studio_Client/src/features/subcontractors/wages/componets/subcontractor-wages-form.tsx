@@ -10,7 +10,9 @@ import type { Item } from "@/contexts/items-vendors-context"
 import { ItemFormModal } from "@/components/items/items-form-modal"
 import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { SubcontractorFormModal } from "@/components/subContractors/components/subcontractor-form-modal"
+import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
 import { useProjectStore } from "@/stores/projectStore"
+import { Trash, Download, Eye } from "lucide-react"
 
 // Safe EstimateSelector Wrapper to prevent render issues
 const SafeEstimateSelector = React.memo(({ onChange }) => {
@@ -58,6 +60,10 @@ function formatDateToInput(d) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
 }
 
+function validateEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || "")
+}
+
 export default function SubcontractorWagesForm({ wageId }) {
   const navigate = useNavigate()
   const canGoBack = useCanGoBack()
@@ -100,6 +106,10 @@ export default function SubcontractorWagesForm({ wageId }) {
   const [searchTerm, setSearchTerm] = useState("")
   const [subcontractorSearch, setSubcontractorSearch] = useState("")
   const [activeSubcontractor, setActiveSubcontractor] = useState(false)
+  const [vendorSearch, setVendorSearch] = useState("")
+  const [activeVendor, setActiveVendor] = useState(false)
+  const [attachments, setAttachments] = useState([])
+  const [existingAttachments, setExistingAttachments] = useState([])
 
   // ------------------ Estimate State ------------------
   const [estimateData, setEstimateData] = useState({
@@ -110,6 +120,7 @@ export default function SubcontractorWagesForm({ wageId }) {
 
   const debouncedSearch = useDebounce(searchTerm, 400)
   const debouncedSubcontractorSearch = useDebounce(subcontractorSearch, 400)
+  const debouncedVendorSearch = useDebounce(vendorSearch, 400)
 
   // ------------------- Fetch Projects -------------------
   const {
@@ -157,35 +168,59 @@ export default function SubcontractorWagesForm({ wageId }) {
     },
   })
 
+  // ------------------- Fetch Vendors (for autocomplete) -------------------
+  const { data: vendorList = [], isFetching: isVendorLoading } = useQuery({
+    queryKey: ["vendorSearch", debouncedVendorSearch],
+    enabled: !!debouncedVendorSearch,
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/api/vendors/search`, { params: { q: debouncedVendorSearch } })
+      return res.data?.results || []
+    },
+  })
+
   // Extract subcontractors from the response data
   const subcontractorList = subcontractorData?.results || []
 
   // ------------------- Fetch existing Wage Record -------------------
-  useQuery({
+  const { data: wageData, isLoading: isWageLoading } = useQuery({
     queryKey: ["wages", wageId],
     enabled: !!wageId,
     queryFn: async () => {
-      const res = await axiosInstance.get(`/api/subcontractors/wages/${wageId}`)
+      const res = await axiosInstance.get(`/api/wages/${wageId}`)
       return res.data
     },
     onSuccess(wage) {
+      if (!wage) return
+      
+      // Map API response to form structure
       const normalized = {
         ...defaultForm,
         ...wage,
+        projectId: wage.projectId?._id || wage.projectId || "",
         date: formatDateToInput(wage?.date),
         deliveryDate: formatDateToInput(wage?.deliveryDate),
         items: Array.isArray(wage?.items) && wage.items.length ? wage.items.map(item => ({
-          description: item.name || item.description || "",
+          description: item.name || item.description || "", // Use name as description for form
           quantity: item.quantity || 1,
           unit: item.unit || "",
           unitPrice: item.unitPrice || 0
         })) : [emptyItem()],
-        subcontractorName: wage.vendorName || wage.subcontractorName || "",
-        vendorName: wage.vendorName || wage.subcontractorName || "",
+        subcontractorName: wage.subcontractorName || "",
+        vendorName: wage.vendorName || "",
+        vendorContact: wage.vendorContact || "",
+        vendorEmail: wage.vendorEmail || "",
+        vendorPhone: wage.vendorPhone || "",
+        vendorAddress: wage.vendorAddress || "",
       }
+      
       setForm(normalized)
       setInitialSnapshot(JSON.stringify(normalized))
       setIsDeletedMode(!!wage?.isDeleted)
+      
+      // Set existing attachments
+      if (Array.isArray(wage.attachments)) {
+        setExistingAttachments(wage.attachments)
+      }
       
       // Set estimate data if exists
       if (wage.estimateId) {
@@ -196,9 +231,12 @@ export default function SubcontractorWagesForm({ wageId }) {
         })
       }
 
-      // Set subcontractor search if exists
-      if (wage.vendorName || wage.subcontractorName) {
-        setSubcontractorSearch(wage.vendorName || wage.subcontractorName)
+      // Set search terms if exists
+      if (wage.vendorName) {
+        setVendorSearch(wage.vendorName)
+      }
+      if (wage.subcontractorName) {
+        setSubcontractorSearch(wage.subcontractorName)
       }
     },
     onError() {
@@ -208,7 +246,10 @@ export default function SubcontractorWagesForm({ wageId }) {
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.post("/api/wages", payload).then((res) => res.data),
+    mutationFn: (payload) => 
+      axiosInstance.post("/api/wages", payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }).then((res) => res.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wages"] })
       navigate({ to: `/projects/$projectId/wages` })
@@ -217,7 +258,10 @@ export default function SubcontractorWagesForm({ wageId }) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (payload) => axiosInstance.put(`/api/wages/${wageId}`, payload).then((res) => res.data),
+    mutationFn: (payload) => 
+      axiosInstance.put(`/api/wages/${wageId}`, payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }).then((res) => res.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["wages", wageId] })
       navigate({ to: `/wages/${data._id}` })
@@ -282,10 +326,6 @@ export default function SubcontractorWagesForm({ wageId }) {
   const handleSubcontractorSave = useCallback((subcontractor) => {
     setField("subcontractorId", subcontractor._id)
     setField("subcontractorName", subcontractor.companyName)
-    setField("vendorName", subcontractor.companyName)
-    setField("vendorContact", subcontractor.contactPerson)
-    setField("vendorEmail", subcontractor.email)
-    setField("vendorPhone", subcontractor.phoneNumber)
     setSubcontractorSearch(subcontractor.companyName)
     setActiveSubcontractor(false)
   }, [])
@@ -293,10 +333,6 @@ export default function SubcontractorWagesForm({ wageId }) {
   const handleSubcontractorSelect = useCallback((subcontractor) => {
     setField("subcontractorId", subcontractor._id)
     setField("subcontractorName", subcontractor.companyName)
-    setField("vendorName", subcontractor.companyName)
-    setField("vendorContact", subcontractor.contactPerson)
-    setField("vendorEmail", subcontractor.email)
-    setField("vendorPhone", subcontractor.phoneNumber)
     setSubcontractorSearch(subcontractor.companyName)
     setActiveSubcontractor(false)
   }, [])
@@ -304,12 +340,86 @@ export default function SubcontractorWagesForm({ wageId }) {
   const handleSubcontractorClear = useCallback(() => {
     setField("subcontractorId", "")
     setField("subcontractorName", "")
+    setSubcontractorSearch("")
+  }, [])
+
+  // ------------------- Vendor Handlers -------------------
+  const handleVendorSave = useCallback((vendor) => {
+    setField("vendorName", vendor.companyName || vendor.vendorName)
+    setField("vendorContact", vendor.contactPerson || "")
+    setField("vendorEmail", vendor.email || "")
+    setField("vendorPhone", vendor.phone || "")
+    setField("vendorAddress", vendor.address || "")
+    setVendorSearch(vendor.companyName || vendor.vendorName)
+    setActiveVendor(false)
+  }, [])
+
+  const handleVendorSelect = useCallback((vendor) => {
+    setField("vendorName", vendor.companyName || vendor.vendorName)
+    setField("vendorContact", vendor.contactPerson || "")
+    setField("vendorEmail", vendor.email || "")
+    setField("vendorPhone", vendor.phone || "")
+    setField("vendorAddress", vendor.address || "")
+    setVendorSearch(vendor.companyName || vendor.vendorName)
+    setActiveVendor(false)
+  }, [])
+
+  const handleVendorClear = useCallback(() => {
     setField("vendorName", "")
     setField("vendorContact", "")
     setField("vendorEmail", "")
     setField("vendorPhone", "")
-    setSubcontractorSearch("")
+    setField("vendorAddress", "")
+    setVendorSearch("")
   }, [])
+
+  // ------------------- Attachment Handlers -------------------
+  const handleDownloadAttachment = async (attachment) => {
+    try {
+      const response = await axiosInstance.get(`/api/wages/attachments/${attachment._id}`, {
+        responseType: 'blob'
+      })
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', attachment.fileName)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download failed:', error)
+      setServerError('Failed to download attachment')
+    }
+  }
+
+  const handleViewAttachment = async (attachment) => {
+    try {
+      const response = await axiosInstance.get(`/api/wages/attachments/${attachment._id}`, {
+        responseType: 'blob'
+      })
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      window.open(url, '_blank')
+    } catch (error) {
+      console.error('View failed:', error)
+      setServerError('Failed to view attachment')
+    }
+  }
+
+  const handleRemoveExistingAttachment = async (attachmentId) => {
+    if (!confirm("Are you sure you want to remove this attachment?")) return
+    
+    try {
+      await axiosInstance.delete(`/api/wages/attachments/${attachmentId}`)
+      setExistingAttachments(prev => prev.filter(att => att._id !== attachmentId))
+      queryClient.invalidateQueries({ queryKey: ["wages", wageId] })
+    } catch (error) {
+      console.error('Remove attachment failed:', error)
+      setServerError('Failed to remove attachment')
+    }
+  }
 
   // ------------------- Helpers -------------------
   const setField = useCallback((name, value) => setForm((f) => ({ ...f, [name]: value })), [])
@@ -333,13 +443,17 @@ export default function SubcontractorWagesForm({ wageId }) {
     const e = {}
     if (!form.projectId) e.projectId = "Project ID is required"
     if (!form.company) e.company = "Company name is required"
-    if (!form.vendorName) e.vendorName = "Vendor name is required"
+    if (!form.vendorName && !form.subcontractorName) {
+      e.vendorName = "Either Vendor or Subcontractor is required"
+      e.subcontractorName = "Either Vendor or Subcontractor is required"
+    }
     if (!form.deliveryAddress) e.deliveryAddress = "Delivery address is required"
     if (!form.date) e.date = "Order date is required"
     if (!form.deliveryDate) e.deliveryDate = "Delivery date is required"
     if (form.date && form.deliveryDate && new Date(form.deliveryDate) < new Date(form.date)) {
       e.deliveryDate = "Delivery date cannot be before order date"
     }
+    if (form.vendorEmail && !validateEmail(form.vendorEmail)) e.vendorEmail = "Invalid email"
 
     form.items.forEach((it, idx) => {
       if (!it.description) e[`items.${idx}.description`] = "Description required"
@@ -358,33 +472,34 @@ export default function SubcontractorWagesForm({ wageId }) {
     if (!validate()) return window.scrollTo({ top: 0, behavior: "smooth" })
     setIsSubmitting(true)
     
-    // Transform the data to match API expectations
-    const payload = {
-      ...form,
-      projectId: form.projectId,
-      company: form.company.trim(),
-      vendorName: form.vendorName.trim(),
-      deliveryAddress: form.deliveryAddress.trim(),
-      date: form.date ? new Date(form.date).toISOString() : null,
-      deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : null,
-      items: form.items.map(item => ({
-        name: item.description.trim(), // Map description to name for API
-        quantity: Number(item.quantity),
-        unit: item.unit.trim(),
-        unitPrice: Number(item.unitPrice)
-      })),
-      amount: Number(form.amount),
-      ...(form.subcontractorId && { subcontractorId: form.subcontractorId }),
-      ...(form.estimateId && {
-        estimateId: form.estimateId,
-        estimateLevel: form.estimateLevel,
-        estimateTargetId: form.estimateTargetId
-      })
-    }
+    // Create FormData for multipart/form-data submission
+    const formData = new FormData()
+
+    // Add all regular fields
+    Object.keys(form).forEach((key) => {
+      if (key === "items") {
+        // Transform items to match API structure (description becomes name)
+        const apiItems = form.items.map(item => ({
+          name: item.description, // Map description to name for API
+          description: item.description,
+          quantity: Number(item.quantity),
+          unit: item.unit,
+          unitPrice: Number(item.unitPrice)
+        }))
+        formData.append("items", JSON.stringify(apiItems))
+      } else {
+        formData.append(key, form[key])
+      }
+    })
+
+    // Add new attachments if any
+    attachments.forEach((file) => {
+      formData.append("attachments", file)
+    })
 
     try {
-      if (wageId) await updateMutation.mutateAsync(payload)
-      else await createMutation.mutateAsync(payload)
+      if (wageId) await updateMutation.mutateAsync(formData)
+      else await createMutation.mutateAsync(formData)
     } catch (error) {
       console.error("Submission error:", error)
     } finally {
@@ -420,6 +535,15 @@ export default function SubcontractorWagesForm({ wageId }) {
       .slice(0, 10)
   }, [itemList, searchTerm])
 
+  // Show loading state while fetching wage data
+  if (wageId && isWageLoading) {
+    return (
+      <div className="max-w-5xl mx-auto p-8">
+        <div className="text-center">Loading wage record...</div>
+      </div>
+    )
+  }
+
   // ------------------- Render -------------------
   return (
     <>
@@ -428,12 +552,21 @@ export default function SubcontractorWagesForm({ wageId }) {
           <button type="button" onClick={handleBack} className="text-blue-600 hover:underline">
             ← Back
           </button>
-          <h2 className="text-xl font-semibold text-gray-800">{wageId ? "Edit Wage Record" : "New Wage Record"}</h2>
+          <h2 className="text-xl font-semibold text-gray-800">
+            {wageId ? `Edit Wage Record - ${wageData?.wageNumber || ''}` : "New Wage Record"}
+          </h2>
         </div>
 
         {serverError && (
           <div className="bg-red-100 text-red-700 p-3 rounded border border-red-300">
             <strong>Error: </strong>{serverError}
+          </div>
+        )}
+
+        {/* Wage Number Display */}
+        {wageData?.wageNumber && (
+          <div className="bg-green-50 p-3 rounded border border-green-200">
+            <p className="text-green-700 font-medium">Wage Number: {wageData.wageNumber}</p>
           </div>
         )}
 
@@ -555,11 +688,146 @@ export default function SubcontractorWagesForm({ wageId }) {
           </div>
         </section>
 
-        {/* Subcontractor Information */}
+        {/* Vendor Information Section */}
+        <section className="space-y-4">
+          <h3 className="font-semibold text-gray-700 border-b pb-2">Vendor Information</h3>
+          <div className="relative">
+            <label className="block text-sm font-medium">Vendor Name *</label>
+            <div className="relative">
+              <input
+                className="w-full border p-2 rounded pr-10"
+                value={vendorSearch}
+                onChange={(e) => {
+                  setVendorSearch(e.target.value)
+                  setField("vendorName", e.target.value)
+                  if (e.target.value === "") {
+                    handleVendorClear()
+                  }
+                }}
+                onFocus={() => setActiveVendor(true)}
+                onBlur={() => setTimeout(() => setActiveVendor(false), 150)}
+                disabled={isLocked}
+                placeholder="Search vendors by company name..."
+              />
+              {form.vendorName && (
+                <button
+                  type="button"
+                  onClick={handleVendorClear}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            
+            {activeVendor && vendorSearch && (
+              <div className="absolute z-10 bg-white border border-gray-200 rounded-md shadow-md w-full max-h-60 overflow-auto mt-1">
+                {isVendorLoading && (
+                  <div className="px-4 py-2 text-gray-500 text-sm">Loading vendors...</div>
+                )}
+                {vendorList.length > 0 ? (
+                  vendorList.map((vendor) => (
+                    <div
+                      key={vendor._id}
+                      onClick={() => handleVendorSelect(vendor)}
+                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-900">
+                        {vendor.companyName || vendor.vendorName}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Contact: {vendor.contactPerson}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {vendor.email} • {vendor.phone}
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        {vendor.category && <span>Category: {vendor.category}</span>}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  !isVendorLoading && (
+                    <div className="px-4 py-3 text-gray-500 text-sm">
+                      <div>No vendors found</div>
+                      <button
+                        type="button"
+                        onClick={() => setFormState({ type: "add-vendor" })}
+                        className="text-blue-600 hover:underline mt-1"
+                      >
+                        + Add New Vendor
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+            {errors.vendorName && <p className="text-red-500 text-sm mt-1">{errors.vendorName}</p>}
+            
+            {form.vendorName && !activeVendor && (
+              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                <span className="font-medium">Selected Vendor: </span>
+                {form.vendorName}
+                {form.vendorContact && ` • Contact: ${form.vendorContact}`}
+                {form.vendorEmail && ` • Email: ${form.vendorEmail}`}
+              </div>
+            )}
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium">Contact Person</label>
+              <input
+                className="w-full border p-2 rounded"
+                value={form.vendorContact}
+                onChange={(e) => setField("vendorContact", e.target.value)}
+                disabled={isLocked}
+                placeholder="Contact person name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium">Email</label>
+              <input
+                className="w-full border p-2 rounded"
+                type="email"
+                value={form.vendorEmail}
+                onChange={(e) => setField("vendorEmail", e.target.value)}
+                disabled={isLocked}
+                placeholder="vendor@example.com"
+              />
+              {errors.vendorEmail && <p className="text-red-500 text-sm">{errors.vendorEmail}</p>}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium">Phone</label>
+              <input
+                className="w-full border p-2 rounded"
+                value={form.vendorPhone}
+                onChange={(e) => setField("vendorPhone", e.target.value)}
+                disabled={isLocked}
+                placeholder="Phone number"
+              />
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium">Address</label>
+              <input
+                className="w-full border p-2 rounded"
+                value={form.vendorAddress}
+                onChange={(e) => setField("vendorAddress", e.target.value)}
+                disabled={isLocked}
+                placeholder="Vendor address"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Subcontractor Information Section */}
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Subcontractor Information</h3>
           <div className="relative">
-            <label className="block text-sm font-medium">Subcontractor *</label>
+            <label className="block text-sm font-medium">Subcontractor Name *</label>
             <div className="relative">
               <input
                 className="w-full border p-2 rounded pr-10"
@@ -567,7 +835,6 @@ export default function SubcontractorWagesForm({ wageId }) {
                 onChange={(e) => {
                   setSubcontractorSearch(e.target.value)
                   setField("subcontractorName", e.target.value)
-                  setField("vendorName", e.target.value)
                   if (e.target.value === "") {
                     handleSubcontractorClear()
                   }
@@ -575,8 +842,7 @@ export default function SubcontractorWagesForm({ wageId }) {
                 onFocus={() => setActiveSubcontractor(true)}
                 onBlur={() => setTimeout(() => setActiveSubcontractor(false), 150)}
                 disabled={isLocked}
-                placeholder="Search subcontractors by company name or contact person..."
-                required
+                placeholder="Search subcontractors by company name..."
               />
               {form.subcontractorId && (
                 <button
@@ -639,60 +905,14 @@ export default function SubcontractorWagesForm({ wageId }) {
                 )}
               </div>
             )}
-            {errors.vendorName && <p className="text-red-500 text-sm mt-1">{errors.vendorName}</p>}
+            {errors.subcontractorName && <p className="text-red-500 text-sm mt-1">{errors.subcontractorName}</p>}
             
             {form.subcontractorId && !activeSubcontractor && (
               <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
                 <span className="font-medium">Selected Subcontractor: </span>
                 {form.subcontractorName}
-                {form.vendorContact && ` • Contact: ${form.vendorContact}`}
-                {form.vendorEmail && ` • Email: ${form.vendorEmail}`}
               </div>
             )}
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium">Contact Person</label>
-              <input
-                className="w-full border p-2 rounded"
-                value={form.vendorContact}
-                onChange={(e) => setField("vendorContact", e.target.value)}
-                disabled={isLocked}
-                placeholder="Contact person name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Email</label>
-              <input
-                className="w-full border p-2 rounded"
-                type="email"
-                value={form.vendorEmail}
-                onChange={(e) => setField("vendorEmail", e.target.value)}
-                disabled={isLocked}
-                placeholder="vendor@example.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Phone</label>
-              <input
-                className="w-full border p-2 rounded"
-                value={form.vendorPhone}
-                onChange={(e) => setField("vendorPhone", e.target.value)}
-                disabled={isLocked}
-                placeholder="Phone number"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Address</label>
-              <input
-                className="w-full border p-2 rounded"
-                value={form.vendorAddress}
-                onChange={(e) => setField("vendorAddress", e.target.value)}
-                disabled={isLocked}
-                placeholder="Vendor address"
-              />
-            </div>
           </div>
         </section>
 
@@ -844,10 +1064,10 @@ export default function SubcontractorWagesForm({ wageId }) {
                       <button
                         type="button"
                         onClick={() => removeItem(idx)}
-                        className="text-red-600 hover:bg-red-100 w-6 h-6 rounded flex items-center justify-center disabled:opacity-50"
+                        className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200 disabled:opacity-50 disabled:hover:bg-transparent"
                         disabled={isLocked || form.items.length === 1}
                       >
-                        ✕
+                        <Trash size={18} color="#ea343d" />
                       </button>
                     </td>
                   </tr>
@@ -872,6 +1092,7 @@ export default function SubcontractorWagesForm({ wageId }) {
           </div>
         </section>
 
+        {/* Notes Section */}
         <section>
           <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Notes</h3>
           <textarea
@@ -881,6 +1102,93 @@ export default function SubcontractorWagesForm({ wageId }) {
             disabled={isLocked}
             placeholder="Any additional notes or instructions..."
           />
+        </section>
+
+        {/* Attachments Section */}
+        <section>
+          <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Attachments</h3>
+          
+          {/* Existing Attachments */}
+          {existingAttachments.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-600 mb-2">Existing Attachments:</h4>
+              <ul className="space-y-2">
+                {existingAttachments.map((attachment) => (
+                  <li key={attachment._id} className="flex items-center justify-between bg-gray-50 border border-gray-200 p-3 rounded">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {attachment.fileName}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {Math.round(attachment.size / 1024)} KB • {new Date(attachment.uploadedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleViewAttachment(attachment)}
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                        title="View attachment"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadAttachment(attachment)}
+                        className="text-green-600 hover:text-green-800 p-1 rounded"
+                        title="Download attachment"
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExistingAttachment(attachment._id)}
+                        className="text-red-600 hover:text-red-800 p-1 rounded"
+                        title="Remove attachment"
+                        disabled={isLocked}
+                      >
+                        <Trash size={16} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* New Attachments Upload */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-600 mb-2">
+              {existingAttachments.length > 0 ? 'Add More Attachments:' : 'Upload Attachments:'}
+            </h4>
+            <input
+              type="file"
+              multiple
+              onChange={(e) => setAttachments(Array.from(e.target.files))}
+              disabled={isLocked}
+              className="w-full border border-gray-300 rounded-md p-2"
+            />
+            {attachments.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {attachments.map((file, idx) => (
+                  <li key={idx} className="text-sm text-gray-700 bg-gray-50 border border-gray-200 p-2 rounded flex justify-between items-center">
+                    <span>
+                      {file.name} ({Math.round(file.size / 1024)} KB)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-red-600 hover:underline ml-2"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         <div className="flex flex-wrap gap-2 justify-end pt-4 border-t">
@@ -914,6 +1222,7 @@ export default function SubcontractorWagesForm({ wageId }) {
 
       <ItemFormModal onSave={handleItemSave} />
       <SubcontractorFormModal onSave={handleSubcontractorSave} />
+      <VendorFormModal onSave={handleVendorSave} />
     </>
   )
 }
