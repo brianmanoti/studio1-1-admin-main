@@ -26,10 +26,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { ArrowUpDown, ChevronLeft, ChevronRight, Plus, MoreHorizontal, Eye, Edit, Trash2, Loader2 } from "lucide-react"
+import { ArrowUpDown, ChevronLeft, ChevronRight, Plus, MoreHorizontal, Eye, Edit, Trash2, Loader2, DollarSign } from "lucide-react"
 import { SubcontractorCreateDialog } from "./subcontractor-create-dialog"
 import { SubcontractorViewDialog } from "./subcontractor-view-dialog"
 import { SubcontractorEditDialog } from "./subcontractor-edit-dialog"
+import { BudgetAllocationDialog } from "./budget-allocation-dialog"
 
 const columns: ColumnDef<Subcontractor>[] = [
   {
@@ -65,7 +66,7 @@ const columns: ColumnDef<Subcontractor>[] = [
       const statusColors: Record<string, string> = {
         approved: "bg-green-100 text-green-800",
         pending: "bg-yellow-100 text-yellow-800",
-        rejected: "bg-red-100 text-red-800",
+        declined: "bg-red-100 text-red-800",
       }
       return (
         <span
@@ -85,7 +86,7 @@ const columns: ColumnDef<Subcontractor>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const budget = Number.parseFloat(row.getValue("totalAllocatedBudget"))
+      const budget = Number.parseFloat(row.getValue("totalAllocatedBudget") || "0")
       return <div className="font-semibold">KES {budget.toLocaleString("en-KE")}</div>
     },
   },
@@ -98,7 +99,7 @@ const columns: ColumnDef<Subcontractor>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const spent = Number.parseFloat(row.getValue("totalSpent"))
+      const spent = Number.parseFloat(row.getValue("totalSpent") || "0")
       return <div className="font-semibold">KES {spent.toLocaleString("en-KE")}</div>
     },
   },
@@ -111,8 +112,9 @@ const columns: ColumnDef<Subcontractor>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const balance = Number.parseFloat(row.getValue("netBalance"))
-      return <div className="font-semibold text-green-600">KES {balance.toLocaleString("en-KE")}</div>
+      const balance = Number.parseFloat(row.getValue("netBalance") || "0")
+      const color = balance >= 0 ? "text-green-600" : "text-red-600"
+      return <div className={`font-semibold ${color}`}>KES {balance.toLocaleString("en-KE")}</div>
     },
   },
   {
@@ -125,6 +127,7 @@ const columns: ColumnDef<Subcontractor>[] = [
 function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
   const [viewOpen, setViewOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [budgetOpen, setBudgetOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const deleteMutation = useDeleteSubcontractor()
 
@@ -148,11 +151,15 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setViewOpen(true)}>
             <Eye className="mr-2 h-4 w-4" />
-            View
+            View Details
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setEditOpen(true)}>
             <Edit className="mr-2 h-4 w-4" />
             Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setBudgetOpen(true)}>
+            <DollarSign className="mr-2 h-4 w-4" />
+            Allocate Budget
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
             <Trash2 className="mr-2 h-4 w-4" />
@@ -163,6 +170,11 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
 
       <SubcontractorViewDialog subcontractorId={subcontractor._id} open={viewOpen} onOpenChange={setViewOpen} />
       <SubcontractorEditDialog subcontractorId={subcontractor._id} open={editOpen} onOpenChange={setEditOpen} />
+      <BudgetAllocationDialog 
+        subcontractor={subcontractor} 
+        open={budgetOpen} 
+        onOpenChange={setBudgetOpen} 
+      />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

@@ -1,522 +1,463 @@
 // SubcontractorForm.tsx
-// Purpose: Subcontractor create/update form including projects & payments, integrated with EstimateSelector
+import React, { useState, useCallback } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { toast } from "sonner"
 
-import React, { useState } from "react"
-
-import { useCreateSubcontractor, useUpdateSubcontractor, type Subcontractor } from "@/hooks/use-subcontractors"
+import { 
+  useCreateSubcontractor, 
+  useUpdateSubcontractor, 
+  type Subcontractor 
+} from "@/hooks/use-subcontractors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Trash2 } from "lucide-react"
+import { Loader2, Plus, Trash2, Building, User, Phone, Mail, Hammer, CreditCard } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+
+// Validation schemas - Simplified without project allocation
+const paymentSchema = z.object({
+  amount: z.number().positive("Amount must be greater than 0"),
+  date: z.string().min(1, "Date is required"),
+  description: z.string().optional(),
+  reference: z.string().optional(),
+})
+
+const formSchema = z.object({
+  companyName: z.string().min(1, "Company name is required"),
+  contactPerson: z.string().min(1, "Contact person is required"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  email: z.string().email("Invalid email address"),
+  typeOfWork: z.string().min(1, "Type of work is required"),
+  status: z.enum(["pending", "approved", "declined"]),
+  payments: z.array(paymentSchema).default([]),
+})
+
+type FormData = z.infer<typeof formSchema>
+type Payment = z.infer<typeof paymentSchema>
 
 interface SubcontractorFormProps {
   subcontractor?: Subcontractor
   onSuccess?: () => void
+  onCancel?: () => void
 }
 
-interface Project {
-  projectId: string
-  estimateId: string
-  allocationLevel: "group" | "section" | "subsection" | "estimate"
-  allocationRef: string
-  allocationModel: "Group" | "Section" | "Subsection" | "Estimate"
-  allocatedBudget: number
-  totalWages: number
-  totalExpenses: number
-  totalPOS: number
-  progress: number
+const DEFAULT_PAYMENT: Payment = {
+  amount: 0,
+  date: new Date().toISOString().split("T")[0],
+  description: "",
+  reference: "",
 }
 
-interface Payment {
-  amount: number
-  date: string
-  description: string
-  reference: string
-}
-
-export function SubcontractorForm({ subcontractor, onSuccess }: SubcontractorFormProps) {
-  const [formData, setFormData] = useState({
-    companyName: subcontractor?.companyName || "",
-    contactPerson: subcontractor?.contactPerson || "",
-    phoneNumber: subcontractor?.phoneNumber || "",
-    email: subcontractor?.email || "",
-    typeOfWork: subcontractor?.typeOfWork || "",
-    status: subcontractor?.status || "pending",
-    projects: (subcontractor?.projects as Project[]) || [],
-    payments: (subcontractor?.payments as Payment[]) || [],
+export function SubcontractorForm({ subcontractor, onSuccess, onCancel }: SubcontractorFormProps) {
+  const [activeSection, setActiveSection] = useState<"basic" | "payments">("basic")
+  
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      companyName: subcontractor?.companyName || "",
+      contactPerson: subcontractor?.contactPerson || "",
+      phoneNumber: subcontractor?.phoneNumber || "",
+      email: subcontractor?.email || "",
+      typeOfWork: subcontractor?.typeOfWork || "",
+      status: subcontractor?.status || "pending",
+      payments: (subcontractor?.payments as Payment[]) || [],
+    },
   })
 
-  const [newProject, setNewProject] = useState<Project>({
-    projectId: "",
-    estimateId: "",
-    allocationLevel: "group",
-    allocationRef: "",
-    allocationModel: "Group",
-    allocatedBudget: 0,
-    totalWages: 0,
-    totalExpenses: 0,
-    totalPOS: 0,
-    progress: 0,
-  })
-
-  const [newPayment, setNewPayment] = useState<Payment>({
-    amount: 0,
-    date: new Date().toISOString().split("T")[0],
-    description: "",
-    reference: "",
-  })
+  const { watch, setValue, getValues } = form
+  const payments = watch("payments")
 
   const createMutation = useCreateSubcontractor()
   const updateMutation = useUpdateSubcontractor()
   const isLoading = createMutation.isPending || updateMutation.isPending
 
-  const handleAddProject = () => {
-    // basic validation: require projectId and estimateId (estimateId may be filled by EstimateSelector)
-    if (!newProject.projectId?.trim()) {
-      alert("Please enter a Project ID.")
-      return
-    }
-    if (!newProject.estimateId?.trim()) {
-      alert("Please select an Estimate using the selector above.")
-      return
-    }
+  // Payment management
+  const handleAddPayment = useCallback((payment: Payment) => {
+    const currentPayments = getValues("payments")
+    setValue("payments", [...currentPayments, payment], { shouldValidate: true })
+    toast.success("Payment added successfully")
+  }, [getValues, setValue])
 
-    setFormData(prev => ({
-      ...prev,
-      projects: [...prev.projects, { ...newProject }],
-    }))
+  const handleRemovePayment = useCallback((index: number) => {
+    const currentPayments = getValues("payments")
+    setValue("payments", currentPayments.filter((_, i) => i !== index), { shouldValidate: true })
+    toast.info("Payment removed")
+  }, [getValues, setValue])
 
-    // reset newProject to sensible defaults but keep allocation model to group
-    setNewProject({
-      projectId: "",
-      estimateId: "",
-      allocationLevel: "group",
-      allocationRef: "",
-      allocationModel: "Group",
-      allocatedBudget: 0,
-      totalWages: 0,
-      totalExpenses: 0,
-      totalPOS: 0,
-      progress: 0,
-    })
-  }
-
-  const handleRemoveProject = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      projects: prev.projects.filter((_, i) => i !== index),
-    }))
-  }
-
-  const handleAddPayment = () => {
-    if (newPayment.amount <= 0) {
-      alert("Please enter a payment amount greater than zero.")
-      return
-    }
-    setFormData(prev => ({
-      ...prev,
-      payments: [...prev.payments, { ...newPayment }],
-    }))
-    setNewPayment({
-      amount: 0,
-      date: new Date().toISOString().split("T")[0],
-      description: "",
-      reference: "",
-    })
-  }
-
-  const handleRemovePayment = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      payments: prev.payments.filter((_, i) => i !== index),
-    }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: FormData) => {
     try {
-      if ((subcontractor as any)?._id) {
+      if (subcontractor?._id) {
         await updateMutation.mutateAsync({
-          id: (subcontractor as any)._id,
-          data: formData,
+          id: subcontractor._id,
+          data: data,
         })
+        toast.success("Subcontractor updated successfully")
       } else {
-        await createMutation.mutateAsync(formData)
+        await createMutation.mutateAsync(data)
+        toast.success("Subcontractor created successfully")
       }
       onSuccess?.()
-    } catch (error) {
-      console.error("[v0] Form submission error:", error)
-      alert("Failed to submit form — check console for details.")
+    } catch (error: any) {
+      console.error("Form submission error:", error)
+      const errorMessage = error.response?.data?.message || "Failed to save subcontractor. Please try again."
+      toast.error(errorMessage)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto pr-4">
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Basic Information</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="companyName">Company Name</Label>
-            <Input
-              id="companyName"
-              value={formData.companyName}
-              onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="contactPerson">Contact Person</Label>
-            <Input
-              id="contactPerson"
-              value={formData.contactPerson}
-              onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="phoneNumber">Phone Number</Label>
-            <Input
-              id="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="typeOfWork">Type of Work</Label>
-            <Input
-              id="typeOfWork"
-              value={formData.typeOfWork}
-              onChange={(e) => setFormData({ ...formData, typeOfWork: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value) => setFormData({ ...formData, status: value as any })}
-            >
-              <SelectTrigger id="status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="declined">Declined</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* Navigation Tabs - Simplified without projects */}
+      <div className="flex space-x-1 rounded-lg bg-muted p-1">
+        {[
+          { id: "basic" as const, label: "Basic Info", icon: Building },
+          { id: "payments" as const, label: `Payments (${payments.length})`, icon: CreditCard },
+        ].map(({ id, label, icon: Icon }) => (
+          <Button
+            key={id}
+            type="button"
+            variant={activeSection === id ? "default" : "ghost"}
+            className="flex-1"
+            onClick={() => setActiveSection(id)}
+          >
+            <Icon className="h-4 w-4 mr-2" />
+            {label}
+          </Button>
+        ))}
       </div>
 
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-lg font-semibold">Projects</h3>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <ScrollArea className="h-[60vh] pr-4">
+            {activeSection === "basic" && <BasicInfoSection form={form} />}
+            {activeSection === "payments" && (
+              <PaymentsSection
+                payments={payments}
+                onAddPayment={handleAddPayment}
+                onRemovePayment={handleRemovePayment}
+              />
+            )}
+          </ScrollArea>
 
-        {formData.projects.length > 0 && (
-          <div className="space-y-2">
-            {formData.projects.map((project, index) => (
-              <Card key={index} className="bg-slate-50">
-                <CardContent className="pt-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">Project ID: {project.projectId}</p>
-                      <p className="text-xs text-gray-600">Estimate: {project.estimateId}</p>
-                      <p className="text-xs text-gray-600">Allocation: {project.allocationModel} - {project.allocationRef}</p>
-                      <p className="text-xs text-gray-600">
-                        Budget: KES {project.allocatedBudget?.toLocaleString("en-KE")}
-                      </p>
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveProject(index)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Form Actions */}
+          <div className="flex space-x-3 pt-4 border-t">
+            <Button type="submit" disabled={isLoading} className="flex-1">
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {subcontractor ? "Update Subcontractor" : "Create Subcontractor"}
+            </Button>
+            {onCancel && (
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+            )}
           </div>
-        )}
+        </form>
+      </Form>
+    </div>
+  )
+}
 
-        <Card className="bg-blue-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Add New Project</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="projectId" className="text-xs">
-                  Project ID
-                </Label>
-                <Input
-                  id="projectId"
-                  value={newProject.projectId}
-                  onChange={(e) => setNewProject({ ...newProject, projectId: e.target.value })}
-                  placeholder="Enter project ID"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="estimateId" className="text-xs">
-                  Estimate ID
-                </Label>
-                {/* Estimate ID is filled by EstimateSelector; show read-only input so user sees it */}
-                <Input
-                  id="estimateId"
-                  value={newProject.estimateId}
-                  readOnly
-                  placeholder="Select estimate with selector below"
-                  className="text-sm bg-white/60"
-                />
-              </div>
-            </div>
+// Basic Info Section Component
+interface BasicInfoSectionProps {
+  form: any
+}
 
-            {/* EstimateSelector integration */}
-            <div className="space-y-3">
-              <Label className="text-xs font-medium">Select Allocation (Estimate / Group / Section / Subsection)</Label>
-              <EstimateSelector
-                onChange={(val: { estimateId: string; estimateLevel: string; estimateTargetId: string | null }) => {
-                  setNewProject(prev => ({
-                    ...prev,
-                    estimateId: val.estimateId || prev.estimateId,
-                    allocationLevel: (val.estimateLevel as Project["allocationLevel"]) || prev.allocationLevel,
-                    allocationRef: val.estimateTargetId ?? prev.allocationRef,
-                    allocationModel:
-                      val.estimateLevel === "group"
-                        ? "Group"
-                        : val.estimateLevel === "section"
-                        ? "Section"
-                        : val.estimateLevel === "subsection"
-                        ? "Subsection"
-                        : "Estimate",
+function BasicInfoSection({ form }: BasicInfoSectionProps) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="companyName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center">
+                <Building className="h-4 w-4 mr-2" />
+                Company Name
+              </FormLabel>
+              <FormControl>
+                <Input placeholder="Enter company name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="contactPerson"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center">
+                <User className="h-4 w-4 mr-2" />
+                Contact Person
+              </FormLabel>
+              <FormControl>
+                <Input placeholder="Enter contact person" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="phoneNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center">
+                <Phone className="h-4 w-4 mr-2" />
+                Phone Number
+              </FormLabel>
+              <FormControl>
+                <Input placeholder="Enter phone number" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center">
+                <Mail className="h-4 w-4 mr-2" />
+                Email Address
+              </FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="Enter email address" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="typeOfWork"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center">
+                <Hammer className="h-4 w-4 mr-2" />
+                Type of Work
+              </FormLabel>
+              <FormControl>
+                <Input placeholder="Enter type of work" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Status</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="declined">Declined</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Payments Section Component
+interface PaymentsSectionProps {
+  payments: Payment[]
+  onAddPayment: (payment: Payment) => void
+  onRemovePayment: (index: number) => void
+}
+
+function PaymentsSection({ payments, onAddPayment, onRemovePayment }: PaymentsSectionProps) {
+  const [newPayment, setNewPayment] = useState<Payment>(DEFAULT_PAYMENT)
+
+  const handleAdd = () => {
+    try {
+      paymentSchema.parse(newPayment)
+      onAddPayment(newPayment)
+      setNewPayment(DEFAULT_PAYMENT)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const firstError = error.errors[0]
+        toast.error(`Validation error: ${firstError.message}`)
+      }
+    }
+  }
+
+  const totalPayments = payments.reduce((sum, payment) => sum + payment.amount, 0)
+  const isPaymentValid = newPayment.amount > 0 && newPayment.date
+
+  return (
+    <div className="space-y-6">
+      {/* Payment Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex justify-between items-center">
+            Payment Summary
+            <Badge variant="secondary">
+              Total: KES {totalPayments.toLocaleString("en-KE")}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+      </Card>
+
+      {/* Existing Payments */}
+      {payments.length > 0 ? (
+        <div className="space-y-3">
+          <Label>Payment History ({payments.length})</Label>
+          {payments.map((payment, index) => (
+            <PaymentCard
+              key={index}
+              payment={payment}
+              onRemove={() => onRemovePayment(index)}
+            />
+          ))}
+        </div>
+      ) : (
+        <Alert>
+          <AlertDescription>
+            No payments recorded yet. Add payments to track disbursements.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Separator />
+
+      {/* Add New Payment */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center">
+            <CreditCard className="h-5 w-5 mr-2" />
+            Add New Payment
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="paymentAmount">Amount (KES) *</Label>
+              <Input
+                id="paymentAmount"
+                value={newPayment.amount === 0 ? "" : newPayment.amount}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setNewPayment(prev => ({ 
+                    ...prev, 
+                    amount: value === "" ? 0 : Number.parseFloat(value) || 0 
                   }))
                 }}
+                placeholder="0.00"
+                className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="allocationRef" className="text-xs">
-                Allocation Reference
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="paymentDate">Date *</Label>
               <Input
-                id="allocationRef"
-                value={newProject.allocationRef}
-                onChange={(e) => setNewProject({ ...newProject, allocationRef: e.target.value })}
-                placeholder="Enter allocation reference (auto-filled by selector)"
-                className="text-sm"
+                id="paymentDate"
+                type="date"
+                value={newPayment.date}
+                onChange={(e) => setNewPayment(prev => ({ ...prev, date: e.target.value }))}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="allocatedBudget" className="text-xs">
-                  Allocated Budget (KES)
-                </Label>
-                <Input
-                  id="allocatedBudget"
-                  type="number"
-                  value={newProject.allocatedBudget}
-                  onChange={(e) =>
-                    setNewProject({ ...newProject, allocatedBudget: Number.parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="progress" className="text-xs">
-                  Progress (%)
-                </Label>
-                <Input
-                  id="progress"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={newProject.progress}
-                  onChange={(e) => setNewProject({ ...newProject, progress: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="totalWages" className="text-xs">
-                  Total Wages (KES)
-                </Label>
-                <Input
-                  id="totalWages"
-                  type="number"
-                  value={newProject.totalWages}
-                  onChange={(e) => setNewProject({ ...newProject, totalWages: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="totalExpenses" className="text-xs">
-                  Total Expenses (KES)
-                </Label>
-                <Input
-                  id="totalExpenses"
-                  type="number"
-                  value={newProject.totalExpenses}
-                  onChange={(e) =>
-                    setNewProject({ ...newProject, totalExpenses: Number.parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="totalPOS" className="text-xs">
-                  Total POS (KES)
-                </Label>
-                <Input
-                  id="totalPOS"
-                  type="number"
-                  value={newProject.totalPOS}
-                  onChange={(e) => setNewProject({ ...newProject, totalPOS: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              onClick={handleAddProject}
-              variant="outline"
-              className="w-full text-sm bg-transparent"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Project
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-lg font-semibold">Payments</h3>
-
-        {formData.payments.length > 0 && (
-          <div className="space-y-2">
-            {formData.payments.map((payment, index) => (
-              <Card key={index} className="bg-slate-50">
-                <CardContent className="pt-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">KES {payment.amount.toLocaleString("en-KE")}</p>
-                      <p className="text-xs text-gray-600">Date: {new Date(payment.date).toLocaleDateString("en-KE")}</p>
-                      {payment.description && <p className="text-xs text-gray-600">Description: {payment.description}</p>}
-                      {payment.reference && <p className="text-xs text-gray-600">Reference: {payment.reference}</p>}
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePayment(index)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </div>
-        )}
 
-        <Card className="bg-green-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Add New Payment</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="paymentAmount" className="text-xs">
-                  Amount (KES)
-                </Label>
-                <Input
-                  id="paymentAmount"
-                  type="number"
-                  value={newPayment.amount}
-                  onChange={(e) => setNewPayment({ ...newPayment, amount: Number.parseFloat(e.target.value) || 0 })}
-                  placeholder="0"
-                  className="text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="paymentDate" className="text-xs">
-                  Date
-                </Label>
-                <Input
-                  id="paymentDate"
-                  type="date"
-                  value={newPayment.date}
-                  onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
-                  className="text-sm"
-                />
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="paymentDescription">Description</Label>
+            <Input
+              id="paymentDescription"
+              value={newPayment.description}
+              onChange={(e) => setNewPayment(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Payment description"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="paymentReference">Reference</Label>
+            <Input
+              id="paymentReference"
+              value={newPayment.reference}
+              onChange={(e) => setNewPayment(prev => ({ ...prev, reference: e.target.value }))}
+              placeholder="Payment reference number"
+            />
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleAdd}
+            disabled={!isPaymentValid}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Payment
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// Individual Payment Card Component
+interface PaymentCardProps {
+  payment: Payment
+  onRemove: () => void
+}
+
+function PaymentCard({ payment, onRemove }: PaymentCardProps) {
+  return (
+    <Card>
+      <CardContent className="pt-4">
+        <div className="flex justify-between items-start">
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center space-x-2">
+              <h4 className="font-semibold">KES {payment.amount.toLocaleString("en-KE")}</h4>
+              <Badge variant="outline">
+                {new Date(payment.date).toLocaleDateString("en-KE")}
+              </Badge>
             </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="paymentDescription" className="text-xs">
-                Description
-              </Label>
-              <Input
-                id="paymentDescription"
-                value={newPayment.description}
-                onChange={(e) => setNewPayment({ ...newPayment, description: e.target.value })}
-                placeholder="Payment description"
-                className="text-sm"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="paymentReference" className="text-xs">
-                Reference
-              </Label>
-              <Input
-                id="paymentReference"
-                value={newPayment.reference}
-                onChange={(e) => setNewPayment({ ...newPayment, reference: e.target.value })}
-                placeholder="Payment reference"
-                className="text-sm"
-              />
-            </div>
-
-            <Button
-              type="button"
-              onClick={handleAddPayment}
-              variant="outline"
-              className="w-full text-sm bg-transparent"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Payment
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Button type="submit" disabled={isLoading} className="w-full">
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {subcontractor ? "Update Subcontractor" : "Create Subcontractor"}
-      </Button>
-    </form>
+            {payment.description && (
+              <p className="text-sm text-muted-foreground">{payment.description}</p>
+            )}
+            {payment.reference && (
+              <p className="text-sm">
+                <span className="font-medium">Reference:</span> {payment.reference}
+              </p>
+            )}
+          </div>
+          <Button 
+            type="button" 
+            variant="ghost" 
+            size="sm" 
+            onClick={onRemove}
+            title="Remove payment"
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
