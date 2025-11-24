@@ -188,54 +188,54 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
       const res = await axiosInstance.get(`/api/purchase-orders/${PurchaseOrderId}`)
       return res.data
     },
-    onSuccess(wage) {
-      if (!wage) return
+    onSuccess(purchase) {
+      if (!purchase) return
       
       // Map API response to form structure
       const normalized = {
         ...defaultForm,
-        ...wage,
-        projectId: wage.projectId?._id || wage.projectId || "",
-        date: formatDateToInput(wage?.date),
-        deliveryDate: formatDateToInput(wage?.deliveryDate),
-        items: Array.isArray(wage?.items) && wage.items.length ? wage.items.map(item => ({
+        ...purchase,
+        projectId: purchase.projectId?._id || purchase.projectId || "",
+        date: formatDateToInput(purchase?.date),
+        deliveryDate: formatDateToInput(purchase?.deliveryDate),
+        items: Array.isArray(purchase?.items) && purchase.items.length ? purchase.items.map(item => ({
           description: item.name || item.description || "", // Use name as description for form
           quantity: item.quantity || 1,
           unit: item.unit || "",
           unitPrice: item.unitPrice || 0
         })) : [emptyItem()],
-        subcontractorName: wage.subcontractorName || "",
-        vendorName: wage.vendorName || "",
-        vendorContact: wage.vendorContact || "",
-        vendorEmail: wage.vendorEmail || "",
-        vendorPhone: wage.vendorPhone || "",
-        vendorAddress: wage.vendorAddress || "",
+        subcontractorName: purchase.subcontractorName || "",
+        vendorName: purchase.vendorName || "",
+        vendorContact: purchase.vendorContact || "",
+        vendorEmail: purchase.vendorEmail || "",
+        vendorPhone: purchase.vendorPhone || "",
+        vendorAddress: purchase.vendorAddress || "",
       }
       
       setForm(normalized)
       setInitialSnapshot(JSON.stringify(normalized))
-      setIsDeletedMode(!!wage?.isDeleted)
+      setIsDeletedMode(!!purchase?.isDeleted)
       
       // Set existing attachments
-      if (Array.isArray(wage.attachments)) {
-        setExistingAttachments(wage.attachments)
+      if (Array.isArray(purchase.attachments)) {
+        setExistingAttachments(purchase.attachments)
       }
       
       // Set estimate data if exists
-      if (wage.estimateId) {
+      if (purchase.estimateId) {
         setEstimateData({
-          estimateId: wage.estimateId,
-          estimateLevel: wage.estimateLevel || "estimate",
-          estimateTargetId: wage.estimateTargetId || ""
+          estimateId: purchase.estimateId,
+          estimateLevel: purchase.estimateLevel || "estimate",
+          estimateTargetId: purchase.estimateTargetId || ""
         })
       }
 
       // Set search terms if exists
-      if (wage.vendorName) {
-        setVendorSearch(wage.vendorName)
+      if (purchase.vendorName) {
+        setVendorSearch(purchase.vendorName)
       }
-      if (wage.subcontractorName) {
-        setSubcontractorSearch(wage.subcontractorName)
+      if (purchase.subcontractorName) {
+        setSubcontractorSearch(purchase.subcontractorName)
       }
     },
     onError() {
