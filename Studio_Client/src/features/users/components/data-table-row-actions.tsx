@@ -47,7 +47,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() =>
-            navigate({ to: `/users/$userId/permissions` })
+            navigate({ to: `/users/$userId` })
           }
           >
             Permissions

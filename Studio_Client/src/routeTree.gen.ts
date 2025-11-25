@@ -40,6 +40,7 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedProjectsProjectIdRouteRouteImport } from './routes/_authenticated/projects/$projectId/route'
+import { Route as AuthenticatedUsersUserIdIndexRouteImport } from './routes/_authenticated/users/$userId/index'
 import { Route as AuthenticatedProjectsNewIndexRouteImport } from './routes/_authenticated/projects/new/index'
 import { Route as AuthenticatedProjectsProjectIdIndexRouteImport } from './routes/_authenticated/projects/$projectId/index'
 import { Route as AuthenticatedProjectsProjectIdWagesIndexRouteImport } from './routes/_authenticated/projects/$projectId/wages/index'
@@ -244,6 +245,12 @@ const AuthenticatedProjectsProjectIdRouteRoute =
   AuthenticatedProjectsProjectIdRouteRouteImport.update({
     id: '/projects/$projectId',
     path: '/projects/$projectId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedUsersUserIdIndexRoute =
+  AuthenticatedUsersUserIdIndexRouteImport.update({
+    id: '/users/$userId/',
+    path: '/users/$userId/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedProjectsNewIndexRoute =
@@ -561,6 +568,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof AuthenticatedUsersIndexRoute
   '/projects/$projectId/': typeof AuthenticatedProjectsProjectIdIndexRoute
   '/projects/new': typeof AuthenticatedProjectsNewIndexRoute
+  '/users/$userId': typeof AuthenticatedUsersUserIdIndexRoute
   '/projects/$projectId/budget': typeof AuthenticatedProjectsProjectIdBudgetIndexRoute
   '/projects/$projectId/clients': typeof AuthenticatedProjectsProjectIdClientsIndexRoute
   '/projects/$projectId/edit': typeof AuthenticatedProjectsProjectIdEditIndexRoute
@@ -632,6 +640,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersIndexRoute
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdIndexRoute
   '/projects/new': typeof AuthenticatedProjectsNewIndexRoute
+  '/users/$userId': typeof AuthenticatedUsersUserIdIndexRoute
   '/projects/$projectId/budget': typeof AuthenticatedProjectsProjectIdBudgetIndexRoute
   '/projects/$projectId/clients': typeof AuthenticatedProjectsProjectIdClientsIndexRoute
   '/projects/$projectId/edit': typeof AuthenticatedProjectsProjectIdEditIndexRoute
@@ -709,6 +718,7 @@ export interface FileRoutesById {
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/projects/$projectId/': typeof AuthenticatedProjectsProjectIdIndexRoute
   '/_authenticated/projects/new/': typeof AuthenticatedProjectsNewIndexRoute
+  '/_authenticated/users/$userId/': typeof AuthenticatedUsersUserIdIndexRoute
   '/_authenticated/projects/$projectId/budget/': typeof AuthenticatedProjectsProjectIdBudgetIndexRoute
   '/_authenticated/projects/$projectId/clients/': typeof AuthenticatedProjectsProjectIdClientsIndexRoute
   '/_authenticated/projects/$projectId/edit/': typeof AuthenticatedProjectsProjectIdEditIndexRoute
@@ -785,6 +795,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/projects/$projectId/'
     | '/projects/new'
+    | '/users/$userId'
     | '/projects/$projectId/budget'
     | '/projects/$projectId/clients'
     | '/projects/$projectId/edit'
@@ -856,6 +867,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/projects/$projectId'
     | '/projects/new'
+    | '/users/$userId'
     | '/projects/$projectId/budget'
     | '/projects/$projectId/clients'
     | '/projects/$projectId/edit'
@@ -932,6 +944,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users/'
     | '/_authenticated/projects/$projectId/'
     | '/_authenticated/projects/new/'
+    | '/_authenticated/users/$userId/'
     | '/_authenticated/projects/$projectId/budget/'
     | '/_authenticated/projects/$projectId/clients/'
     | '/_authenticated/projects/$projectId/edit/'
@@ -1207,6 +1220,13 @@ declare module '@tanstack/react-router' {
       path: '/projects/$projectId'
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof AuthenticatedProjectsProjectIdRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/users/$userId/': {
+      id: '/_authenticated/users/$userId/'
+      path: '/users/$userId'
+      fullPath: '/users/$userId'
+      preLoaderRoute: typeof AuthenticatedUsersUserIdIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/projects/new/': {
@@ -1685,6 +1705,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedProjectsNewIndexRoute: typeof AuthenticatedProjectsNewIndexRoute
+  AuthenticatedUsersUserIdIndexRoute: typeof AuthenticatedUsersUserIdIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1699,6 +1720,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedProjectsNewIndexRoute: AuthenticatedProjectsNewIndexRoute,
+  AuthenticatedUsersUserIdIndexRoute: AuthenticatedUsersUserIdIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
