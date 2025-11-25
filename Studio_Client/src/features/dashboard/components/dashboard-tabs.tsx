@@ -103,8 +103,8 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-950">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-4 lg:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-950 rounded-md">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-2 lg:p-1.5 ">
         {/* Enhanced Tabs Header */}
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
@@ -145,7 +145,7 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
         </div>
 
         {/* DASHBOARD TAB */}
-        <TabsContent value="dashboard" className="space-y-8">
+        <TabsContent value="dashboard" className="space-y-5">
           {/* Document Type Switcher */}
           <Card className="border-blue-200 dark:border-blue-800 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg pb-4">

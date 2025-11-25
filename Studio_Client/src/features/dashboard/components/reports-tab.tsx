@@ -112,11 +112,11 @@ export function ReportsTab({ data }: ReportsTabProps) {
       <div className="mb-8 sm:mb-10">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white text-pretty mb-2">
+            <h1 className="text-2xl sm:text-4xl  font-bold text-slate-900 dark:text-white text-pretty mb-2">
               Financial Overview
             </h1>
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 text-pretty">
-              {data.project.name} • Real-time project financial insights
+              <span className="text-xl font-bold">Project :</span> {data.project.name} • Real-time project financial insights
             </p>
           </div>
         </div>
@@ -209,13 +209,13 @@ export function ReportsTab({ data }: ReportsTabProps) {
           </Card>
 
           <Card className="border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-800">
-            <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-5 px-6 rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-6 rounded-t-lg">
               <CardTitle className="text-lg">Status Overview</CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <CardContent className="p-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {Object.entries(data.summaries).map(([type, statuses]) => (
-                  <div key={type} className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-5 border border-slate-200 dark:border-slate-600">
+                  <div key={type} className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-1.5 border border-slate-200 dark:border-slate-600">
                     <h4 className="font-semibold text-slate-900 dark:text-white mb-4 text-sm uppercase tracking-wide">
                       {type}
                     </h4>
