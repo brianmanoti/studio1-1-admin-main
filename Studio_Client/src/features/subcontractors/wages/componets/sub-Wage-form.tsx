@@ -174,7 +174,7 @@ export default function SubWageOrderForm({ wageId }) {
 
   // ------------------ Fetch Existing Wage ------------------
   useQuery({
-    queryKey: ["wages", wageId],
+    queryKey: ["sub-wages", wageId],
     enabled: !!wageId,
     queryFn: async () => (await axiosInstance.get(`/api/wages/${wageId}`)).data,
     onSuccess: (po) => {
@@ -227,7 +227,7 @@ export default function SubWageOrderForm({ wageId }) {
   const createMutation = useMutation({
     mutationFn: payload => axiosInstance.post("/api/wages", payload).then(res => res.data),
     onSuccess: () => {
-      queryClient.invalidateQueries(["wages"])
+      queryClient.invalidateQueries(["sub-wages"])
       navigate({ to: `/projects/$projectId/subcontractors/wages` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to create wage order")
@@ -236,7 +236,7 @@ export default function SubWageOrderForm({ wageId }) {
   const updateMutation = useMutation({
     mutationFn: payload => axiosInstance.put(`/api/wages/${wageId}`, payload).then(res => res.data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries(["wages", wageId])
+      queryClient.invalidateQueries(["sub-wages", wageId])
       navigate({ to: `/wages/${data._id}` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to update wage order")
@@ -348,7 +348,7 @@ export default function SubWageOrderForm({ wageId }) {
     if (!confirm("Soft delete this wage order?")) return
     try {
       await axiosInstance.delete(`/api/wages/${wageId}`)
-      queryClient.invalidateQueries(["wages"])
+      queryClient.invalidateQueries(["sub-wages", wageId])
       navigate({ to: "/wages" })
     } catch (err) { 
       setServerError(err?.response?.data?.message || "Delete failed") 

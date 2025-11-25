@@ -182,7 +182,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
 
   // ------------------- Fetch existing PurchaseRecord -------------------
   const { data: PurchaseData, isLoading: isPurchaseLoading } = useQuery({
-    queryKey: ["purchases", PurchaseOrderId],
+    queryKey: ['purchaseOrders', PurchaseOrderId],
     enabled: !!PurchaseOrderId,
     queryFn: async () => {
       const res = await axiosInstance.get(`/api/purchase-orders/${PurchaseOrderId}`)
@@ -250,7 +250,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
         headers: { "Content-Type": "multipart/form-data" },
       }).then((res) => res.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchases"] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
       navigate({ to: `/projects/$projectId/subcontractors/purchase-orders` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to create Purchaserecord"),
@@ -262,7 +262,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
         headers: { "Content-Type": "multipart/form-data" },
       }).then((res) => res.data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["purchases", PurchaseOrderId] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', PurchaseOrderId] })
       navigate({ to: `/subcontractors/purchase-orders/${data._id}` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to update Purchaserecord"),
