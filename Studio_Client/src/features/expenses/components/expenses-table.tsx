@@ -1,5 +1,3 @@
-// src/components/ExpensesTable.tsx
-'use client'
 
 import * as React from 'react'
 import {
@@ -190,11 +188,22 @@ function getColumns({
       accessorKey: 'status',
       header: 'Status',
       cell: ({ getValue, row }) => {
-        const status = getValue() as Expense['status']
+        const status = getValue() as Wage['status']
+        
+        // Map status to colors
+        const statusColors: Record<Wage['status'], string> = {
+          pending: 'bg-yellow-100 text-yellow-800',
+          approved: 'bg-green-100 text-green-800',
+          declined: 'bg-red-100 text-red-800',
+        }
+
         return (
-          <div className="cursor-pointer" onClick={() => onView?.(row.original)}>
+          <span
+            className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${statusColors[status]} cursor-pointer`}
+            onClick={() => onView?.(row.original)}
+          >
             {status.charAt(0).toUpperCase() + status.slice(1)}
-          </div>
+          </span>
         )
       },
     },

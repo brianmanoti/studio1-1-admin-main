@@ -19,7 +19,7 @@ type BaseRow = {
 
 interface DataTableActionMenuProps<T extends BaseRow> {
   row: T
-  entityName?: string // e.g., "wage", "purchase order"
+  entityName?: string
   onView?: (row: T) => void
   onEdit?: (row: T) => void
   onApprove?: (row: T, close: () => void) => void
@@ -28,9 +28,6 @@ interface DataTableActionMenuProps<T extends BaseRow> {
   isMutating?: boolean
 }
 
-/**
- * Responsive, accessible action menu used across tables (Wages, POs, etc.)
- */
 export function DataTableActionMenu<T extends BaseRow>({
   row,
   entityName = 'item',
@@ -46,35 +43,56 @@ export function DataTableActionMenu<T extends BaseRow>({
     action?: 'approve' | 'reject' | 'delete'
   }>({ open: false })
 
+  const [loadingAction, setLoadingAction] = React.useState<'approve' | 'reject' | 'delete' | null>(null)
+
   const handleConfirm = () => {
     if (!dialog.action) return
-    if (dialog.action === 'approve') onApprove?.(row, () => setDialog({ open: false }))
-    if (dialog.action === 'reject') onReject?.(row, () => setDialog({ open: false }))
-    if (dialog.action === 'delete') onDelete?.(row, () => setDialog({ open: false }))
+
+    setLoadingAction(dialog.action)
+    const close = () => {
+      setDialog({ open: false })
+      setLoadingAction(null)
+    }
+
+    if (dialog.action === 'approve') onApprove?.(row, close)
+    if (dialog.action === 'reject') onReject?.(row, close)
+    if (dialog.action === 'delete') onDelete?.(row, close)
   }
 
-  const disabled = isMutating
+  const disabled = isMutating || loadingAction !== null
+
+  const Spinner = () => (
+    <svg
+      className="animate-spin h-4 w-4 text-current"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      ></circle>
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+      ></path>
+    </svg>
+  )
 
   const ActionButtons = (
     <div className="hidden md:flex items-center space-x-2">
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={() => onView?.(row)}
-        aria-label="View"
-        disabled={disabled}
-      >
+      <Button size="icon" variant="ghost" onClick={() => onView?.(row)} aria-label="View" disabled={disabled}>
         <Eye className="w-4 h-4" />
       </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={() => onEdit?.(row)}
-        aria-label="Edit"
-        disabled={disabled}
-      >
+      <Button size="icon" variant="ghost" onClick={() => onEdit?.(row)} aria-label="Edit" disabled={disabled}>
         <Pencil className="w-4 h-4" />
       </Button>
+
       {row.status !== 'approved' && row.status !== 'declined' && (
         <>
           <Button
@@ -84,8 +102,9 @@ export function DataTableActionMenu<T extends BaseRow>({
             aria-label="Approve"
             disabled={disabled}
           >
-            <Check className="w-4 h-4 text-green-600" />
+            {loadingAction === 'approve' ? <Spinner /> : <Check className="w-4 h-4 text-green-600" />}
           </Button>
+
           <Button
             size="icon"
             variant="outline"
@@ -93,10 +112,11 @@ export function DataTableActionMenu<T extends BaseRow>({
             aria-label="Reject"
             disabled={disabled}
           >
-            <X className="w-4 h-4 text-red-600" />
+            {loadingAction === 'reject' ? <Spinner /> : <X className="w-4 h-4 text-red-600" />}
           </Button>
         </>
       )}
+
       <Button
         size="icon"
         variant="destructive"
@@ -104,7 +124,7 @@ export function DataTableActionMenu<T extends BaseRow>({
         aria-label="Delete"
         disabled={disabled}
       >
-        <Trash className="w-4 h-4" />
+        {loadingAction === 'delete' ? <Spinner /> : <Trash className="w-4 h-4" />}
       </Button>
     </div>
   )
@@ -126,26 +146,16 @@ export function DataTableActionMenu<T extends BaseRow>({
           </DropdownMenuItem>
           {row.status !== 'approved' && row.status !== 'declined' && (
             <>
-              <DropdownMenuItem
-                onClick={() => setDialog({ open: true, action: 'approve' })}
-                disabled={disabled}
-              >
-                <Check className="mr-2 h-4 w-4 text-green-600" /> Approve
+              <DropdownMenuItem onClick={() => setDialog({ open: true, action: 'approve' })} disabled={disabled}>
+                {loadingAction === 'approve' ? <Spinner /> : <Check className="mr-2 h-4 w-4 text-green-600" />} Approve
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setDialog({ open: true, action: 'reject' })}
-                disabled={disabled}
-              >
-                <X className="mr-2 h-4 w-4 text-red-600" /> Reject
+              <DropdownMenuItem onClick={() => setDialog({ open: true, action: 'reject' })} disabled={disabled}>
+                {loadingAction === 'reject' ? <Spinner /> : <X className="mr-2 h-4 w-4 text-red-600" />} Reject
               </DropdownMenuItem>
             </>
           )}
-          <DropdownMenuItem
-            className="text-red-600"
-            onClick={() => setDialog({ open: true, action: 'delete' })}
-            disabled={disabled}
-          >
-            <Trash className="mr-2 h-4 w-4" /> Delete
+          <DropdownMenuItem onClick={() => setDialog({ open: true, action: 'delete' })} className="text-red-600" disabled={disabled}>
+            {loadingAction === 'delete' ? <Spinner /> : <Trash className="mr-2 h-4 w-4" />} Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

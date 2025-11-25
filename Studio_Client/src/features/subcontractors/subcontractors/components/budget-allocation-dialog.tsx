@@ -23,7 +23,7 @@ const allocationSchema = z.object({
   estimateId: z.string().min(1, "Estimate is required"), // ✅ Now required
   allocationLevel: z.enum(["group", "section", "subsection"]), // ✅ Removed "estimate"
   allocationRef: z.string().min(1, "Allocation reference is required"),
-  // ❌ REMOVED: allocationModel
+  //  REMOVED: allocationModel
   allocatedBudget: z.number().min(1, "Budget must be greater than 0"),
 })
 
@@ -68,7 +68,7 @@ export function BudgetAllocationDialog({ subcontractor, open, onOpenChange }: Bu
         allocatedBudget: data.allocatedBudget,
         allocationLevel: data.allocationLevel,
         allocationRef: data.allocationRef
-        // ❌ REMOVED: allocationModel
+        //  REMOVED: allocationModel
       })
 
       console.log("Budget allocation response:", response.data) // Debug log
