@@ -119,14 +119,6 @@ export function ReportsTab({ data }: ReportsTabProps) {
               {data.project.name} • Real-time project financial insights
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-xs sm:text-sm">
-              ● Live Data
-            </Badge>
-            <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Just now
-            </span>
-          </div>
         </div>
       </div>
 
@@ -314,10 +306,10 @@ export function ReportsTab({ data }: ReportsTabProps) {
             <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-5 px-6 rounded-t-lg">
               <CardTitle className="text-lg">Status Summary by Type</CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <CardContent className="p-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-2">
                 {Object.entries(data.summaries).map(([type, statuses]) => (
-                  <div key={type} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <div key={type} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
                     <h4 className="font-semibold text-gray-900 dark:text-white mb-3 text-sm uppercase tracking-wide">
                       {type}
                     </h4>
