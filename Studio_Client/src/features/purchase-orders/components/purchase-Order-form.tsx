@@ -15,6 +15,13 @@ import EstimateSelector from "@/features/estimates/estimates/components/estimate
 import { useProjectStore } from "@/stores/projectStore"
 import { Trash2, X, ArrowLeft, FileText, Truck, Building, Package, Paperclip, AlertCircle, File, Image, Download, CheckCircle } from "lucide-react"
 import ItemAutocomplete from "./items-auto-select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0, name: "" })
 
@@ -135,6 +142,26 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
     staleTime: 1000 * 60 * 5,
   })
 
+  // Fetch estimates for the current project
+  const {
+    data: estimates = [],
+    isLoading: isLoadingEstimates,
+  } = useQuery({
+    queryKey: ["estimatesByProject", CurrentProjectId],
+    queryFn: async () => {
+      if (!CurrentProjectId) return []
+      try {
+        const res = await axiosInstance.get(`/api/estimates/project/${CurrentProjectId}`)
+        return res.data
+      } catch (err) {
+        if (err.response?.status === 404) return []
+        throw err
+      }
+    },
+    enabled: !!CurrentProjectId,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const { data: itemList = [] } = useQuery({
     queryKey: ["itemsList"],
     queryFn: async () => {
@@ -172,102 +199,122 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
     },
   })
 
-// ------------------- Mutations -------------------
-const createMutation = useMutation({
-  mutationFn: (payload: FormData) =>
-    axiosInstance
-      .post("/api/purchase-orders", payload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-      .then((res) => res.data),
-  onSuccess: (data) => {
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] })
-    setSubmitAttempted(false)
-    setSuccessMessage("Purchase order created successfully!")
-    setIsSubmitting(false) // FIX: Reset submitting state
-    setTimeout(() => {
-      setSuccessMessage(null)
-      // FIX: Navigate after showing success message
-      navigate({ 
-        to: `/projects/$projectId/purchaseOrders`,
-        params: { projectId: data.projectId || CurrentProjectId }
-      })
-    }, 2000) // Reduced timeout for better UX
-  },
-  onError: (err) => {
-    setServerError(err?.response?.data?.message || "Failed to create purchase order")
-    setIsSubmitting(false) // FIX: Reset submitting state
-    setSubmitAttempted(true)
-  },
-})
+  // ------------------- Mutations -------------------
+  const createMutation = useMutation({
+    mutationFn: (payload: FormData) =>
+      axiosInstance
+        .post("/api/purchase-orders", payload, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+        .then((res) => res.data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      setSubmitAttempted(false)
+      setSuccessMessage("Purchase order created successfully!")
+      setIsSubmitting(false)
+      setTimeout(() => {
+        setSuccessMessage(null)
+        navigate({ 
+          to: `/projects/$projectId/purchaseOrders`,
+          params: { projectId: data.projectId?._id || data.projectId || CurrentProjectId }
+        })
+      }, 2000)
+    },
+    onError: (err) => {
+      setServerError(err?.response?.data?.message || "Failed to create purchase order")
+      setIsSubmitting(false)
+      setSubmitAttempted(true)
+    },
+  })
 
-const updateMutation = useMutation({
-  mutationFn: (payload: FormData) =>
-    axiosInstance
-      .put(`/api/purchase-orders/${purchaseOrderId}`, payload, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-      .then((res) => res.data),
-  onSuccess: (data) => {
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrders", purchaseOrderId] })
-    queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] })
-    setSubmitAttempted(false)
-    
-    // Update local state with response data
-    const updatedForm = {
-      ...data,
-      date: formatDateToInput(data.date),
-      deliveryDate: formatDateToInput(data.deliveryDate),
-      items: Array.isArray(data.items) && data.items.length ? 
-        data.items.map(item => ({
-          description: item.description || "",
-          quantity: item.quantity || 1,
-          unit: item.unit || "",
-          unitPrice: item.unitPrice || 0,
-          name: item.name || ""
-        })) : [emptyItem()],
-      amount: data.amount || 0, // Ensure amount is always a number
-    }
-    
-    setForm(updatedForm)
-    setInitialSnapshot(JSON.stringify(updatedForm))
-    setExistingAttachments(data.attachments || [])
-    
-    // Reset attachment states
-    setNewAttachments([])
-    setRemoveAttachments([])
-    setForceReplaceAttachments(false)
-    
-    setSuccessMessage("Purchase order updated successfully!")
-    setIsSubmitting(false) // FIX: Reset submitting state
-    setTimeout(() => {
-      setSuccessMessage(null)
-      // FIX: Navigate after showing success message for edits too
-      navigate({ 
-        to: `/projects/$projectId/purchaseOrders`,
-        params: { projectId: data.projectId || CurrentProjectId }
-      })
-    }, 2000)
-  },
-  onError: (err) => {
-    setServerError(err?.response?.data?.message || "Failed to update purchase order")
-    setIsSubmitting(false) // FIX: Reset submitting state
-    setSubmitAttempted(true)
-  },
-})
+  const updateMutation = useMutation({
+    mutationFn: (payload: FormData) =>
+      axiosInstance
+        .put(`/api/purchase-orders/${purchaseOrderId}`, payload, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+        .then((res) => res.data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrders", purchaseOrderId] })
+      queryClient.invalidateQueries({ queryKey: ["purchaseOrders"] })
+      setSubmitAttempted(false)
+      
+      // Handle nested projectId structure from API response
+      const projectId = data.projectId?._id || data.projectId
+      
+      const updatedForm = {
+        ...data,
+        projectId: projectId || "",
+        date: formatDateToInput(data.date),
+        deliveryDate: formatDateToInput(data.deliveryDate),
+        items: Array.isArray(data.items) && data.items.length ? 
+          data.items.map(item => ({
+            description: item.description || "",
+            quantity: item.quantity || 1,
+            unit: item.unit || "",
+            unitPrice: item.unitPrice || 0,
+            name: item.name || ""
+          })) : [emptyItem()],
+        amount: data.amount || 0,
+      }
+      
+      setForm(updatedForm)
+      setInitialSnapshot(JSON.stringify(updatedForm))
+      setExistingAttachments(data.attachments || [])
+      
+      setNewAttachments([])
+      setRemoveAttachments([])
+      setForceReplaceAttachments(false)
+      
+      setSuccessMessage("Purchase order updated successfully!")
+      setIsSubmitting(false)
+      setTimeout(() => {
+        setSuccessMessage(null)
+        navigate({ 
+          to: `/projects/$projectId/purchaseOrders`,
+          params: { projectId: projectId || CurrentProjectId }
+        })
+      }, 2000)
+    },
+    onError: (err) => {
+      setServerError(err?.response?.data?.message || "Failed to update purchase order")
+      setIsSubmitting(false)
+      setSubmitAttempted(true)
+    },
+  })
 
   // ------------------- Effects -------------------
+  // Auto-fill project ID when available
   useEffect(() => {
     if (!isProjectsLoading && CurrentProjectId && !form.projectId && !purchaseOrderId) {
       setField("projectId", CurrentProjectId)
     }
   }, [isProjectsLoading, CurrentProjectId, form.projectId, purchaseOrderId])
 
+  // Auto-select first estimate when estimates load and no estimate is selected
+  useEffect(() => {
+    if (estimates.length > 0 && !form.estimateId && !purchaseOrderId) {
+      const firstEstimate = estimates[0]
+      if (firstEstimate) {
+        setForm(prev => ({
+          ...prev,
+          estimateId: firstEstimate.estimateId || firstEstimate._id,
+          estimateLevel: "estimate",
+          estimateTargetId: firstEstimate.estimateId || firstEstimate._id
+        }))
+      }
+    }
+  }, [estimates, purchaseOrderId])
+
+  // Load purchase order data when editing - FIXED for nested projectId
   useEffect(() => {
     if (!purchaseOrder || !purchaseOrderId) return
 
+    // Handle nested projectId structure
+    const projectId = purchaseOrder.projectId?._id || purchaseOrder.projectId
+
     const poFormData = {
-      projectId: purchaseOrder.projectId || "",
+      projectId: projectId || "",
       reference: purchaseOrder.reference || "",
       company: purchaseOrder.company || "",
       status: purchaseOrder.status || "pending",
@@ -286,9 +333,10 @@ const updateMutation = useMutation({
           quantity: item.quantity || 1,
           unit: item.unit || "",
           unitPrice: item.unitPrice || 0,
-          name: item.name || ""
+          name: item.name || "",
+          _id: item._id // Preserve item IDs for updates
         })) : [emptyItem()],
-      amount: purchaseOrder.amount || 0, // Ensure amount is always a number
+      amount: purchaseOrder.amount || 0,
       estimateId: purchaseOrder.estimateId || "",
       estimateLevel: purchaseOrder.estimateLevel || "estimate",
       estimateTargetId: purchaseOrder.estimateTargetId || "",
@@ -302,7 +350,7 @@ const updateMutation = useMutation({
     }
   }, [purchaseOrder, purchaseOrderId])
 
-  // Calculate amount using useMemo instead of useEffect to prevent unnecessary re-renders
+  // Calculate amount using useMemo
   const calculatedAmount = useMemo(() => 
     form.items.reduce((acc, it) => {
       const quantity = Number(it.quantity) || 0
@@ -312,7 +360,7 @@ const updateMutation = useMutation({
     [form.items]
   )
 
-  // Update form with calculated amount - ensure it's always a number
+  // Update form with calculated amount
   useEffect(() => {
     if (calculatedAmount !== form.amount) {
       setForm(f => ({ ...f, amount: calculatedAmount }))
@@ -361,7 +409,6 @@ const updateMutation = useMutation({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || [])
     
-    // Filter out duplicates by name and size
     const uniqueNewFiles = selectedFiles.filter(newFile => 
       !newAttachments.some(existingFile => 
         existingFile.name === newFile.name && existingFile.size === newFile.size
@@ -370,7 +417,6 @@ const updateMutation = useMutation({
     
     setNewAttachments(prev => [...prev, ...uniqueNewFiles])
     
-    // Reset file input to allow selecting same files again
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -386,9 +432,10 @@ const updateMutation = useMutation({
   }
 
   const handleDownloadAttachment = (attachment: any) => {
-    // Create a temporary link to download the file
+    // Create download URL from the stored file path
+    const fileUrl = attachment.url || `${axiosInstance.defaults.baseURL}/${attachment.path}`
     const link = document.createElement('a')
-    link.href = attachment.url || attachment.fileUrl
+    link.href = fileUrl
     link.download = attachment.fileName
     document.body.appendChild(link)
     link.click()
@@ -425,7 +472,6 @@ const updateMutation = useMutation({
     setField("vendorContact", vendor.vendorContact || "")
   }, [setField])
 
-  // FIXED: Memoized onEstimateChange to prevent infinite loop
   const onEstimateChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }: { 
     estimateId: string; 
     estimateLevel: string; 
@@ -434,7 +480,6 @@ const updateMutation = useMutation({
     setForm((f) => ({ ...f, estimateId, estimateLevel, estimateTargetId }))
   }, [])
 
-  // FIXED: Memoized initialValues for EstimateSelector
   const estimateInitialValues = useMemo(() => ({
     estimateId: form.estimateId,
     estimateLevel: form.estimateLevel,
@@ -479,34 +524,31 @@ const updateMutation = useMutation({
     try {
       const formData = new FormData()
 
-      // Append all form fields
       Object.keys(form).forEach((key) => {
         if (key === "items") {
-          // Always send items as JSON string
-          formData.append("items", JSON.stringify(form.items))
-        } else if (key !== "amount") { // Skip calculated field
+          // Remove _id from items before sending to avoid validation issues
+          const itemsToSend = form.items.map(({ _id, ...item }) => item)
+          formData.append("items", JSON.stringify(itemsToSend))
+        } else if (key !== "amount" && key !== "_id") {
           const value = form[key as keyof typeof form]
           formData.append(key, value !== undefined && value !== null ? value.toString() : "")
         }
       })
 
-      // Append new files as File[] (only if there are new files)
       newAttachments.forEach((file) => {
         formData.append("attachments", file)
       })
 
-      // Append files to delete as string[] (only if there are files to remove)
       if (removeAttachments.length > 0) {
         formData.append("removeAttachments", JSON.stringify(removeAttachments))
       }
 
-      // Append force replace flag if needed
       if (forceReplaceAttachments) {
         formData.append("forceReplaceAttachments", "true")
       }
 
-      // Debug: Log what's being sent
       console.log('Submitting with:')
+      console.log('- Project ID:', form.projectId)
       console.log('- New attachments:', newAttachments.length)
       console.log('- Remove attachments:', removeAttachments)
       console.log('- Force replace:', forceReplaceAttachments)
@@ -643,7 +685,6 @@ const updateMutation = useMutation({
               <FileText className="h-5 w-5 text-blue-600 mr-2" />
               <h2 className="text-lg font-semibold text-gray-900">Estimate Link</h2>
             </div>
-            {/* FIXED: Use memoized callback and initialValues */}
             <EstimateSelector 
               onChange={onEstimateChange}
               initialValues={estimateInitialValues}
@@ -685,19 +726,24 @@ const updateMutation = useMutation({
                 ) : isProjectsError ? (
                   <p className="text-red-600 text-sm">Failed to load projects</p>
                 ) : (
-                  <select
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  <Select
                     value={form.projectId}
-                    onChange={(e) => setField("projectId", e.target.value)}
+                    onValueChange={(value) => setField("projectId", value)}
                     disabled={isLocked}
                   >
-                    <option value="">Select Project</option>
-                    {(projects || []).map((p: any) => (
-                      <option key={p._id} value={p._id}>
-                        {`${p.name} (${p.projectNumber}) — ${p.client?.companyName || "No Client"}`}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                      <SelectValue placeholder="Select Project">
+                        {form.projectId && projects?.find((p: any) => p._id === form.projectId)?.name || "Select Project"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(projects || []).map((p: any) => (
+                        <SelectItem key={p._id} value={p._id}>
+                          {`${p.name} (${p.projectNumber}) — ${p.client?.companyName || "No Client"}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
                 {errors.projectId && <p className="text-red-600 text-sm mt-1">{errors.projectId}</p>}
               </div>
@@ -873,7 +919,6 @@ const updateMutation = useMutation({
                 <h2 className="text-lg font-semibold text-gray-900">Items</h2>
               </div>
               <div className="text-lg font-semibold text-gray-900">
-                {/* FIXED: Safe amount display */}
                 Total: <span className="text-blue-600">{formatCurrency(form.amount)}</span>
               </div>
             </div>
@@ -973,7 +1018,7 @@ const updateMutation = useMutation({
                         />
                       </td>
 
-                      {/* ROW TOTAL - FIXED: Safe calculation */}
+                      {/* ROW TOTAL */}
                       <td className="px-2 py-1 font-medium text-gray-900 text-sm align-top">
                         {calculateItemTotal(it.quantity, it.unitPrice)}
                       </td>
