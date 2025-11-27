@@ -13,7 +13,6 @@ import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
 import { useProjectStore } from "@/stores/projectStore"
 import { Trash, Download, Eye } from "lucide-react"
 
-// Safe EstimateSelector Wrapper to prevent render issues
 const SafeEstimateSelector = React.memo(({ onChange }) => {
   const [localData, setLocalData] = useState({
     estimateId: "",
