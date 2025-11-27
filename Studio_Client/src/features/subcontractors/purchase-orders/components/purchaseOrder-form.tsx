@@ -1200,15 +1200,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
               {isSubmitting ? "Saving…" : PurchaseOrderId ? "Save Changes" : "Create PurchaseRecord"}
             </button>
           )}
-          {PurchaseOrderId && (
-            <button
-              type="button"
-              onClick={handleSoftDelete}
-              className="text-gray-500 border px-4 py-2 rounded hover:bg-gray-50"
-            >
-              {isDeletedMode ? "Restore (admin)" : "Soft Delete"}
-            </button>
-          )}
+z
           <button
             type="button"
             onClick={handleBack}
