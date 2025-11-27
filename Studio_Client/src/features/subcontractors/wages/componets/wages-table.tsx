@@ -575,7 +575,7 @@ export function SubWagesTable() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => navigate({ to: `/projects/${projectId}/wages/new` })}>
+          <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/wages/new` })}>
             <Plus className="w-4 h-4 mr-2" />
             Add Wage
           </Button>
@@ -648,7 +648,7 @@ export function SubWagesTable() {
                       <Button onClick={clearAllFilters} variant="outline" className="mr-2">
                         Reset filters
                       </Button>
-                      <Button onClick={() => navigate({ to: `/projects/${projectId}/wages/new` })}>
+                      <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/wages/new` })}>
                         Add Wage
                       </Button>
                     </div>

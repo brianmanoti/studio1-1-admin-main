@@ -852,15 +852,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
                 {isSubmitting ? "Saving..." : purchaseOrderId ? "Save Changes" : "Create Purchase Order"}
               </button>
             )}
-            {purchaseOrderId && (
-              <button
-                type="button"
-                onClick={handleSoftDelete}
-                className="text-red-600 border border-red-300 px-6 py-2 rounded-lg hover:bg-red-50 font-medium transition-colors"
-              >
-                {isDeletedMode ? "Restore" : "Soft Delete"}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleBack}

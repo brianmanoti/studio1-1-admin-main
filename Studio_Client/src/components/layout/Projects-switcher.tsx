@@ -1,19 +1,24 @@
+'use client'
+
 import * as React from 'react'
 import { ChevronsUpDown, Plus } from 'lucide-react'
+
 import {
   DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuContent,
 } from '@/components/ui/dropdown-menu'
+
 import {
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
   useSidebar,
 } from '@/components/ui/sidebar'
+
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useProjectStore } from '@/stores/projectStore'
 
@@ -31,37 +36,64 @@ interface ProjectsSwitcherProps {
   isError?: boolean
 }
 
-export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitcherProps) {
-  const setProjectId = useProjectStore((state) => state.setProjectId)
-
+export function ProjectsSwitcher({
+  projects = [],
+  isLoading,
+  isError,
+}: ProjectsSwitcherProps) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
   const params = useParams({ strict: false }) as { id?: string }
+  const setProjectId = useProjectStore((s) => s.setProjectId)
 
-  const [activeProject, setActiveProject] = React.useState<Project | null>(null)
+  /* -----------------------------------------------------------
+     🎯 COMPUTE ACTIVE PROJECT (NO duplicated state)
+  ----------------------------------------------------------- */
+  const activeProject = React.useMemo(() => {
+    if (projects.length === 0) return null
+    return projects.find((p) => p._id === params.id) || projects[0]
+  }, [projects, params.id])
 
+  /* -----------------------------------------------------------
+     🔄 SYNC GLOBAL STORE WHEN ACTIVE PROJECT CHANGES
+  ----------------------------------------------------------- */
   React.useEffect(() => {
-    if (projects && projects.length > 0) {
-      const found = params.id ? projects.find((p) => p._id === params.id) : null
-      const selected = found || projects[0]
-      setActiveProject(selected)
-
-      // ✅ Ensure projectId is always synced globally
-      if (selected?._id) {
-        setProjectId(selected._id)
-      }
+    if (activeProject?._id) {
+      setProjectId(activeProject._id)
     }
-  }, [projects, params.id, setProjectId])
+  }, [activeProject, setProjectId])
 
-  if (isLoading)
+  /* -----------------------------------------------------------
+     🧭 SELECT PROJECT HANDLER
+  ----------------------------------------------------------- */
+  const handleSelectProject = React.useCallback(
+    (project: Project) => {
+      setProjectId(project._id)
+      navigate({ to: '/projects/$id', params: { id: project._id } })
+    },
+    [setProjectId, navigate]
+  )
+
+  /* -----------------------------------------------------------
+     📦 RENDER: Loading / Error / Empty
+  ----------------------------------------------------------- */
+  if (isLoading) {
     return (
-      <p className="text-sm text-muted-foreground animate-pulse">
-        Loading projects...
-      </p>
+      <div className="flex items-center gap-3 animate-pulse">
+        <div className="h-8 w-8 bg-muted rounded-full" />
+        <div className="flex flex-col gap-1">
+          <div className="h-3 w-24 bg-muted rounded" />
+          <div className="h-2 w-16 bg-muted/60 rounded" />
+        </div>
+      </div>
     )
-  if (isError)
-    return <p className="text-red-500 text-sm">Failed to load projects</p>
-  if (!projects || projects.length === 0)
+  }
+
+  if (isError) {
+    return <p className="text-sm text-red-500">Failed to load projects.</p>
+  }
+
+  if (projects.length === 0) {
     return (
       <p
         className="text-gray-500 cursor-pointer hover:text-blue-600 transition"
@@ -70,7 +102,11 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
         No projects found — click to create one!
       </p>
     )
+  }
 
+  /* -----------------------------------------------------------
+     🎨 MAIN UI
+  ----------------------------------------------------------- */
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -81,16 +117,22 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <div className="flex items-center gap-2">
+                {/* Avatar Circle */}
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white font-semibold">
-                  {activeProject?.name?.charAt(0).toUpperCase()}
+                  {activeProject?.name?.charAt(0)?.toUpperCase() ?? '?'}
                 </div>
+
+                {/* Title + Company */}
                 <div className="grid flex-1 text-start text-sm leading-tight">
-                  <span className="truncate font-semibold">{activeProject?.name}</span>
+                  <span className="truncate font-semibold">
+                    {activeProject?.name}
+                  </span>
                   <span className="truncate text-xs text-muted-foreground">
                     {activeProject?.client?.companyName}
                   </span>
                 </div>
               </div>
+
               <ChevronsUpDown className="ms-auto" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -105,15 +147,12 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
               Projects
             </DropdownMenuLabel>
 
+            {/* Project List */}
             {projects.map((project) => (
               <DropdownMenuItem
                 key={project._id}
-                onClick={() => {
-                  setActiveProject(project)
-                  setProjectId(project._id) // ✅ instantly update global projectId
-                  navigate({ to: '/projects/$id', params: { id: project._id } })
-                }}
                 className="gap-2 p-2"
+                onClick={() => handleSelectProject(project)}
               >
                 {project.name}
               </DropdownMenuItem>
@@ -121,6 +160,7 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
 
             <DropdownMenuSeparator />
 
+            {/* Add New Project */}
             <DropdownMenuItem
               className="gap-2 p-2 cursor-pointer hover:bg-blue-50 transition"
               onClick={() => navigate({ to: '/projects/new' })}
@@ -128,7 +168,7 @@ export function ProjectsSwitcher({ projects, isLoading, isError }: ProjectsSwitc
               <div className="bg-background flex size-6 items-center justify-center rounded-md border">
                 <Plus className="size-4 text-blue-600" />
               </div>
-              <div className="text-blue-600 font-medium">Add Project</div>
+              <span className="text-blue-600 font-medium">Add Project</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

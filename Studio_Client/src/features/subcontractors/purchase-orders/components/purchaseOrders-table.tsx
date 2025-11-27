@@ -443,7 +443,7 @@ export function SubPurchaseOrderTable() {
           </Button>
         </div>
 
-        <Button onClick={() => navigate({ to: `/projects/${projectId}/purchaseOrders/new` })}>
+        <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/purchaseOrders/new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Purchase Order
         </Button>

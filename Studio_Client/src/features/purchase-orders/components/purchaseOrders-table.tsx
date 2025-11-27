@@ -32,6 +32,7 @@ import axiosInstance from '@/lib/axios'
 import { toast } from 'sonner'
 import { useProjectStore } from '@/stores/projectStore'
 import { DataTableActionMenu } from '@/features/purchase-orders/components/data-table-action-menu'
+import { handleApiError } from '@/utils/handleApiError'
 
 export type PurchaseOrder = {
   _id: string
@@ -347,14 +348,17 @@ export function PurchaseOrderTable() {
   const approveMutation = useMutation({
     mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] }),
+    onError: handleApiError,
   })
   const rejectMutation = useMutation({
-    mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/unapprove`),
+    mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/reject`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] }),
+    onError: handleApiError,
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}/hard`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] }),
+    onError: handleApiError,
   })
 
   const handleBulk = async (
