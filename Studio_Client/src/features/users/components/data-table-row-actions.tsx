@@ -1,3 +1,7 @@
+// 🇬🇧 This component renders action buttons (edit, permissions, delete)
+// for each row in the Users table. It extracts the user's ID from
+// row.original and uses it for navigation and context actions.
+
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
 import { ConstructionIcon, Trash2, UserPen } from 'lucide-react'
@@ -21,55 +25,66 @@ type DataTableRowActionsProps = {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useUsers()
   const navigate = useNavigate()
+
   return (
-    <>
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant='ghost'
-            className='data-[state=open]:bg-muted flex h-8 w-8 p-0'
-          >
-            <DotsHorizontalIcon className='h-4 w-4' />
-            <span className='sr-only'>Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-[160px]'>
-          <DropdownMenuItem
-            onClick={() => {
-              setCurrentRow(row.original)
-              setOpen('edit')
-            }}
-          >
-            Edit
-            <DropdownMenuShortcut>
-              <UserPen size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-            navigate({ to: `/users/$userId` })
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="data-[state=open]:bg-muted flex h-8 w-8 p-0"
+        >
+          <DotsHorizontalIcon className="h-4 w-4" />
+          <span className="sr-only">Open menu</span>
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-[160px]">
+        
+        {/* Edit user */}
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(row.original)
+            setOpen('edit')
+          }}
+        >
+          Edit
+          <DropdownMenuShortcut>
+            <UserPen size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        {/* Navigate to permissions page with the userId param */}
+        <DropdownMenuItem
+          onClick={() =>
+            navigate({
+              to: '/users/$userId',
+              params: { userId: row.original.userId },
+            })
           }
-          >
-            Permissions
-            <DropdownMenuShortcut>
-              <ConstructionIcon size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              setCurrentRow(row.original)
-              setOpen('delete')
-            }}
-            className='text-red-500!'
-          >
-            Delete
-            <DropdownMenuShortcut>
-              <Trash2 size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
+        >
+          Permissions
+          <DropdownMenuShortcut>
+            <ConstructionIcon size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        {/* Delete user */}
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(row.original)
+            setOpen('delete')
+          }}
+          className="text-red-500!"
+        >
+          Delete
+          <DropdownMenuShortcut>
+            <Trash2 size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
