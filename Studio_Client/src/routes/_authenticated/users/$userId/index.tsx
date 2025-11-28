@@ -1,3 +1,5 @@
+import { ErrorBoundary } from '@/features/users/components/permissions/ErrorBoundary';
+import { UserPermissionsPage } from '@/features/users/components/permissions/UserPermissionsPage';
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/users/$userId/')({
@@ -5,5 +7,9 @@ export const Route = createFileRoute('/_authenticated/users/$userId/')({
 })
 
 function RouteComponent() {
-  return <div>Hello "/_authenticated/users/$userId/"!</div>
+  return (
+    <ErrorBoundary>
+      <UserPermissionsPage />
+    </ErrorBoundary>
+  );
 }
