@@ -414,7 +414,7 @@ export function WagesTable() {
   // Loading skeleton (professional)
   if (isLoading) {
     return (
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 ">
         <div className="flex items-center justify-between">
           <div className="h-8 w-64 bg-muted/50 rounded animate-pulse" />
           <div className="h-8 w-32 bg-muted/50 rounded animate-pulse" />
@@ -479,7 +479,7 @@ export function WagesTable() {
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 ">
       {/* Top toolbar area */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3 flex-wrap">

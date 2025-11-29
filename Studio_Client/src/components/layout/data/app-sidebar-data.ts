@@ -21,6 +21,7 @@ import {
   ListOrderedIcon,
   HardHatIcon,
   TrendingDownIcon,
+  Projector,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -30,6 +31,11 @@ export const AppsidebarData: SidebarData = {
     {
       title: 'General',
       items: [
+        {
+          title: 'Projects',
+          url: '/',
+          icon: Projector,
+        },
         {
           title: 'Dashboard',
           url: '/projects/$projectId',

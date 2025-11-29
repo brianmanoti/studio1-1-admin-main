@@ -1,4 +1,3 @@
-// components/ProjectForm.tsx
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -108,14 +107,14 @@ export default function ProjectForm({
   const createProject = useMutation({
     mutationFn: (data: ProjectFormValues) => axiosInstance.post("/api/projects", data),
     onSuccess: () => {
-      toast.success("✅ Project created successfully!")
+      toast.success(" Project created successfully!")
       queryClient.invalidateQueries({ queryKey: ["projects"] })
       form.reset()
       onSuccess?.()
       if (redirectOnSuccess) navigate({ to: "/" })
     },
     onError: (error: any) => {
-      toast.error(error?.message || "❌ Error creating project")
+      toast.error(error?.message || " Error creating project")
     },
   })
 
@@ -128,8 +127,8 @@ export default function ProjectForm({
   }
 
   return (
-    <div className={`${!isEdit ? 'min-h-screen bg-gray-50 flex items-center justify-center p-6' : ''}`}>
-      <div className={`${!isEdit ? 'w-full max-w-3xl bg-white rounded-2xl shadow-lg p-8 relative' : 'w-full'}`}>
+    <div className={`${!isEdit ? 'min-h-screen bg-gray-50 flex items-center justify-center p-2' : ''}`}>
+      <div className={`${!isEdit ? 'w-full  bg-white rounded-2xl shadow-lg p-3 relative' : 'w-full'}`}>
         {/* ✅ Back Button */}
         {!isEdit && (
           <Button

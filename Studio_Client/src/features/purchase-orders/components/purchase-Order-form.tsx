@@ -509,59 +509,54 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
     return !Object.keys(e).length
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitAttempted(true)
-    
-    if (!validate()) {
-      window.scrollTo({ top: 0, behavior: "smooth" })
-      return
-    }
-    
-    setIsSubmitting(true)
-    setServerError(null)
-
-    try {
-      const formData = new FormData()
-
-      Object.keys(form).forEach((key) => {
-        if (key === "items") {
-          // Remove _id from items before sending to avoid validation issues
-          const itemsToSend = form.items.map(({ _id, ...item }) => item)
-          formData.append("items", JSON.stringify(itemsToSend))
-        } else if (key !== "amount" && key !== "_id") {
-          const value = form[key as keyof typeof form]
-          formData.append(key, value !== undefined && value !== null ? value.toString() : "")
-        }
-      })
-
-      newAttachments.forEach((file) => {
-        formData.append("attachments", file)
-      })
-
-      if (removeAttachments.length > 0) {
-        formData.append("removeAttachments", JSON.stringify(removeAttachments))
-      }
-
-      if (forceReplaceAttachments) {
-        formData.append("forceReplaceAttachments", "true")
-      }
-
-      console.log('Submitting with:')
-      console.log('- Project ID:', form.projectId)
-      console.log('- New attachments:', newAttachments.length)
-      console.log('- Remove attachments:', removeAttachments)
-      console.log('- Force replace:', forceReplaceAttachments)
-
-      if (purchaseOrderId) {
-        await updateMutation.mutateAsync(formData)
-      } else {
-        await createMutation.mutateAsync(formData)
-      }
-    } catch (error) {
-      console.error("Submission error:", error)
-    }
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setSubmitAttempted(true)
+  
+  if (!validate()) {
+    window.scrollTo({ top: 0, behavior: "smooth" })
+    return
   }
+  
+  setIsSubmitting(true)
+  setServerError(null)
+
+  try {
+    const formData = new FormData()
+
+    // FIXED: Now includes the amount field
+    Object.keys(form).forEach((key) => {
+      if (key === "items") {
+        // Remove _id from items before sending to avoid validation issues
+        const itemsToSend = form.items.map(({ _id, ...item }) => item)
+        formData.append("items", JSON.stringify(itemsToSend))
+      } else if (key !== "_id") {  // ← ONLY exclude _id
+        const value = form[key as keyof typeof form]
+        formData.append(key, value !== undefined && value !== null ? value.toString() : "")
+      }
+    })
+
+    newAttachments.forEach((file) => {
+      formData.append("attachments", file)
+    })
+
+    if (removeAttachments.length > 0) {
+      formData.append("removeAttachments", JSON.stringify(removeAttachments))
+    }
+
+    if (forceReplaceAttachments) {
+      formData.append("forceReplaceAttachments", "true")
+    }
+
+    if (purchaseOrderId) {
+      await updateMutation.mutateAsync(formData)
+    } else {
+      await createMutation.mutateAsync(formData)
+    }
+  } catch (error) {
+    console.error("Submission error:", error)
+  }
+}
 
   const handleBack = () => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return

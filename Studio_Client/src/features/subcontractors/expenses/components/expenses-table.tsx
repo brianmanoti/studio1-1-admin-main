@@ -480,7 +480,7 @@ export function SubExpensesTable() {
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 ">
       {/* Top toolbar area */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3 flex-wrap">
@@ -576,7 +576,7 @@ export function SubExpensesTable() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => navigate({ to: `/projects/${projectId}/expenses/new` })}>
+          <Button onClick={() => navigate({ to: `new` })}>
             <Plus className="w-4 h-4 mr-2" />
             Add Expense
           </Button>
@@ -649,7 +649,7 @@ export function SubExpensesTable() {
                       <Button onClick={clearAllFilters} variant="outline" className="mr-2">
                         Reset filters
                       </Button>
-                      <Button onClick={() => navigate({ to: `/projects/${projectId}/expenses/new` })}>
+                      <Button onClick={() => navigate({ to: `new` })}>
                         Add Expense
                       </Button>
                     </div>

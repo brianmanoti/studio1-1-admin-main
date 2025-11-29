@@ -412,7 +412,7 @@ export function SubPurchaseOrderTable() {
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
@@ -443,7 +443,7 @@ export function SubPurchaseOrderTable() {
           </Button>
         </div>
 
-        <Button onClick={() => navigate({ to: `/projects/${projectId}/subcontractors/purchaseOrders/new` })}>
+        <Button onClick={() => navigate({ to: `new` })}>
           <Plus className="w-4 h-4 mr-2" />
           Add Purchase Order
         </Button>
