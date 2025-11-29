@@ -6,25 +6,30 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { AppTitle } from './app-title'
-
+// import { AppTitle } from './app-title'
+import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
+import { ProjectsSwitcher} from './Projects-switcher'
 import { useAuthStore } from '@/stores/auth-store'
-import { AppsidebarData } from './data/app-sidebar-data'
+import { useProjects } from '@/lib/hooks/useProjects'
 
-export function AppSidebar() {
+export function ProjectSidebar() {
   const { collapsible, variant } = useLayout()
+  const { data: projects, isLoading, isError } = useProjects()
 
   const user = useAuthStore((state) => state.auth?.user)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
-        <AppTitle />
+        <ProjectsSwitcher projects={projects} isLoading= {isLoading} isError={isError}/>
+        {/* Replace <TeamSwitch /> with the following <AppTitle />
+         /* if you want to use the normal app title instead of TeamSwitch dropdown */}
+        {/* <AppTitle /> */}
       </SidebarHeader>
       <SidebarContent>
-        {AppsidebarData.navGroups.map((props) => (
+        {sidebarData.navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
       </SidebarContent>

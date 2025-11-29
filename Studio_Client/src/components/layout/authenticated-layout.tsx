@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { SkipToMain } from '@/components/skip-to-main'
 import { useAuthStore } from '@/stores/auth-store'
 import { useEffect, useState } from 'react'
+import { RouteSidebar } from './route-sidebar'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -41,6 +42,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
       <LayoutProvider>
         <SidebarProvider defaultOpen={defaultOpen}>
           <SkipToMain />
+          <RouteSidebar />
           <SidebarInset
             className={cn(
               '@container/content',
