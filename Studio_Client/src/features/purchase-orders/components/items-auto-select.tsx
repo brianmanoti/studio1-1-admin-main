@@ -1,18 +1,18 @@
 // src/components/ItemAutocomplete.tsx
 /**
- * src/components/ItemAutocomplete.tsx
- *
- * Reusable autocomplete overlay component for item lookup.
- * - Portal-based overlay so it's not clipped by table cells
- * - Keyboard accessible (ArrowUp/ArrowDown/Enter/Escape)
- * - Click outside to close
- * - Exposes controlled selection via onSelect
+ * Professional Autocomplete Component
+ * - Opens ONLY when the user types
+ * - Works in tables and multiple rows
+ * - Portal overlay (avoids clipping)
+ * - Keyboard navigation (↑ ↓ Enter Esc)
+ * - Click-outside closing
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import ItemSearchPortal from "./ItemSearchPortal";
+import { useItemsVendors } from "@/hooks/use-items-vendors";
 
-type Item = {
+export type Item = {
   id?: string | number;
   _id?: string | number;
   name?: string;
@@ -24,7 +24,7 @@ type Item = {
 type Props = {
   value: string;
   onChange: (v: string) => void;
-  items: Item[]; // full list to filter client-side
+  items: Item[];
   onSelect: (item: Item) => void;
   inputId?: string;
   placeholder?: string;
@@ -42,125 +42,162 @@ export default function ItemAutocomplete({
   disabled,
   minChars = 1,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const [activeIdx, setActiveIdx] = useState<number>(0);
-  const [filtered, setFiltered] = useState<Item[]>([]);
+  const { setFormState } = useItemsVendors();
 
-  // compute filtered
+  const inputRef = useRef<HTMLInputElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [filtered, setFiltered] = useState<Item[]>([]);
+  const [overlayStyle, setOverlayStyle] = useState<React.CSSProperties>();
+  const [userTyped, setUserTyped] = useState(false); // <-- track user typing
+
+  // ---------------------------------------------------
+  // Filtering logic — only open if user typed
+  // ---------------------------------------------------
   useEffect(() => {
-    if (!value || value.trim().length < minChars) {
+    const q = value.trim().toLowerCase();
+
+    if (!q || q.length < minChars || !userTyped) {
       setFiltered([]);
       setOpen(false);
       return;
     }
-    const q = value.toLowerCase();
-    const f = items.filter(
+
+    const results = items.filter(
       (it) =>
-        (it.name && it.name.toLowerCase().includes(q)) ||
-        (it.description && it.description.toLowerCase().includes(q)),
+        it.name?.toLowerCase().includes(q) ||
+        it.description?.toLowerCase().includes(q)
     );
-    setFiltered(f);
+
+    setFiltered(results);
     setActiveIdx(0);
-    setOpen(true);
-  }, [value, items, minChars]);
+    setOpen(results.length > 0);
+  }, [value, items, minChars, userTyped]);
 
-  // overlay positioning values
-  const [overlayStyle, setOverlayStyle] = useState<React.CSSProperties | undefined>(undefined);
-
-  const reposition = () => {
+  // ---------------------------------------------------
+  // Overlay positioning
+  // ---------------------------------------------------
+  const reposition = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
+
+    const rect = el.getBoundingClientRect();
     setOverlayStyle({
       position: "absolute",
-      top: r.bottom + window.scrollY + 6,
-      left: r.left + window.scrollX,
-      width: Math.max(260, r.width),
+      top: rect.bottom + window.scrollY + 6,
+      left: rect.left + window.scrollX,
+      width: Math.max(260, rect.width),
       zIndex: 9999,
     });
-  };
+  }, []);
 
   useEffect(() => {
     if (open) reposition();
-  }, [open, filtered.length]);
+  }, [open, filtered.length, reposition]);
 
   useEffect(() => {
-    const onResize = () => reposition();
-    const onScroll = () => reposition();
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
     return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
     };
-  }, []);
+  }, [reposition]);
 
-  // close when clicking outside
+  // ---------------------------------------------------
+  // Close on outside click
+  // ---------------------------------------------------
   useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      const t = e.target as Node | null;
-      if (!t) return;
-      if (overlayRef.current?.contains(t)) return;
-      if (inputRef.current?.contains(t)) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (overlayRef.current?.contains(target)) return;
+      if (inputRef.current?.contains(target)) return;
       setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // keyboard handling
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-      setOpen(true);
-      return;
-    }
-    if (!open) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((s) => Math.min(s + 1, Math.max(0, filtered.length - 1)));
-      scrollActiveIntoView();
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((s) => Math.max(0, s - 1));
-      scrollActiveIntoView();
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const it = filtered[activeIdx];
-      if (it) handleSelect(it);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setOpen(false);
-    }
-  };
-
+  // ---------------------------------------------------
+  // Keyboard navigation
+  // ---------------------------------------------------
   const scrollActiveIntoView = () => {
-    const el = overlayRef.current;
-    if (!el) return;
-    const active = el.querySelector<HTMLElement>("[data-autocomplete-active='true']");
+    const container = overlayRef.current;
+    if (!container) return;
+
+    const active = container.querySelector<HTMLElement>(
+      "[data-autocomplete-active='true']"
+    );
     active?.scrollIntoView({ block: "nearest" });
   };
 
-  const handleSelect = (it: Item) => {
-    onSelect(it);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open && e.key === "ArrowDown") {
+      setOpen(filtered.length > 0);
+      return;
+    }
+
+    if (!open) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+        scrollActiveIntoView();
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        setActiveIdx((i) => Math.max(0, i - 1));
+        scrollActiveIntoView();
+        break;
+
+      case "Enter":
+        e.preventDefault();
+        filtered[activeIdx] && handleSelect(filtered[activeIdx]);
+        break;
+
+      case "Escape":
+        e.preventDefault();
+        setOpen(false);
+        break;
+    }
+  };
+
+  // ---------------------------------------------------
+  // Input change — mark as user typed
+  // ---------------------------------------------------
+  const handleChange = (val: string) => {
+    setUserTyped(true);
+    onChange(val);
+  };
+
+  // ---------------------------------------------------
+  // Select handler
+  // ---------------------------------------------------
+  const handleSelect = (item: Item) => {
+    onSelect(item);
     setOpen(false);
   };
 
+  // ---------------------------------------------------
+  // Render
+  // ---------------------------------------------------
   return (
     <>
       <input
         id={inputId}
         ref={inputRef}
         value={value}
+        onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => (filtered.length > 0 ? setOpen(true) : null)}
-        onKeyDown={onKeyDown}
         disabled={disabled}
-        className="w-full border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+        onKeyDown={handleKeyDown}
         autoComplete="off"
+        className="w-full border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
       />
 
       {open && (
@@ -173,20 +210,29 @@ export default function ItemAutocomplete({
             aria-label="Item suggestions"
           >
             {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-gray-500 text-sm">No matches</div>
+              <div className="px-3 py-3 text-sm text-gray-600 flex items-center justify-between">
+                <span>No matches</span>
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => setFormState({ type: "add-item" })}
+                >
+                  + Add New Item
+                </button>
+              </div>
             ) : (
-              filtered.slice(0, 50).map((it, i) => {
-                const key = it.id ?? it._id ?? `${i}-${it.name}`;
-                const active = i === activeIdx;
+              filtered.slice(0, 50).map((it, index) => {
+                const key = it.id ?? it._id ?? `${index}-${it.name}`;
+                const active = index === activeIdx;
+
                 return (
                   <div
                     key={key}
-                    data-autocomplete-active={active ? "true" : "false"}
                     role="option"
                     aria-selected={active}
-                    onMouseEnter={() => setActiveIdx(i)}
+                    data-autocomplete-active={active ? "true" : "false"}
+                    onMouseEnter={() => setActiveIdx(index)}
                     onMouseDown={(e) => {
-                      // use mouseDown to avoid input blur before click
                       e.preventDefault();
                       handleSelect(it);
                     }}
@@ -194,9 +240,12 @@ export default function ItemAutocomplete({
                       active ? "bg-blue-50" : "hover:bg-gray-50"
                     }`}
                   >
-                    <div className="font-medium text-gray-900 truncate">{it.name}</div>
+                    <div className="font-medium text-gray-900 truncate">
+                      {it.name}
+                    </div>
                     <div className="text-gray-500 text-xs truncate">
-                      {it.description} • {it.unit} • KES {Number(it.unitPrice || 0).toLocaleString()}
+                      {it.description} • {it.unit} • KES{" "}
+                      {Number(it.unitPrice || 0).toLocaleString()}
                     </div>
                   </div>
                 );
