@@ -103,7 +103,7 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-950 rounded-md">
+    <div className="min-h-screen  rounded-md">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-2 lg:p-1.5 ">
         {/* Enhanced Tabs Header */}
         <div className="mb-8">

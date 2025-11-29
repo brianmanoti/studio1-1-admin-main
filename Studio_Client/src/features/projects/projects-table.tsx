@@ -357,7 +357,7 @@ const ProjectList: React.FC = () => {
           </div>
         </Header>
         <Main>
-          <div className="p-6">
+          <div>
             <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 p-6">
               <div className="flex items-center gap-3">
                 <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
@@ -399,7 +399,7 @@ const ProjectList: React.FC = () => {
       </Header>
 
       <Main>
-        <div className="p-4 md:p-6 space-y-6">
+        <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>

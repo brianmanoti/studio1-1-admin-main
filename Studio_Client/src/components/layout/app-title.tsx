@@ -34,7 +34,7 @@ export function AppTitle() {
                   Studio 1-1
                 </span>
                 <span className='truncate text-xs text-muted-foreground font-medium'>
-                  Creative Platform
+                   Management
                 </span>
               </div>
             </Link>

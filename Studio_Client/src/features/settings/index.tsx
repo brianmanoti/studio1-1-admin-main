@@ -52,13 +52,6 @@ export function Settings() {
 
       <Main fixed>
         <div className='space-y-0.5'>
-          <button 
-            onClick={() => window.history.back()}
-            className='mb-2 flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
           <h1 className='text-2xl font-bold tracking-tight md:text-3xl'>
             Settings
           </h1>
