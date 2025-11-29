@@ -33,9 +33,7 @@ export function ProjectSidebar() {
           <NavGroup key={props.title} {...props} />
         ))}
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={user} />
-      </SidebarFooter>
+
       <SidebarRail />
     </Sidebar>
   )
