@@ -12,7 +12,7 @@ import {
   type ColumnFiltersState,
   useReactTable,
 } from "@tanstack/react-table"
-import { useSubcontractors, useDeleteSubcontractor, type Subcontractor } from "@/hooks/use-subcontractors"
+import { useSubcontractors, useDeleteSubcontractor, useUpdateSubcontractorStatus, type Subcontractor } from "@/hooks/use-subcontractors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -23,10 +23,11 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { ArrowUpDown, ChevronLeft, ChevronRight, Plus, MoreHorizontal, Eye, Edit, Trash2, Loader2, DollarSign } from "lucide-react"
+import { ArrowUpDown, ChevronLeft, ChevronRight, Plus, MoreHorizontal, Eye, Edit, Trash2, Loader2, DollarSign, CheckCircle, XCircle } from "lucide-react"
 import { SubcontractorCreateDialog } from "./subcontractor-create-dialog"
 import { SubcontractorViewDialog } from "./subcontractor-view-dialog"
 import { SubcontractorEditDialog } from "./subcontractor-edit-dialog"
@@ -129,7 +130,12 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
   const [editOpen, setEditOpen] = useState(false)
   const [budgetOpen, setBudgetOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [approveOpen, setApproveOpen] = useState(false)
+  const [rejectOpen, setRejectOpen] = useState(false)
+  
   const deleteMutation = useDeleteSubcontractor()
+  const approveMutation = useUpdateSubcontractorStatus()
+  const rejectMutation = useUpdateSubcontractorStatus()
 
   const handleDelete = async () => {
     try {
@@ -140,33 +146,96 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
     }
   }
 
+  const handleApprove = async () => {
+    try {
+      await approveMutation.mutateAsync({
+        id: subcontractor._id,
+        action: 'approve'
+      })
+      setApproveOpen(false)
+    } catch (error) {
+      console.error("[v0] Approve error:", error)
+    }
+  }
+
+  const handleReject = async () => {
+    try {
+      await rejectMutation.mutateAsync({
+        id: subcontractor._id,
+        action: 'reject'
+      })
+      setRejectOpen(false)
+    } catch (error) {
+      console.error("[v0] Reject error:", error)
+    }
+  }
+
+  const isPending = subcontractor.status === "pending"
+
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setViewOpen(true)}>
-            <Eye className="mr-2 h-4 w-4" />
-            View Details
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setEditOpen(true)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setBudgetOpen(true)}>
-            <DollarSign className="mr-2 h-4 w-4" />
-            Allocate Budget
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2">
+        {isPending && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setApproveOpen(true)}
+              disabled={approveMutation.isPending}
+              className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
+            >
+              <CheckCircle className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRejectOpen(true)}
+              disabled={rejectMutation.isPending}
+              className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <XCircle className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setViewOpen(true)}>
+              <Eye className="mr-2 h-4 w-4" />
+              View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setBudgetOpen(true)}>
+              <DollarSign className="mr-2 h-4 w-4" />
+              Allocate Budget
+            </DropdownMenuItem>
+            {isPending && (
+              <>
+                <DropdownMenuItem onClick={() => setApproveOpen(true)} className="text-green-600">
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Approve
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRejectOpen(true)} className="text-red-600">
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Reject
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       <SubcontractorViewDialog subcontractorId={subcontractor._id} open={viewOpen} onOpenChange={setViewOpen} />
       <SubcontractorEditDialog subcontractorId={subcontractor._id} open={editOpen} onOpenChange={setEditOpen} />
@@ -176,6 +245,7 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
         onOpenChange={setBudgetOpen} 
       />
 
+      {/* Delete Alert Dialog */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -184,13 +254,51 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
               Are you sure you want to delete {subcontractor.companyName}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex gap-2 justify-end">
+          <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleteMutation.isPending} className="bg-destructive">
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
             </AlertDialogAction>
-          </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Approve Alert Dialog */}
+      <AlertDialog open={approveOpen} onOpenChange={setApproveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Subcontractor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to approve {subcontractor.companyName}? This will change their status to approved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApprove} disabled={approveMutation.isPending} className="bg-green-600">
+              {approveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Alert Dialog */}
+      <AlertDialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Subcontractor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reject {subcontractor.companyName}? This will change their status to declined.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReject} disabled={rejectMutation.isPending} className="bg-red-600">
+              {rejectMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>

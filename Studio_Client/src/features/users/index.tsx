@@ -41,6 +41,7 @@ export function Users() {
       <Header fixed>
         <Search />
         <div className='ms-auto flex items-center space-x-4'>
+          
           <ThemeSwitch />
           <ConfigDrawer />
           <ProfileDropdown />
@@ -50,6 +51,15 @@ export function Users() {
       <Main>
         <div className='mb-2 flex flex-wrap items-center justify-between space-y-2'>
           <div>
+            <button 
+              onClick={() => window.history.back()}
+              className='mb-2 flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back
+            </button>
             <h2 className='text-2xl font-bold tracking-tight'>User List</h2>
             <p className='text-muted-foreground'>
               Manage your users and their roles here.
@@ -57,9 +67,25 @@ export function Users() {
           </div>
           <UsersPrimaryButtons />
         </div>
-        <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
-          <UsersTable data={users} search={search} navigate={navigate} />
-        </div>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+              <span>Loading users...</span>
+            </div>
+          </div>
+        ) : isError ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center text-destructive">
+              <p>Failed to load users. Please try again.</p>
+            </div>
+          </div>
+        ) : (
+          <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
+            <UsersTable data={users} search={search} navigate={navigate} />
+          </div>
+        )}
       </Main>
 
       <UsersDialogs />

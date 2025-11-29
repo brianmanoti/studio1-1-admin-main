@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Trash2, Building, User, Phone, Mail, Hammer, CreditCard } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -36,7 +35,6 @@ const formSchema = z.object({
   phoneNumber: z.string().min(1, "Phone number is required"),
   email: z.string().email("Invalid email address"),
   typeOfWork: z.string().min(1, "Type of work is required"),
-  status: z.enum(["pending", "approved", "declined"]),
   payments: z.array(paymentSchema).default([]),
 })
 
@@ -67,7 +65,6 @@ export function SubcontractorForm({ subcontractor, onSuccess, onCancel }: Subcon
       phoneNumber: subcontractor?.phoneNumber || "",
       email: subcontractor?.email || "",
       typeOfWork: subcontractor?.typeOfWork || "",
-      status: subcontractor?.status || "pending",
       payments: (subcontractor?.payments as Payment[]) || [],
     },
   })
@@ -258,28 +255,6 @@ function BasicInfoSection({ form }: BasicInfoSectionProps) {
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="declined">Declined</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
       </div>
     </div>
   )

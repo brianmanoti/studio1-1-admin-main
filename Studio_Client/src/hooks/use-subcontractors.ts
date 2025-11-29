@@ -112,3 +112,19 @@ export function useDeleteSubcontractor() {
     },
   })
 }
+
+
+
+export function useUpdateSubcontractorStatus() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
+      const response = await axiosInstance.patch(`/api/subcontractors/${id}/${action}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subcontractors'] })
+    },
+  })
+}
