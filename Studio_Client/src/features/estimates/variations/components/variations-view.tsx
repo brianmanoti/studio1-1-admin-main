@@ -1,4 +1,4 @@
-import  { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import axiosInstance from "@/lib/axios"
@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, ChevronDown, ChevronRight, Trash2, ArrowLeft, Save, Edit, Eye } from "lucide-react"
+import { Plus, ChevronDown, ChevronRight, Trash2, ArrowLeft, Save, Edit, Eye, Calculator } from "lucide-react"
 import { z } from "zod"
 import { useNavigate, useParams } from "@tanstack/react-router"
 
@@ -21,16 +21,57 @@ const variationSchema = z.object({
   notes: z.string().optional(),
 })
 
-// Format large numbers for display
+// Enhanced number formatting for large values
 const formatNumber = (value) => {
   if (!value && value !== 0) return ""
+  if (value >= 1000000000) {
+    return `${(value / 1000000000).toFixed(2)}B`
+  } else if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(2)}M`
+  } else if (value >= 1000) {
+    return `${(value / 1000).toFixed(2)}K`
+  }
   return new Intl.NumberFormat('en-KE').format(value)
 }
 
-// Parse formatted numbers back to raw values
+// Enhanced number parsing for large values
 const parseNumber = (value) => {
   if (!value) return 0
+  
+  // Handle abbreviated formats (1.5M, 2.3B, etc.)
+  const match = value.trim().toUpperCase().match(/^([0-9.,]+)([KMB])?$/)
+  if (match) {
+    let numValue = parseFloat(match[1].replace(/,/g, ''))
+    const suffix = match[2]
+    
+    switch (suffix) {
+      case 'K': return numValue * 1000
+      case 'M': return numValue * 1000000
+      case 'B': return numValue * 1000000000
+      default: return numValue
+    }
+  }
+  
   return parseFloat(value.replace(/,/g, '')) || 0
+}
+
+// Professional currency formatting for large amounts
+const formatKES = (value) => {
+  const num = value || 0
+  if (num >= 1000000000) {
+    return `KES ${(num / 1000000000).toFixed(2)}B`
+  } else if (num >= 1000000) {
+    return `KES ${(num / 1000000).toFixed(2)}M`
+  } else if (num >= 1000) {
+    return `KES ${(num / 1000).toFixed(2)}K`
+  }
+  
+  return new Intl.NumberFormat("en-KE", {
+    style: "currency",
+    currency: "KES",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num)
 }
 
 // Helper function to safely extract name from project object
@@ -93,39 +134,38 @@ export default function VariationDetailPage() {
     }
   })
 
-useEffect(() => {
-  if (variation && projects.length > 0) {
-    // Normalize projectId to string that matches a project _id
-    let id = "";
-    if (typeof variation.projectId === "string") {
-      id = variation.projectId;
-    } else if (variation.projectId?._id) {
-      id = variation.projectId._id;
-    } else if (variation.projectId?.name) {
-      // fallback: find project by name in projects list
-      const match = projects.find(p => getProjectName(p) === variation.projectId.name);
-      id = match?._id || "";
-    }
+  useEffect(() => {
+    if (variation && projects.length > 0) {
+      // Normalize projectId to string that matches a project _id
+      let id = "";
+      if (typeof variation.projectId === "string") {
+        id = variation.projectId;
+      } else if (variation.projectId?._id) {
+        id = variation.projectId._id;
+      } else if (variation.projectId?.name) {
+        // fallback: find project by name in projects list
+        const match = projects.find(p => getProjectName(p) === variation.projectId.name);
+        id = match?._id || "";
+      }
 
-    setProjectId(id);
-    setVariationName(variation.name || "");
-    setEstimateId(variation.estimateId || "");
-    setDescription(variation.description || "");
-    setNotes(variation.notes || "");
-    setGroups(variation.groups || []);
+      setProjectId(id);
+      setVariationName(variation.name || "");
+      setEstimateId(variation.estimateId || "");
+      setDescription(variation.description || "");
+      setNotes(variation.notes || "");
+      setGroups(variation.groups || []);
 
-    // Expand all groups by default
-    const initialExpanded: Record<string, boolean> = {};
-    variation.groups?.forEach(group => {
-      initialExpanded[group._id || group.grpId] = true;
-      group.sections?.forEach(section => {
-        initialExpanded[section._id || section.secId] = true;
+      // Expand all groups by default
+      const initialExpanded = {};
+      variation.groups?.forEach(group => {
+        initialExpanded[group._id || group.grpId] = true;
+        group.sections?.forEach(section => {
+          initialExpanded[section._id || section.secId] = true;
+        });
       });
-    });
-    setExpanded(initialExpanded);
-  }
-}, [variation, projects]);
-
+      setExpanded(initialExpanded);
+    }
+  }, [variation, projects]);
 
   // Validate form data
   const validateForm = () => {
@@ -151,25 +191,6 @@ useEffect(() => {
     }
   }
 
-  const getProjectName = (project: any) => {
-  if (!project) return ""
-
-  // If pure string
-  if (typeof project === "string") return project
-
-  // If { name: "Project" }
-  if (typeof project.name === "string") return project.name
-
-  // If { name: { name: "Project" } }
-  if (typeof project.name === "object" && project.name?.name) {
-    return project.name.name
-  }
-
-  // fallback
-  return project.name || ""
-}
-
-
   // Add new group
   const addNewGroup = () => {
     const groupIndex = groups.length
@@ -185,8 +206,6 @@ useEffect(() => {
       rate: 0,
       amount: 0,
       total: 0,
-      spent: 0,
-      balance: 0,
       sections: [],
       notes: []
     }
@@ -212,8 +231,6 @@ useEffect(() => {
       rate: 0,
       amount: 0,
       total: 0,
-      spent: 0,
-      balance: 0,
       subsections: [],
       notes: []
     }
@@ -247,8 +264,6 @@ useEffect(() => {
       rate: 0,
       amount: 0,
       total: 0,
-      spent: 0,
-      balance: 0,
       notes: []
     }
 
@@ -360,7 +375,7 @@ useEffect(() => {
     ))
   }
 
-  // Handle number inputs with formatting
+  // Enhanced number input handler with large number support
   const handleNumberInput = (groupId, sectionId, subsectionId, key, value) => {
     const numericValue = parseNumber(value)
     if (subsectionId) {
@@ -372,7 +387,7 @@ useEffect(() => {
     }
   }
 
-  // Calculate totals
+  // Calculate totals with large number support
   const calculateTotals = () => {
     const updatedGroups = groups.map(group => {
       let groupTotal = 0;
@@ -383,13 +398,11 @@ useEffect(() => {
         const updatedSubsections = section.subsections.map(subsection => {
           const subsectionTotal = (subsection.quantity || 0) * (subsection.rate || 0);
           const subsectionAmount = subsectionTotal || subsection.amount || 0;
-          const subsectionBalance = subsectionAmount - (subsection.spent || 0);
           
           return {
             ...subsection,
             amount: subsectionAmount,
-            total: subsectionAmount,
-            balance: subsectionBalance
+            total: subsectionAmount
           };
         });
         
@@ -400,16 +413,13 @@ useEffect(() => {
         }
         
         const sectionAmount = sectionTotal || section.amount || 0;
-        const sectionBalance = sectionAmount - (section.spent || 0);
-        
         groupTotal += sectionAmount;
         
         return {
           ...section,
           subsections: updatedSubsections,
           amount: sectionAmount,
-          total: sectionAmount,
-          balance: sectionBalance
+          total: sectionAmount
         };
       });
       
@@ -418,26 +428,22 @@ useEffect(() => {
       }
       
       const groupAmount = groupTotal || group.amount || 0;
-      const groupBalance = groupAmount - (group.spent || 0);
       
       return {
         ...group,
         sections: updatedSections,
         amount: groupAmount,
-        total: groupAmount,
-        balance: groupBalance
+        total: groupAmount
       };
     });
     
     const variationTotal = updatedGroups.reduce((sum, group) => sum + (group.total || 0), 0);
-    const variationBalance = variationTotal - 0;
     const variationAmount = variationTotal;
     
     return {
       groups: updatedGroups,
       amount: variationAmount,
-      total: variationTotal,
-      balance: variationBalance
+      total: variationTotal
     };
   }
 
@@ -478,9 +484,7 @@ useEffect(() => {
           }))
         })),
         amount: calculatedData.amount,
-        total: calculatedData.total,
-        spent: variation?.spent || 0,
-        balance: calculatedData.balance
+        total: calculatedData.total
       }
       
       updateVariationMutation.mutate(variationData)
@@ -489,14 +493,6 @@ useEffect(() => {
       toast.error("Failed to prepare variation data. Please try again.")
     }
   }
-
-  const formatKES = (value) =>
-    new Intl.NumberFormat("en-KE", {
-      style: "currency",
-      currency: "KES",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value || 0)
 
   // Helper functions for code generation
   const generateGroupCode = (index) => {
@@ -557,34 +553,33 @@ useEffect(() => {
     <div className="min-h-screen bg-gray-50 py-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header with Back Button and Actions */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <Button
             variant="ghost"
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 self-start"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
           
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-gray-500">
-              Status: <span className="font-medium capitalize">{variation.status}</span>
-            </div>
-            <div className="text-sm text-gray-500">
-              Variation ID: <span className="font-mono font-medium">{variation.variationId}</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+            <div className="flex flex-wrap gap-3">
+              <div className="text-sm text-gray-500 bg-white px-3 py-1 rounded-md border font-mono">
+                ID: {variation.variationId}
+              </div>
             </div>
             
             {!isEditing ? (
               <Button
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
               >
                 <Edit className="w-4 h-4" />
                 Edit Variation
               </Button>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -597,13 +592,14 @@ useEffect(() => {
                     setNotes(variation.notes || "")
                     setGroups(variation.groups || [])
                   }}
+                  className="whitespace-nowrap"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSave}
                   disabled={updateVariationMutation.isPending}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
                 >
                   <Save className="w-4 h-4" />
                   {updateVariationMutation.isPending ? "Saving..." : "Save Changes"}
@@ -613,31 +609,32 @@ useEffect(() => {
           </div>
         </div>
 
-        <Card className="w-full">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <Card className="w-full shadow-sm">
+          <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+            <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <Calculator className="w-8 h-8 text-blue-600" />
               {isEditing ? (
                 <Input
                   value={variationName}
                   onChange={(e) => setVariationName(e.target.value)}
-                  className="text-2xl font-bold p-0 border-none focus:ring-0"
+                  className="text-2xl font-bold p-0 border-none focus:ring-0 bg-transparent"
                   placeholder="Variation Name"
                 />
               ) : (
-                variation.name
+                <span className="truncate">{variation.name}</span>
               )}
-              {!isEditing && <Eye className="w-6 h-6 text-gray-400" />}
+              {!isEditing && <Eye className="w-6 h-6 text-gray-400 flex-shrink-0" />}
             </CardTitle>
             {validationErrors.name && (
-              <p className="text-sm text-red-600">{validationErrors.name}</p>
+              <p className="text-sm text-red-600 mt-2">{validationErrors.name}</p>
             )}
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 p-4 sm:p-6">
             {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-6 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-4 sm:p-6 bg-white rounded-lg border shadow-xs">
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Variation Name *</Label>
+                <Label className="text-sm font-semibold text-gray-700">Variation Name *</Label>
                 {isEditing ? (
                   <Input 
                     placeholder="Enter variation name" 
@@ -648,10 +645,10 @@ useEffect(() => {
                         setValidationErrors(prev => ({ ...prev, name: undefined }))
                       }
                     }}
-                    className="bg-white"
+                    className="bg-white border-gray-300 focus:border-blue-500"
                   />
                 ) : (
-                  <div className="bg-white border rounded-md px-3 py-2 text-gray-900">
+                  <div className="bg-gray-50 border border-gray-300 rounded-md px-3 py-2.5 text-gray-900 font-medium">
                     {variation.name}
                   </div>
                 )}
@@ -661,7 +658,7 @@ useEffect(() => {
               </div>
               
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Project *</Label>
+                <Label className="text-sm font-semibold text-gray-700">Project *</Label>
                 {isEditing ? (
                   <Select 
                     value={projectId}
@@ -672,7 +669,7 @@ useEffect(() => {
                       }
                     }}
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger className="bg-white border-gray-300 focus:border-blue-500">
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
                     <SelectContent>
@@ -684,13 +681,13 @@ useEffect(() => {
                     </SelectContent>
                   </Select>
                 ) : (
-                <div className="bg-white border rounded-md px-3 py-2 text-gray-900">
-                  {getProjectName(
-                    currentProject ||
-                    variation.projectId ||
-                    projects.find(p => p._id === variation.projectId)
-                  )}
-                </div>
+                  <div className="bg-gray-50 border border-gray-300 rounded-md px-3 py-2.5 text-gray-900">
+                    {getProjectName(
+                      currentProject ||
+                      variation.projectId ||
+                      projects.find(p => p._id === variation.projectId)
+                    )}
+                  </div>
                 )}
                 {validationErrors.projectId && (
                   <p className="text-sm text-red-600">{validationErrors.projectId}</p>
@@ -698,7 +695,7 @@ useEffect(() => {
               </div>
               
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Estimate *</Label>
+                <Label className="text-sm font-semibold text-gray-700">Estimate *</Label>
                 {isEditing ? (
                   <Select 
                     value={estimateId}
@@ -709,7 +706,7 @@ useEffect(() => {
                       }
                     }}
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger className="bg-white border-gray-300 focus:border-blue-500">
                       <SelectValue placeholder="Select estimate" />
                     </SelectTrigger>
                     <SelectContent>
@@ -721,7 +718,7 @@ useEffect(() => {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="bg-white border rounded-md px-3 py-2 text-gray-900">
+                  <div className="bg-gray-50 border border-gray-300 rounded-md px-3 py-2.5 text-gray-900">
                     {currentEstimate?.name || variation.estimateId}
                   </div>
                 )}
@@ -731,10 +728,10 @@ useEffect(() => {
               </div>
               
               {isEditing && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-transparent">Action</Label>
+                <div className="space-y-2 flex flex-col justify-end">
+                  <Label className="text-sm font-semibold text-gray-700 invisible">Action</Label>
                   <Button 
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                     onClick={addNewGroup}
                   >
                     <Plus className="w-4 h-4 mr-2" /> Add Group
@@ -745,59 +742,62 @@ useEffect(() => {
 
             {/* Description & Notes */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Description</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold text-gray-700">Description</Label>
                 {isEditing ? (
                   <Textarea 
                     placeholder="Enter variation description" 
-                    rows={3} 
+                    rows={4}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="bg-white"
+                    className="bg-white border-gray-300 focus:border-blue-500 resize-vertical min-h-[100px]"
                   />
                 ) : (
-                  <div className="bg-white border rounded-md px-3 py-2 text-gray-900 min-h-[80px]">
-                    {variation.description || <span className="text-gray-400">No description</span>}
+                  <div className="bg-gray-50 border border-gray-300 rounded-md px-3 py-3 text-gray-900 min-h-[100px] whitespace-pre-wrap">
+                    {variation.description || <span className="text-gray-400 italic">No description provided</span>}
                   </div>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Notes</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold text-gray-700">Notes</Label>
                 {isEditing ? (
                   <Textarea 
-                    placeholder="Additional notes" 
-                    rows={3} 
+                    placeholder="Additional notes and remarks" 
+                    rows={4}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="bg-white"
+                    className="bg-white border-gray-300 focus:border-blue-500 resize-vertical min-h-[100px]"
                   />
                 ) : (
-                  <div className="bg-white border rounded-md px-3 py-2 text-gray-900 min-h-[80px]">
-                    {variation.notes || <span className="text-gray-400">No notes</span>}
+                  <div className="bg-gray-50 border border-gray-300 rounded-md px-3 py-3 text-gray-900 min-h-[100px] whitespace-pre-wrap">
+                    {variation.notes || <span className="text-gray-400 italic">No notes available</span>}
                   </div>
                 )}
               </div>
             </div>
 
             {/* Bill of Quantities */}
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold text-gray-900">Bill of Quantities</h3>
-                <div className="text-lg font-bold text-blue-600">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white rounded-lg border shadow-xs">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Bill of Quantities</h3>
+                  <p className="text-sm text-gray-600 mt-1">Detailed cost breakdown and item specifications</p>
+                </div>
+                <div className="text-xl font-bold text-blue-600 bg-blue-50 px-4 py-3 rounded-lg border border-blue-200 whitespace-nowrap">
                   Total: {formatKES(calculatedData.total)}
                 </div>
               </div>
 
               {/* Groups */}
-              <div className="space-y-4 overflow-hidden">
+              <div className="space-y-4">
                 {calculatedData.groups.map((group) => (
-                  <div key={group._id || group.grpId || group.id} className="border rounded-lg bg-white overflow-hidden">
+                  <div key={group._id || group.grpId || group.id} className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
                     {/* Group Header */}
-                    <div className="bg-blue-50 p-4 border-b">
-                      <div className="flex items-center gap-4">
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 border-b border-blue-200">
+                      <div className="flex items-start gap-3">
                         <button
                           onClick={() => toggle(group._id || group.grpId || group.id)}
-                          className="flex items-center text-blue-700 hover:text-blue-800"
+                          className="flex items-center text-blue-700 hover:text-blue-800 mt-1 flex-shrink-0"
                         >
                           {expanded[group._id || group.grpId || group.id] ? (
                             <ChevronDown className="w-5 h-5" />
@@ -806,38 +806,38 @@ useEffect(() => {
                           )}
                         </button>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center flex-1 min-w-0">
-                          <div className="sm:col-span-1">
-                            <div className="bg-white border rounded px-3 py-2 text-center font-mono font-bold text-blue-600 min-w-[60px]">
+                        <div className="grid grid-cols-1 xs:grid-cols-12 gap-3 items-start flex-1 min-w-0">
+                          <div className="xs:col-span-1">
+                            <div className="bg-white border border-blue-300 rounded-lg px-3 py-2.5 text-center font-mono font-bold text-blue-700 text-sm min-w-[70px] shadow-xs">
                               {group.code}
                             </div>
                           </div>
-                          <div className="sm:col-span-7 min-w-0">
+                          <div className="xs:col-span-6 min-w-0">
                             {isEditing ? (
                               <Input
                                 value={group.description || ""}
                                 onChange={(e) => updateGroup(group._id || group.grpId || group.id, "description", e.target.value)}
                                 placeholder="Group description"
-                                className="bg-white font-medium w-full"
+                                className="bg-white border-gray-300 font-semibold w-full text-base"
                               />
                             ) : (
-                              <div className="bg-white border rounded-md px-3 py-2 font-medium">
+                              <div className="bg-white border border-gray-300 rounded-lg px-3 py-2.5 font-semibold text-gray-900">
                                 {group.description}
                               </div>
                             )}
                           </div>
-                          <div className="sm:col-span-2 text-right font-semibold text-blue-600 whitespace-nowrap">
+                          <div className="xs:col-span-2 text-right font-bold text-blue-700 whitespace-nowrap text-lg">
                             {formatKES(group.total)}
                           </div>
-                          <div className="sm:col-span-2 flex justify-end gap-2">
+                          <div className="xs:col-span-3 flex justify-end gap-2 flex-wrap">
                             {isEditing && (
                               <>
                                 <Button 
                                   size="sm" 
                                   onClick={() => addNewSection(group._id || group.grpId || group.id)}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
                                 >
-                                  <Plus className="w-4 h-4 sm:mr-1" />
+                                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                                   <span className="hidden sm:inline">Section</span>
                                 </Button>
                                 {groups.length > 1 && (
@@ -845,9 +845,9 @@ useEffect(() => {
                                     size="sm" 
                                     variant="outline"
                                     onClick={() => deleteGroup(group._id || group.grpId || group.id)}
-                                    className="text-red-600 border-red-300 hover:bg-red-50"
+                                    className="text-red-600 border-red-300 hover:bg-red-50 text-xs sm:text-sm"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                                   </Button>
                                 )}
                               </>
@@ -859,15 +859,15 @@ useEffect(() => {
 
                     {/* Sections */}
                     {expanded[group._id || group.grpId || group.id] && (
-                      <div className="divide-y">
+                      <div className="divide-y divide-gray-100">
                         {group.sections.length === 0 ? (
-                          <div className="p-8 text-center text-gray-500">
-                            <p>No sections added yet.</p>
+                          <div className="p-8 text-center text-gray-500 bg-gray-50">
+                            <p className="text-lg mb-2">No sections added yet</p>
                             {isEditing && (
                               <Button 
                                 variant="outline" 
                                 onClick={() => addNewSection(group._id || group.grpId || group.id)}
-                                className="mt-2"
+                                className="mt-2 border-blue-300 text-blue-600 hover:bg-blue-50"
                               >
                                 <Plus className="w-4 h-4 mr-2" /> Add First Section
                               </Button>
@@ -875,13 +875,13 @@ useEffect(() => {
                           </div>
                         ) : (
                           group.sections.map((section) => (
-                            <div key={section._id || section.secId || section.id} className="bg-gray-50">
+                            <div key={section._id || section.secId || section.id} className="bg-gray-50/50 hover:bg-gray-50 transition-colors">
                               {/* Section Header */}
-                              <div className="p-4 border-b">
-                                <div className="flex items-center gap-4 ml-4 sm:ml-8">
+                              <div className="p-4 border-b border-gray-100">
+                                <div className="flex items-start gap-3 ml-2 sm:ml-6">
                                   <button
                                     onClick={() => toggle(section._id || section.secId || section.id)}
-                                    className="flex items-center text-gray-700 hover:text-gray-800"
+                                    className="flex items-center text-gray-600 hover:text-gray-800 mt-1 flex-shrink-0"
                                   >
                                     {expanded[section._id || section.secId || section.id] ? (
                                       <ChevronDown className="w-4 h-4" />
@@ -890,13 +890,13 @@ useEffect(() => {
                                     )}
                                   </button>
                                   
-                                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center flex-1 min-w-0">
-                                    <div className="sm:col-span-1">
-                                      <div className="bg-white border rounded px-3 py-2 text-center font-mono text-gray-700 min-w-[60px]">
+                                  <div className="grid grid-cols-1 xs:grid-cols-12 gap-3 items-start flex-1 min-w-0">
+                                    <div className="xs:col-span-1">
+                                      <div className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-center font-mono text-gray-700 text-sm min-w-[70px]">
                                         {section.code}
                                       </div>
                                     </div>
-                                    <div className="sm:col-span-7 min-w-0">
+                                    <div className="xs:col-span-6 min-w-0">
                                       {isEditing ? (
                                         <Input
                                           value={section.description || ""}
@@ -907,18 +907,18 @@ useEffect(() => {
                                             e.target.value
                                           )}
                                           placeholder="Section description"
-                                          className="bg-white w-full"
+                                          className="bg-white border-gray-300 w-full"
                                         />
                                       ) : (
-                                        <div className="bg-white border rounded-md px-3 py-2">
+                                        <div className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900">
                                           {section.description}
                                         </div>
                                       )}
                                     </div>
-                                    <div className="sm:col-span-2 text-right font-medium text-gray-700 whitespace-nowrap">
+                                    <div className="xs:col-span-2 text-right font-semibold text-gray-700 whitespace-nowrap text-base">
                                       {formatKES(section.total)}
                                     </div>
-                                    <div className="sm:col-span-2 flex justify-end gap-2">
+                                    <div className="xs:col-span-3 flex justify-end gap-2 flex-wrap">
                                       {isEditing && (
                                         <>
                                           <Button 
@@ -928,9 +928,9 @@ useEffect(() => {
                                               group._id || group.grpId || group.id,
                                               section._id || section.secId || section.id
                                             )}
-                                            className="bg-white"
+                                            className="bg-white border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm"
                                           >
-                                            <Plus className="w-4 h-4 sm:mr-1" />
+                                            <Plus className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                                             <span className="hidden sm:inline">Item</span>
                                           </Button>
                                           <Button 
@@ -940,9 +940,9 @@ useEffect(() => {
                                               group._id || group.grpId || group.id,
                                               section._id || section.secId || section.id
                                             )}
-                                            className="text-red-600 border-red-300 hover:bg-red-50"
+                                            className="text-red-600 border-red-300 hover:bg-red-50 text-xs sm:text-sm"
                                           >
-                                            <Trash2 className="w-4 h-4" />
+                                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                                           </Button>
                                         </>
                                       )}
@@ -955,8 +955,8 @@ useEffect(() => {
                               {expanded[section._id || section.secId || section.id] && (
                                 <div className="bg-white">
                                   {section.subsections.length === 0 ? (
-                                    <div className="p-6 text-center text-gray-500">
-                                      <p>No items added yet.</p>
+                                    <div className="p-6 text-center text-gray-500 bg-white">
+                                      <p className="text-base mb-2">No items added yet</p>
                                       {isEditing && (
                                         <Button 
                                           variant="outline" 
@@ -964,7 +964,7 @@ useEffect(() => {
                                             group._id || group.grpId || group.id,
                                             section._id || section.secId || section.id
                                           )}
-                                          className="mt-2"
+                                          className="mt-2 border-blue-300 text-blue-600 hover:bg-blue-50"
                                         >
                                           <Plus className="w-4 h-4 mr-2" /> Add First Item
                                         </Button>
@@ -972,25 +972,31 @@ useEffect(() => {
                                     </div>
                                   ) : (
                                     <div className="p-4 overflow-x-auto">
-                                      <div className="grid grid-cols-12 gap-4 px-4 py-2 text-sm font-medium text-gray-600 border-b min-w-[800px]">
+                                      {/* Table Header */}
+                                      <div className="grid grid-cols-12 gap-3 px-4 py-3 text-sm font-semibold text-gray-700 border-b border-gray-200 bg-gray-50 rounded-lg min-w-[900px]">
                                         <div className="col-span-2">Code</div>
-                                        <div className="col-span-5">Description</div>
-                                        <div className="col-span-1 text-right">Qty</div>
+                                        <div className="col-span-4">Description</div>
+                                        <div className="col-span-1 text-right">Quantity</div>
                                         <div className="col-span-1 text-center">Unit</div>
-                                        <div className="col-span-2 text-right">Rate</div>
-                                        <div className="col-span-1 text-right">Amount</div>
+                                        <div className="col-span-2 text-right">Rate (KES)</div>
+                                        <div className="col-span-2 text-right">Amount</div>
                                       </div>
-                                      <div className="space-y-2 mt-2 min-w-[800px]">
+                                      
+                                      {/* Table Rows */}
+                                      <div className="space-y-2 mt-3 min-w-[900px]">
                                         {section.subsections.map((subsection) => (
-                                          <div key={subsection._id || subsection.subId || subsection.id} className="grid grid-cols-12 gap-4 items-center px-4 py-3 hover:bg-gray-50 rounded">
+                                          <div key={subsection._id || subsection.subId || subsection.id} className="grid grid-cols-12 gap-3 items-center px-4 py-3 bg-white hover:bg-blue-50/30 rounded-lg border border-transparent hover:border-blue-200 transition-all">
+                                            {/* Code */}
                                             <div className="col-span-2">
-                                              <div className="bg-gray-50 border rounded px-3 py-2 text-center font-mono text-sm text-gray-600">
+                                              <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-center font-mono text-sm text-gray-600 font-medium">
                                                 {subsection.code}
                                               </div>
                                             </div>
-                                            <div className="col-span-5">
+                                            
+                                            {/* Description */}
+                                            <div className="col-span-4">
                                               {isEditing ? (
-                                                <Input
+                                                <Textarea
                                                   value={subsection.description || ""}
                                                   onChange={(e) => updateSubsection(
                                                     group._id || group.grpId || group.id,
@@ -1000,14 +1006,17 @@ useEffect(() => {
                                                     e.target.value
                                                   )}
                                                   placeholder="Item description"
-                                                  className="bg-gray-50"
+                                                  className="bg-gray-50 border-gray-300 resize-vertical min-h-[60px] text-sm"
+                                                  rows={2}
                                                 />
                                               ) : (
-                                                <div className="bg-gray-50 border rounded-md px-3 py-2">
+                                                <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-gray-900 text-sm min-h-[60px] flex items-center">
                                                   {subsection.description}
                                                 </div>
                                               )}
                                             </div>
+                                            
+                                            {/* Quantity */}
                                             <div className="col-span-1">
                                               {isEditing ? (
                                                 <Input
@@ -1020,15 +1029,17 @@ useEffect(() => {
                                                     "quantity",
                                                     e.target.value
                                                   )}
-                                                  className="bg-gray-50 text-right"
+                                                  className="bg-gray-50 border-gray-300 text-right font-mono text-sm"
                                                   placeholder="0"
                                                 />
                                               ) : (
-                                                <div className="bg-gray-50 border rounded-md px-3 py-2 text-right">
+                                                <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-right font-mono text-sm">
                                                   {formatNumber(subsection.quantity)}
                                                 </div>
                                               )}
                                             </div>
+                                            
+                                            {/* Unit */}
                                             <div className="col-span-1">
                                               {isEditing ? (
                                                 <Input
@@ -1040,15 +1051,17 @@ useEffect(() => {
                                                     "unit",
                                                     e.target.value
                                                   )}
-                                                  className="bg-gray-50 text-center"
+                                                  className="bg-gray-50 border-gray-300 text-center font-mono text-sm"
                                                   placeholder="m²"
                                                 />
                                               ) : (
-                                                <div className="bg-gray-50 border rounded-md px-3 py-2 text-center">
+                                                <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-center font-mono text-sm">
                                                   {subsection.unit}
                                                 </div>
                                               )}
                                             </div>
+                                            
+                                            {/* Rate */}
                                             <div className="col-span-2">
                                               {isEditing ? (
                                                 <Input
@@ -1061,16 +1074,18 @@ useEffect(() => {
                                                     "rate",
                                                     e.target.value
                                                   )}
-                                                  className="bg-gray-50 text-right"
+                                                  className="bg-gray-50 border-gray-300 text-right font-mono text-sm"
                                                   placeholder="0"
                                                 />
                                               ) : (
-                                                <div className="bg-gray-50 border rounded-md px-3 py-2 text-right">
-                                                  {formatNumber(subsection.rate)}
+                                                <div className="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-right font-mono text-sm">
+                                                  {formatKES(subsection.rate).replace('KES ', '')}
                                                 </div>
                                               )}
                                             </div>
-                                            <div className="col-span-1 text-right font-medium text-blue-600 whitespace-nowrap">
+                                            
+                                            {/* Amount */}
+                                            <div className="col-span-2 text-right font-semibold text-blue-600 whitespace-nowrap text-sm">
                                               {formatKES(subsection.total)}
                                             </div>
                                           </div>
@@ -1091,13 +1106,13 @@ useEffect(() => {
 
               {/* Add Another Group Button */}
               {isEditing && (
-                <div className="flex justify-center">
+                <div className="flex justify-center pt-4">
                   <Button 
                     variant="outline" 
                     onClick={addNewGroup}
-                    className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                    className="border-blue-300 text-blue-600 hover:bg-blue-50 border-2 border-dashed py-6 px-8 text-lg"
                   >
-                    <Plus className="w-4 h-4 mr-2" /> Add Another Group
+                    <Plus className="w-5 h-5 mr-3" /> Add Another Group
                   </Button>
                 </div>
               )}
@@ -1105,18 +1120,23 @@ useEffect(() => {
 
             {/* Summary */}
             {!isEditing && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{formatKES(variation.total)}</div>
-                  <div className="text-sm text-gray-600">Total Amount</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-8 border-t border-gray-200">
+                <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200 shadow-xs">
+                  <div className="text-3xl font-bold text-blue-600 mb-2">{formatKES(variation.total)}</div>
+                  <div className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Total Amount</div>
+                  <div className="text-xs text-gray-500 mt-1">Final calculated total</div>
                 </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{formatKES(variation.balance)}</div>
-                  <div className="text-sm text-gray-600">Balance</div>
+                <div className="text-center p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200 shadow-xs">
+                  <div className="text-3xl font-bold text-green-600 mb-2">{groups.length}</div>
+                  <div className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Groups</div>
+                  <div className="text-xs text-gray-500 mt-1">Total groups in variation</div>
                 </div>
-                <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{formatKES(variation.spent)}</div>
-                  <div className="text-sm text-gray-600">Spent</div>
+                <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 shadow-xs">
+                  <div className="text-3xl font-bold text-purple-600 mb-2">
+                    {groups.reduce((acc, group) => acc + group.sections.length, 0)}
+                  </div>
+                  <div className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Sections</div>
+                  <div className="text-xs text-gray-500 mt-1">Total sections across all groups</div>
                 </div>
               </div>
             )}

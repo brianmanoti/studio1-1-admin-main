@@ -14,7 +14,7 @@ import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
 import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { useProjectStore } from "@/stores/projectStore"
 import { Trash2, X, ArrowLeft, FileText, Truck, Building, Package, Paperclip, AlertCircle, File, Image, Download, CheckCircle } from "lucide-react"
-import ItemAutocomplete from "./items-auto-select"
+import ItemAutocomplete from "@/components/items/items-auto-select"
 import {
   Select,
   SelectContent,

@@ -171,6 +171,7 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
   }
 
   const isPending = subcontractor.status === "pending"
+  const isLoading = deleteMutation.isPending || approveMutation.isPending || rejectMutation.isPending
 
   return (
     <>
@@ -181,55 +182,84 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
               variant="outline"
               size="sm"
               onClick={() => setApproveOpen(true)}
-              disabled={approveMutation.isPending}
+              disabled={isLoading}
               className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50"
             >
-              <CheckCircle className="h-4 w-4" />
+              {approveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4" />
+              )}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setRejectOpen(true)}
-              disabled={rejectMutation.isPending}
+              disabled={isLoading}
               className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50"
             >
-              <XCircle className="h-4 w-4" />
+              {rejectMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )}
             </Button>
           </>
         )}
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" disabled={isLoading}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setViewOpen(true)}>
+            <DropdownMenuItem 
+              onClick={() => setViewOpen(true)} 
+              disabled={isLoading}
+            >
               <Eye className="mr-2 h-4 w-4" />
               View Details
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+            <DropdownMenuItem 
+              onClick={() => setEditOpen(true)} 
+              disabled={isLoading}
+            >
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setBudgetOpen(true)}>
+            <DropdownMenuItem 
+              onClick={() => setBudgetOpen(true)} 
+              disabled={isLoading}
+            >
               <DollarSign className="mr-2 h-4 w-4" />
               Allocate Budget
             </DropdownMenuItem>
             {isPending && (
               <>
-                <DropdownMenuItem onClick={() => setApproveOpen(true)} className="text-green-600">
+                <DropdownMenuItem 
+                  onClick={() => setApproveOpen(true)} 
+                  disabled={isLoading}
+                  className="text-green-600"
+                >
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Approve
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRejectOpen(true)} className="text-red-600">
+                <DropdownMenuItem 
+                  onClick={() => setRejectOpen(true)} 
+                  disabled={isLoading}
+                  className="text-red-600"
+                >
                   <XCircle className="mr-2 h-4 w-4" />
                   Reject
                 </DropdownMenuItem>
               </>
             )}
-            <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
+            <DropdownMenuItem 
+              onClick={() => setDeleteOpen(true)} 
+              disabled={isLoading}
+              className="text-destructive"
+            >
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </DropdownMenuItem>
@@ -237,8 +267,16 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
         </DropdownMenu>
       </div>
 
-      <SubcontractorViewDialog subcontractorId={subcontractor._id} open={viewOpen} onOpenChange={setViewOpen} />
-      <SubcontractorEditDialog subcontractorId={subcontractor._id} open={editOpen} onOpenChange={setEditOpen} />
+      <SubcontractorViewDialog 
+        subcontractorId={subcontractor._id} 
+        open={viewOpen} 
+        onOpenChange={setViewOpen} 
+      />
+      <SubcontractorEditDialog 
+        subcontractorId={subcontractor._id} 
+        open={editOpen} 
+        onOpenChange={setEditOpen} 
+      />
       <BudgetAllocationDialog 
         subcontractor={subcontractor} 
         open={budgetOpen} 
@@ -255,7 +293,7 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleteMutation.isPending} className="bg-destructive">
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
@@ -274,7 +312,7 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={approveMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleApprove} disabled={approveMutation.isPending} className="bg-green-600">
               {approveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Approve
@@ -293,7 +331,7 @@ function ActionCell({ subcontractor }: { subcontractor: Subcontractor }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={rejectMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleReject} disabled={rejectMutation.isPending} className="bg-red-600">
               {rejectMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Reject

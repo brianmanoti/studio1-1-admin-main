@@ -10,27 +10,36 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export default function EstimateSelector({ onChange }) {
-  const projectId = useProjectStore((state) => state.projectId)
+interface EstimateSelectorProps {
+  projectId?: string
+  onChange?: (val: {
+    estimateId: string
+    estimateLevel: "estimate" | "group" | "section" | "subsection"
+    estimateTargetId: string | null
+  }) => void
+}
+
+export default function EstimateSelector({ projectId: propProjectId, onChange }: EstimateSelectorProps) {
+  const storeProjectId = useProjectStore((state) => state.projectId)
+  const projectId = propProjectId ?? storeProjectId
   const queryClient = useQueryClient()
 
-  // Prefetch estimates safely
+  // Prefetch estimates
   useEffect(() => {
-    if (projectId) {
-      queryClient.prefetchQuery({
-        queryKey: ["estimatesByProject", projectId],
-        queryFn: async () => {
-          try {
-            const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
-            return res.data
-          } catch (err) {
-            if (err.response?.status === 404) return []
-            throw err
-          }
-        },
-        staleTime: 5 * 60 * 1000,
-      })
-    }
+    if (!projectId) return
+    queryClient.prefetchQuery({
+      queryKey: ["estimatesByProject", projectId],
+      queryFn: async () => {
+        try {
+          const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
+          return res.data
+        } catch (err: any) {
+          if (err.response?.status === 404) return []
+          throw err
+        }
+      },
+      staleTime: 5 * 60 * 1000,
+    })
   }, [projectId, queryClient])
 
   // Fetch project estimates
@@ -40,7 +49,7 @@ export default function EstimateSelector({ onChange }) {
       try {
         const res = await axiosInstance.get(`/api/estimates/project/${projectId}`)
         return res.data
-      } catch (err) {
+      } catch (err: any) {
         if (err.response?.status === 404) return []
         throw err
       }
@@ -53,31 +62,29 @@ export default function EstimateSelector({ onChange }) {
 
   // Prefetch estimate structure
   useEffect(() => {
-    if (estimateId) {
-      queryClient.prefetchQuery({
-        queryKey: ["estimateData", estimateId],
-        queryFn: async () => {
-          try {
-            const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
-            return res.data
-          } catch (err) {
-            if (err.response?.status === 404) return null
-            throw err
-          }
-        },
-        staleTime: 5 * 60 * 1000,
-      })
-    }
+    if (!estimateId) return
+    queryClient.prefetchQuery({
+      queryKey: ["estimateData", estimateId],
+      queryFn: async () => {
+        try {
+          const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
+          return res.data
+        } catch (err: any) {
+          if (err.response?.status === 404) return null
+          throw err
+        }
+      },
+      staleTime: 5 * 60 * 1000,
+    })
   }, [estimateId, queryClient])
 
-  // Fetch estimate structure
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["estimateData", estimateId],
     queryFn: async () => {
       try {
         const res = await axiosInstance.get(`/api/estimates/${estimateId}/structure`)
         return res.data
-      } catch (err) {
+      } catch (err: any) {
         if (err.response?.status === 404) return null
         throw err
       }
@@ -86,7 +93,7 @@ export default function EstimateSelector({ onChange }) {
     staleTime: 5 * 60 * 1000,
   })
 
-  const [estimateLevel, setEstimateLevel] = useState("group")
+  const [estimateLevel, setEstimateLevel] = useState<"estimate" | "group" | "section" | "subsection">("group")
   const [selected, setSelected] = useState({
     groupId: "",
     sectionId: "",
@@ -128,11 +135,7 @@ export default function EstimateSelector({ onChange }) {
     () =>
       transformedData.groups.flatMap(g =>
         (g.sections || []).flatMap(s =>
-          (s.subsections || []).map(sub => ({
-            ...sub,
-            sectionId: s.key,
-            groupId: g.key,
-          }))
+          (s.subsections || []).map(sub => ({ ...sub, sectionId: s.key, groupId: g.key }))
         )
       ) ?? [],
     [transformedData]
@@ -150,11 +153,11 @@ export default function EstimateSelector({ onChange }) {
 
   // Emit selection callback
   const emit = useCallback(
-    (targetId) => {
+    (targetId: string | null) => {
       onChange?.({
         estimateId: data?.estimateId || "",
         estimateLevel,
-        estimateTargetId: targetId || null,
+        estimateTargetId: targetId,
       })
     },
     [onChange, data?.estimateId, estimateLevel]
@@ -163,11 +166,8 @@ export default function EstimateSelector({ onChange }) {
   // Initialize selection when data loads
   useEffect(() => {
     if (!transformedData.groups.length) return
-
     setSelected(prev => {
-      // Only update if empty
       if (prev.groupId && prev.sectionId && prev.subsectionId) return prev
-
       const firstGroup = transformedData.groups[0]
       return {
         groupId: prev.groupId || firstGroup.key,
@@ -179,8 +179,7 @@ export default function EstimateSelector({ onChange }) {
 
   // Emit changes when selection or level changes
   useEffect(() => {
-    if (!selected.groupId) return // Don't emit until we have data
-
+    if (!selected.groupId) return
     const targetId =
       estimateLevel === "group"
         ? selected.groupId
@@ -189,23 +188,17 @@ export default function EstimateSelector({ onChange }) {
         : estimateLevel === "subsection"
         ? selected.subsectionId
         : null
-
-    if (targetId) {
-      emit(targetId)
-    }
+    if (targetId) emit(targetId)
   }, [selected, estimateLevel, emit])
 
-  // Handle level change
-  const handleLevelChange = useCallback((value) => {
+  const handleLevelChange = useCallback((value: "estimate" | "group" | "section" | "subsection") => {
     setEstimateLevel(value)
   }, [])
 
-  // Handle select changes
   const handleSelect = useCallback(
-    (key, value) => {
+    (key: "groupId" | "sectionId" | "subsectionId", value: string) => {
       setSelected(prev => {
         let next = { ...prev, [key]: value }
-
         if (key === "groupId") {
           const group = transformedData.groups.find(g => g.key === value)
           next.sectionId = group?.sections?.[0]?.key || ""
@@ -219,37 +212,23 @@ export default function EstimateSelector({ onChange }) {
           next.sectionId = sub?.sectionId || next.sectionId
           next.groupId = sub?.groupId || next.groupId
         }
-
         return next
       })
     },
     [allSections, allSubsections, transformedData]
   )
 
-  // Loading / Error UI
   if (loadingEstimates || isLoading)
     return <div className="text-gray-500 text-sm">Loading estimate…</div>
 
   if (estimateError && estimates.length === 0)
-    return (
-      <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">
-        No estimates found for this project.
-      </div>
-    )
+    return <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">No estimates found for this project.</div>
 
   if (isError)
-    return (
-      <div className="text-red-500 text-sm">
-        Failed to load estimate data: {error?.response?.data?.error || "Unexpected error"}
-      </div>
-    )
+    return <div className="text-red-500 text-sm">Failed to load estimate data: {error?.response?.data?.error || "Unexpected error"}</div>
 
   if (!transformedData.groups.length)
-    return (
-      <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">
-        No estimate structure available.
-      </div>
-    )
+    return <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">No estimate structure available.</div>
 
   return (
     <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md space-y-3">
@@ -273,63 +252,44 @@ export default function EstimateSelector({ onChange }) {
       {(estimateLevel === "group" || estimateLevel === "section" || estimateLevel === "subsection") && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Group</label>
-          <Select 
-            value={selected.groupId} 
-            onValueChange={(value) => handleSelect("groupId", value)}
-          >
+          <Select value={selected.groupId} onValueChange={(v) => handleSelect("groupId", v)}>
             <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
               <SelectValue placeholder="Select group" />
             </SelectTrigger>
             <SelectContent>
               {transformedData.groups.map(g => (
-                <SelectItem key={g.key} value={g.key}>
-                  {g.code} - {g.value}
-                </SelectItem>
+                <SelectItem key={g.key} value={g.key}>{g.code} - {g.value}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
       )}
 
-      {/* Section Selector (only if group has sections) */}
+      {/* Section Selector */}
       {estimateLevel !== "group" && filteredSections.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Section</label>
-          <Select 
-            value={selected.sectionId} 
-            onValueChange={(value) => handleSelect("sectionId", value)}
-          >
+          <Select value={selected.sectionId} onValueChange={(v) => handleSelect("sectionId", v)}>
             <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
               <SelectValue placeholder="Select section" />
             </SelectTrigger>
             <SelectContent>
-              {filteredSections.map(s => (
-                <SelectItem key={s.key} value={s.key}>
-                  {s.code} - {s.value}
-                </SelectItem>
-              ))}
+              {filteredSections.map(s => <SelectItem key={s.key} value={s.key}>{s.code} - {s.value}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       )}
 
-      {/* Subsection Selector (only if section has subsections) */}
+      {/* Subsection Selector */}
       {estimateLevel === "subsection" && filteredSubsections.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Subsection</label>
-          <Select 
-            value={selected.subsectionId} 
-            onValueChange={(value) => handleSelect("subsectionId", value)}
-          >
+          <Select value={selected.subsectionId} onValueChange={(v) => handleSelect("subsectionId", v)}>
             <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
               <SelectValue placeholder="Select subsection" />
             </SelectTrigger>
             <SelectContent>
-              {filteredSubsections.map(ss => (
-                <SelectItem key={ss.key} value={ss.key}>
-                  {ss.code} - {ss.value}
-                </SelectItem>
-              ))}
+              {filteredSubsections.map(ss => <SelectItem key={ss.key} value={ss.key}>{ss.code} - {ss.value}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

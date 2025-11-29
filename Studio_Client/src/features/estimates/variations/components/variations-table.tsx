@@ -165,7 +165,6 @@ function getColumns(
     },
     { accessorKey: "estimateId", header: "Estimate" },
     { accessorKey: "date", header: "Date" },
-    { accessorKey: "status", header: "Status" },
     {
       accessorFn: (row) => computeTotals(row.groups).amount,
       id: "amount",
