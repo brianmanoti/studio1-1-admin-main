@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -115,14 +113,6 @@ export function DashboardTabs({ projectId, reports }: DashboardTabsProps) {
               <p className="text-lg text-gray-600 dark:text-gray-300">
                 Real-time insights and analytics
               </p>
-            </div>
-            <div className="mt-4 lg:mt-0 flex items-center space-x-3">
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
-                Live Data
-              </Badge>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Updated just now
-              </div>
             </div>
           </div>
 

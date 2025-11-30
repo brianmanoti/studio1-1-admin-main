@@ -293,7 +293,7 @@ export function SubExpensesTable() {
   const [dateOpen, setDateOpen] = React.useState(false)
 
   const { data: expenses = [], isLoading, isError } = useQuery({
-    queryKey: ['expenses', projectId],
+    queryKey: ['sub-expenses', projectId],
     queryFn: async () => {
       const res = await axiosInstance.get(`/api/expenses/project/${projectId}/expense-subcontractors`)
       return res.data ?? []
@@ -306,7 +306,7 @@ export function SubExpensesTable() {
     mutationFn: (id: string) => axiosInstance.patch(`/api/expenses/${id}/approve`),
     onSuccess: () => {
       toast.success('Expense approved successfully')
-      queryClient.invalidateQueries({ queryKey: ['expenses', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['sub-expenses', projectId] })
     },
     onError: () => toast.error('Failed to approve expense'),
   })
@@ -315,7 +315,7 @@ export function SubExpensesTable() {
     mutationFn: (id: string) => axiosInstance.patch(`/api/expenses/${id}/reject`),
     onSuccess: () => {
       toast.success('Expense rejected successfully')
-      queryClient.invalidateQueries({ queryKey: ['expenses', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['sub-expenses', projectId] })
     },
     onError: () => toast.error('Failed to reject expense'),
   })
@@ -324,7 +324,7 @@ export function SubExpensesTable() {
     mutationFn: (id: string) => axiosInstance.delete(`/api/expenses/${id}`),
     onSuccess: () => {
       toast.success('Expense deleted successfully')
-      queryClient.invalidateQueries({ queryKey: ['expenses', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['sub-expenses', projectId] })
     },
     onError: () => toast.error('Failed to delete expense'),
   })

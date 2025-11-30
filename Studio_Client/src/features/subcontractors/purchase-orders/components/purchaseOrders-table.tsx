@@ -337,7 +337,7 @@ export function SubPurchaseOrderTable() {
 
   /* Data */
   const { data: purchaseOrders = [], isLoading, isError } = useQuery({
-    queryKey: ['purchaseOrders', projectId],
+    queryKey: ['sub-purchaseOrders', projectId],
     queryFn: async () =>
       (await axiosInstance.get(`/api/purchase-orders/project/${projectId}/po-subcontractors`)).data.data,
     enabled: !!projectId,
@@ -346,15 +346,15 @@ export function SubPurchaseOrderTable() {
   /* Mutations */
   const approveMutation = useMutation({
     mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/approve`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sub-purchaseOrders', projectId] }),
   })
   const rejectMutation = useMutation({
     mutationFn: (id: string) => axiosInstance.patch(`/api/purchase-orders/${id}/unapprove`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sub-purchaseOrders', projectId] }),
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => axiosInstance.delete(`/api/purchase-orders/${id}/hard`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purchaseOrders', projectId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sub-purchaseOrders', projectId] }),
   })
 
   const handleBulk = async (

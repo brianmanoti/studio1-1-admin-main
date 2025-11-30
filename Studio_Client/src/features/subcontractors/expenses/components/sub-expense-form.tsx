@@ -262,7 +262,7 @@ export default function SubExpenseForm({ expenseId }) {
         headers: { "Content-Type": "multipart/form-data" },
       }).then((res) => res.data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["expenses", expenseId] })
+      queryClient.invalidateQueries({ queryKey: ["sub-expenses", expenseId] })
       navigate({ to: `/subcontractors/expenses/${data._id}` })
     },
     onError: (err) => setServerError(err?.response?.data?.message || "Failed to update Expense record"),
