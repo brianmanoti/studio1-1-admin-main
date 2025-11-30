@@ -37,11 +37,6 @@ export const AppsidebarData: SidebarData = {
           icon: Projector,
         },
         {
-          title: 'Dashboard',
-          url: '/projects/$projectId',
-          icon: LayoutDashboard,
-        },
-        {
           title: 'Clients',
           url: '/clients',
           icon: Users,

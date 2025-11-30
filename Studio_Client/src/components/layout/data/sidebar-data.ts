@@ -1,26 +1,12 @@
 import {
-  Construction,
   LayoutDashboard,
-  Monitor,
-  Bug,
   ListTodo,
-  FileX,
-  HelpCircle,
-  Lock,
-  Bell,
-  Palette,
-  ServerOff,
-  Settings,
-  Wrench,
-  UserCog,
-  UserX,
-  Users,
-  ShieldCheck,
   PieChartIcon,
   DollarSignIcon,
   ListOrderedIcon,
   HardHatIcon,
   TrendingDownIcon,
+  ProjectorIcon,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -34,6 +20,11 @@ export const sidebarData: SidebarData = {
           title: 'Dashboard',
           url: '/projects/$projectId',
           icon: LayoutDashboard,
+        },
+        {
+          title: 'Projects',
+          url: '/',
+          icon: ProjectorIcon,
         },
         {
           title: 'Budget',
