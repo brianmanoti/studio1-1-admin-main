@@ -181,6 +181,45 @@ export default function POViewPage() {
                       </div>
                     </div>
 
+                    {/* Compact Reference Information - Dynamic Layout */}
+                    {/* Reference Block */}
+                  <div className="mb-6 sm:mb-8 rounded-xl bg-slate-50 p-5 sm:p-6 border border-slate-200">
+                    <h3 className="mb-4 text-sm font-bold uppercase text-slate-700 flex items-center gap-2 tracking-wide">
+                      <FileText className="h-4 w-4" />
+                      Reference
+                    </h3>
+
+                    <div className="flex flex-col gap-3 text-sm">
+
+                      {/* GROUP (Always exists) */}
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {po.reference.group.code} — {po.reference.group.description}
+                        </p>
+                      </div>
+
+                      {/* SECTION (Optional) */}
+                      {po.reference.section && (
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {po.reference.section.code} — {po.reference.section.description}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* SUBSECTION (Optional) */}
+                      {po.reference.subsection && (
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {po.reference.subsection.code} — {po.reference.subsection.description}
+                          </p>
+                        </div>
+                      )}
+
+                    </div>
+                  </div>
+
+
                     {/* Company Information */}
                     <div className="mb-6 sm:mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
                       <div>
