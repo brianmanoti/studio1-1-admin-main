@@ -291,7 +291,7 @@ export function SubcontractorFormModal({ onSave }: { onSave?: (subcontractor: Su
               className="flex-1 border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 disabled:opacity-50 text-sm"
               disabled={isLoading}
             >
-              Cancel
+              Cancelz
             </button>
           </div>
         </form>

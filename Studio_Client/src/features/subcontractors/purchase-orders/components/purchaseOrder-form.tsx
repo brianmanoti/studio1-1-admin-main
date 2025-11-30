@@ -824,18 +824,18 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
         {/* Subcontractor Information Section */}
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Subcontractor Information</h3>
+
           <div className="relative">
-            <label className="block text-sm font-medium">Subcontractor Name *</label>
+            <label className="block text-sm font-medium text-gray-600">Subcontractor Name *</label>
             <div className="relative">
               <input
-                className="w-full border p-2 rounded pr-10"
+                type="text"
+                className="w-full border border-gray-300 rounded-md p-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 value={subcontractorSearch}
                 onChange={(e) => {
                   setSubcontractorSearch(e.target.value)
                   setField("subcontractorName", e.target.value)
-                  if (e.target.value === "") {
-                    handleSubcontractorClear()
-                  }
+                  if (e.target.value === "") handleSubcontractorClear()
                 }}
                 onFocus={() => setActiveSubcontractor(true)}
                 onBlur={() => setTimeout(() => setActiveSubcontractor(false), 150)}
@@ -846,13 +846,13 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
                 <button
                   type="button"
                   onClick={handleSubcontractorClear}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
                 >
                   ✕
                 </button>
               )}
             </div>
-            
+
             {activeSubcontractor && subcontractorSearch && (
               <div className="absolute z-10 bg-white border border-gray-200 rounded-md shadow-md w-full max-h-60 overflow-auto mt-1">
                 {isSubcontractorLoading && (
@@ -862,49 +862,35 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
                   <div className="px-4 py-2 text-red-500 text-sm">Failed to load subcontractors</div>
                 )}
                 {!isSubcontractorLoading && !isSubcontractorError && subcontractorList.length > 0 ? (
-                  subcontractorList.map((subcontractor) => (
+                  subcontractorList.map((sub) => (
                     <div
-                      key={subcontractor._id}
-                      onClick={() => handleSubcontractorSelect(subcontractor)}
-                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      key={sub._id}
+                      onClick={() => handleSubcontractorSelect(sub)}
+                      className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
                     >
-                      <div className="font-medium text-gray-900">
-                        {subcontractor.companyName}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Contact: {subcontractor.contactPerson}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {subcontractor.email} • {subcontractor.phoneNumber}
-                      </div>
+                      <div className="font-medium text-gray-900">{sub.companyName}</div>
+                      <div className="text-sm text-gray-600">Contact: {sub.contactPerson}</div>
+                      <div className="text-sm text-gray-500">{sub.email} • {sub.phoneNumber}</div>
                       <div className="text-xs text-green-600 mt-1">
-                        {subcontractor.typeOfWork && subcontractor.typeOfWork !== 'user' && (
-                          <span>Specialty: {subcontractor.typeOfWork}</span>
-                        )}
-                        {subcontractor.projects && subcontractor.projects.length > 0 && (
-                          <span> • {subcontractor.projects.length} active project(s)</span>
-                        )}
+                        {sub.typeOfWork && sub.typeOfWork !== "user" && <span>Specialty: {sub.typeOfWork}</span>}
+                        {sub.projects && sub.projects.length > 0 && <span> • {sub.projects.length} active project(s)</span>}
                       </div>
                     </div>
                   ))
                 ) : (
                   !isSubcontractorLoading && (
                     <div className="px-4 py-3 text-gray-500 text-sm">
-                      <div>No subcontractors found</div>
-                      <button
-                        type="button"
-                        onClick={() => setFormState({ type: "add-subcontractor" })}
-                        className="text-blue-600 hover:underline mt-1"
-                      >
-                        + Add New Subcontractor
-                      </button>
+                      No subcontractors found
                     </div>
                   )
                 )}
               </div>
             )}
-            {errors.subcontractorName && <p className="text-red-500 text-sm mt-1">{errors.subcontractorName}</p>}
-            
+
+            {errors.subcontractorName && (
+              <p className="text-red-500 text-sm mt-1">{errors.subcontractorName}</p>
+            )}
+
             {form.subcontractorId && !activeSubcontractor && (
               <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
                 <span className="font-medium">Selected Subcontractor: </span>
@@ -914,21 +900,6 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              className="w-full border border-gray-300 rounded-md p-2"
-              value={form.status}
-              onChange={(e) => setField("status", e.target.value)}
-              disabled={isLocked}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
-        </div>
 
         {/* Items Section */}
         <section className="space-y-2 relative">
