@@ -916,22 +916,6 @@ export default function SubcontractorWagesForm({ wageId }) {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              className="w-full border border-gray-300 rounded-md p-2"
-              value={form.status}
-              onChange={(e) => setField("status", e.target.value)}
-              disabled={isLocked}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="paid">Paid</option>
-            </select>
-          </div>
-        </div>
-
         {/* Items Section */}
         <section className="space-y-2 relative">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Wage Items</h3>

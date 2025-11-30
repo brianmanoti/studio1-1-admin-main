@@ -330,19 +330,6 @@ export default function SubcontractorExpensesForm({ expenseId }) {
             {errors.date && <p className="text-red-500 text-sm">{errors.date}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              className="w-full border border-gray-300 rounded-md p-2"
-              value={form.status}
-              onChange={(e) => setField("status", e.target.value)}
-              disabled={isLocked}
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="reimbursed">Reimbursed</option>
-            </select>
-          </div>
         </div>
 
         <section className="space-y-4">
