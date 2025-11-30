@@ -1,5 +1,3 @@
-'use client'
-
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,58 +48,35 @@ export function DataTableActionMenu<T extends BaseRow>({
 
   return (
     <>
-      <div className="hidden md:flex items-center space-x-2">
-        <Button size="icon" variant="ghost" onClick={() => onView?.(row)} aria-label={`View ${entityName}`} disabled={disabled}>
-          <Eye className="w-4 h-4" />
-        </Button>
-        <Button size="icon" variant="ghost" onClick={() => onEdit?.(row)} aria-label={`Edit ${entityName}`} disabled={disabled}>
-          <Pencil className="w-4 h-4" />
-        </Button>
-        {row.status !== 'approved' && row.status !== 'declined' && (
-          <>
-            <Button size="icon" variant="outline" onClick={() => setDialog({ open: true, action: 'approve' })} aria-label={`Approve ${entityName}`} disabled={disabled}>
-              <Check className="w-4 h-4 text-green-600" />
-            </Button>
-            <Button size="icon" variant="outline" onClick={() => setDialog({ open: true, action: 'reject' })} aria-label={`Reject ${entityName}`} disabled={disabled}>
-              <X className="w-4 h-4 text-red-600" />
-            </Button>
-          </>
-        )}
-        <Button size="icon" variant="destructive" onClick={() => setDialog({ open: true, action: 'delete' })} aria-label={`Delete ${entityName}`} disabled={disabled}>
-          <Trash className="w-4 h-4" />
-        </Button>
-      </div>
-
-      <div className="md:hidden">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" aria-label="More actions" disabled={disabled}>
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onSelect={() => onView?.(row)} disabled={disabled}>
-              <Eye className="mr-2 h-4 w-4" /> View
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onEdit?.(row)} disabled={disabled}>
-              <Pencil className="mr-2 h-4 w-4" /> Edit
-            </DropdownMenuItem>
-            {row.status !== 'approved' && row.status !== 'declined' && (
-              <>
-                <DropdownMenuItem onSelect={() => setDialog({ open: true, action: 'approve' })} disabled={disabled}>
-                  <Check className="mr-2 h-4 w-4 text-green-600" /> Approve
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDialog({ open: true, action: 'reject' })} disabled={disabled}>
-                  <X className="mr-2 h-4 w-4 text-red-600" /> Reject
-                </DropdownMenuItem>
-              </>
-            )}
-            <DropdownMenuItem className="text-red-600" onSelect={() => setDialog({ open: true, action: 'delete' })} disabled={disabled}>
-              <Trash className="mr-2 h-4 w-4" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* Single trigger button for all actions */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon" variant="ghost" aria-label="More actions" disabled={disabled}>
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onSelect={() => onView?.(row)} disabled={disabled}>
+            <Eye className="mr-2 h-4 w-4" /> View
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onEdit?.(row)} disabled={disabled}>
+            <Pencil className="mr-2 h-4 w-4" /> Edit
+          </DropdownMenuItem>
+          {row.status !== 'approved' && row.status !== 'declined' && (
+            <>
+              <DropdownMenuItem onSelect={() => setDialog({ open: true, action: 'approve' })} disabled={disabled}>
+                <Check className="mr-2 h-4 w-4 text-green-600" /> Approve
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDialog({ open: true, action: 'reject' })} disabled={disabled}>
+                <X className="mr-2 h-4 w-4 text-red-600" /> Reject
+              </DropdownMenuItem>
+            </>
+          )}
+          <DropdownMenuItem className="text-red-600" onSelect={() => setDialog({ open: true, action: 'delete' })} disabled={disabled}>
+            <Trash className="mr-2 h-4 w-4" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <ConfirmDialog
         open={dialog.open}

@@ -36,7 +36,7 @@ export function DataTableActionMenu<T extends BaseRow>({
   onApprove,
   onReject,
   onDelete,
-  isMutating,
+  isMutating = false,
 }: DataTableActionMenuProps<T>) {
   const [dialog, setDialog] = React.useState<{
     open: boolean
@@ -45,10 +45,19 @@ export function DataTableActionMenu<T extends BaseRow>({
 
   const [loadingAction, setLoadingAction] = React.useState<'approve' | 'reject' | 'delete' | null>(null)
 
+  const disabled = isMutating || loadingAction !== null
+
+  const Spinner = () => (
+    <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+    </svg>
+  )
+
   const handleConfirm = () => {
     if (!dialog.action) return
-
     setLoadingAction(dialog.action)
+
     const close = () => {
       setDialog({ open: false })
       setLoadingAction(null)
@@ -59,78 +68,36 @@ export function DataTableActionMenu<T extends BaseRow>({
     if (dialog.action === 'delete') onDelete?.(row, close)
   }
 
-  const disabled = isMutating || loadingAction !== null
+  const actionItems = [
+    { label: 'View', icon: <Eye className="mr-2 h-4 w-4" />, onClick: () => onView?.(row) },
+    { label: 'Edit', icon: <Pencil className="mr-2 h-4 w-4" />, onClick: () => onEdit?.(row) },
+  ]
 
-  const Spinner = () => (
-    <svg
-      className="animate-spin h-4 w-4 text-current"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      ></circle>
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-      ></path>
-    </svg>
-  )
+  const conditionalActions = row.status !== 'approved' && row.status !== 'declined'
+    ? [
+        {
+          label: 'Approve',
+          icon: loadingAction === 'approve' ? <Spinner /> : <Check className="mr-2 h-4 w-4 text-green-600" />,
+          onClick: () => setDialog({ open: true, action: 'approve' }),
+        },
+        {
+          label: 'Reject',
+          icon: loadingAction === 'reject' ? <Spinner /> : <X className="mr-2 h-4 w-4 text-red-600" />,
+          onClick: () => setDialog({ open: true, action: 'reject' }),
+        },
+      ]
+    : []
 
-  const ActionButtons = (
-    <div className="hidden md:flex items-center space-x-2">
-      <Button size="icon" variant="ghost" onClick={() => onView?.(row)} aria-label="View" disabled={disabled}>
-        <Eye className="w-4 h-4" />
-      </Button>
-      <Button size="icon" variant="ghost" onClick={() => onEdit?.(row)} aria-label="Edit" disabled={disabled}>
-        <Pencil className="w-4 h-4" />
-      </Button>
+  const deleteAction = {
+    label: 'Delete',
+    icon: loadingAction === 'delete' ? <Spinner /> : <Trash className="mr-2 h-4 w-4" />,
+    onClick: () => setDialog({ open: true, action: 'delete' }),
+    destructive: true,
+  }
 
-      {row.status !== 'approved' && row.status !== 'declined' && (
-        <>
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => setDialog({ open: true, action: 'approve' })}
-            aria-label="Approve"
-            disabled={disabled}
-          >
-            {loadingAction === 'approve' ? <Spinner /> : <Check className="w-4 h-4 text-green-600" />}
-          </Button>
-
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => setDialog({ open: true, action: 'reject' })}
-            aria-label="Reject"
-            disabled={disabled}
-          >
-            {loadingAction === 'reject' ? <Spinner /> : <X className="w-4 h-4 text-red-600" />}
-          </Button>
-        </>
-      )}
-
-      <Button
-        size="icon"
-        variant="destructive"
-        onClick={() => setDialog({ open: true, action: 'delete' })}
-        aria-label="Delete"
-        disabled={disabled}
-      >
-        {loadingAction === 'delete' ? <Spinner /> : <Trash className="w-4 h-4" />}
-      </Button>
-    </div>
-  )
-
-  const ActionDropdown = (
-    <div className="md:hidden">
+  return (
+    <>
+      {/* Single dropdown trigger for all screens */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost" aria-label="More actions" disabled={disabled}>
@@ -138,34 +105,21 @@ export function DataTableActionMenu<T extends BaseRow>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem onClick={() => onView?.(row)} disabled={disabled}>
-            <Eye className="mr-2 h-4 w-4" /> View
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onEdit?.(row)} disabled={disabled}>
-            <Pencil className="mr-2 h-4 w-4" /> Edit
-          </DropdownMenuItem>
-          {row.status !== 'approved' && row.status !== 'declined' && (
-            <>
-              <DropdownMenuItem onClick={() => setDialog({ open: true, action: 'approve' })} disabled={disabled}>
-                {loadingAction === 'approve' ? <Spinner /> : <Check className="mr-2 h-4 w-4 text-green-600" />} Approve
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDialog({ open: true, action: 'reject' })} disabled={disabled}>
-                {loadingAction === 'reject' ? <Spinner /> : <X className="mr-2 h-4 w-4 text-red-600" />} Reject
-              </DropdownMenuItem>
-            </>
-          )}
-          <DropdownMenuItem onClick={() => setDialog({ open: true, action: 'delete' })} className="text-red-600" disabled={disabled}>
-            {loadingAction === 'delete' ? <Spinner /> : <Trash className="mr-2 h-4 w-4" />} Delete
+          {actionItems.map((action) => (
+            <DropdownMenuItem key={action.label} onClick={action.onClick} disabled={disabled}>
+              {action.icon} {action.label}
+            </DropdownMenuItem>
+          ))}
+          {conditionalActions.map((action) => (
+            <DropdownMenuItem key={action.label} onClick={action.onClick} disabled={disabled}>
+              {action.icon} {action.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuItem onClick={deleteAction.onClick} disabled={disabled} className="text-red-600">
+            {deleteAction.icon} {deleteAction.label}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
-  )
-
-  return (
-    <>
-      {ActionButtons}
-      {ActionDropdown}
 
       <ConfirmDialog
         open={dialog.open}

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import axiosInstance from "@/lib/axios"
 import { useProjectStore } from "@/stores/projectStore"
@@ -17,12 +17,25 @@ interface EstimateSelectorProps {
     estimateLevel: "estimate" | "group" | "section" | "subsection"
     estimateTargetId: string | null
   }) => void
+  initialValues?: {
+    estimateId: string
+    estimateLevel: "estimate" | "group" | "section" | "subsection"
+    estimateTargetId: string
+  }
 }
 
-export default function EstimateSelector({ projectId: propProjectId, onChange }: EstimateSelectorProps) {
+export default function EstimateSelector({ 
+  projectId: propProjectId, 
+  onChange,
+  initialValues 
+}: EstimateSelectorProps) {
   const storeProjectId = useProjectStore((state) => state.projectId)
   const projectId = propProjectId ?? storeProjectId
   const queryClient = useQueryClient()
+  
+  // Refs to track initial setup and prevent infinite loops
+  const isInitializedRef = useRef(false)
+  const lastEmittedRef = useRef<string | null>(null)
 
   // Prefetch estimates
   useEffect(() => {
@@ -58,7 +71,11 @@ export default function EstimateSelector({ projectId: propProjectId, onChange }:
     staleTime: 5 * 60 * 1000,
   })
 
-  const estimateId = useMemo(() => estimates?.[0]?.estimateId ?? null, [estimates])
+  // Use initial estimateId if provided, otherwise use first estimate
+  const estimateId = useMemo(() => 
+    initialValues?.estimateId || estimates?.[0]?.estimateId || null, 
+    [initialValues?.estimateId, estimates]
+  )
 
   // Prefetch estimate structure
   useEffect(() => {
@@ -93,7 +110,11 @@ export default function EstimateSelector({ projectId: propProjectId, onChange }:
     staleTime: 5 * 60 * 1000,
   })
 
-  const [estimateLevel, setEstimateLevel] = useState<"estimate" | "group" | "section" | "subsection">("group")
+  // Initialize state with initial values
+  const [estimateLevel, setEstimateLevel] = useState<"estimate" | "group" | "section" | "subsection">(
+    initialValues?.estimateLevel || "group"
+  )
+  
   const [selected, setSelected] = useState({
     groupId: "",
     sectionId: "",
@@ -151,48 +172,151 @@ export default function EstimateSelector({ projectId: propProjectId, onChange }:
     [allSubsections, selected.sectionId]
   )
 
+  // Find the exact target item by comparing IDs with structure data
+  const findExactTargetItem = useCallback((targetId: string) => {
+    if (!targetId) return null
+
+    // Check groups - exact match
+    const group = transformedData.groups.find(g => g.key === targetId)
+    if (group) {
+      return { 
+        type: 'group', 
+        groupId: group.key,
+        sectionId: "",
+        subsectionId: ""
+      }
+    }
+
+    // Check sections - exact match
+    const section = allSections.find(s => s.key === targetId)
+    if (section) {
+      return { 
+        type: 'section', 
+        groupId: section.groupId, 
+        sectionId: section.key,
+        subsectionId: ""
+      }
+    }
+
+    // Check subsections - exact match
+    const subsection = allSubsections.find(sub => sub.key === targetId)
+    if (subsection) {
+      return { 
+        type: 'subsection', 
+        groupId: subsection.groupId, 
+        sectionId: subsection.sectionId, 
+        subsectionId: subsection.key 
+      }
+    }
+
+    return null
+  }, [transformedData, allSections, allSubsections])
+
+  // Initialize selection when data loads - COMPARE IDs WITH STRUCTURE
+  useEffect(() => {
+    if (!transformedData.groups.length || !estimateId || isInitializedRef.current) return
+
+    // Case 1: We have initial values and need to find exact matches in structure
+    if (initialValues?.estimateTargetId && initialValues.estimateLevel !== "estimate") {
+      const exactMatch = findExactTargetItem(initialValues.estimateTargetId)
+      
+      if (exactMatch) {
+        setSelected({
+          groupId: exactMatch.groupId || "",
+          sectionId: exactMatch.sectionId || "",
+          subsectionId: exactMatch.subsectionId || "",
+        })
+        
+        // Set the level from initial values
+        if (initialValues.estimateLevel) {
+          setEstimateLevel(initialValues.estimateLevel)
+        }
+        
+        isInitializedRef.current = true
+        return
+      }
+    }
+
+    // Case 2: "estimate" level - clear selections
+    if (initialValues?.estimateLevel === "estimate") {
+      setSelected({
+        groupId: "",
+        sectionId: "",
+        subsectionId: "",
+      })
+      isInitializedRef.current = true
+      return
+    }
+
+    // Case 3: No initial values or no match found - use first available items
+    const firstGroup = transformedData.groups[0]
+    const firstSection = firstGroup?.sections?.[0]
+    const firstSubsection = firstSection?.subsections?.[0]
+    
+    setSelected({
+      groupId: firstGroup?.key || "",
+      sectionId: firstSection?.key || "",
+      subsectionId: firstSubsection?.key || "",
+    })
+    
+    isInitializedRef.current = true
+    
+  }, [transformedData, initialValues, findExactTargetItem, estimateId])
+
   // Emit selection callback
   const emit = useCallback(
     (targetId: string | null) => {
-      onChange?.({
-        estimateId: data?.estimateId || "",
-        estimateLevel,
-        estimateTargetId: targetId,
-      })
+      if (!estimateId || !onChange) return
+      
+      // Create a unique key for this emission to prevent duplicates
+      const emissionKey = `${estimateId}-${estimateLevel}-${targetId}`
+      
+      // Only emit if this is a new value
+      if (lastEmittedRef.current !== emissionKey) {
+        lastEmittedRef.current = emissionKey
+        
+        onChange({
+          estimateId: estimateId,
+          estimateLevel,
+          estimateTargetId: targetId,
+        })
+      }
     },
-    [onChange, data?.estimateId, estimateLevel]
+    [onChange, estimateId, estimateLevel]
   )
 
-  // Initialize selection when data loads
+  // Emit changes when selection or level changes - FIXED to prevent loops
   useEffect(() => {
-    if (!transformedData.groups.length) return
-    setSelected(prev => {
-      if (prev.groupId && prev.sectionId && prev.subsectionId) return prev
-      const firstGroup = transformedData.groups[0]
-      return {
-        groupId: prev.groupId || firstGroup.key,
-        sectionId: prev.sectionId || firstGroup.sections?.[0]?.key || "",
-        subsectionId: prev.subsectionId || firstGroup.sections?.[0]?.subsections?.[0]?.key || "",
-      }
-    })
-  }, [transformedData])
-
-  // Emit changes when selection or level changes
-  useEffect(() => {
-    if (!selected.groupId) return
-    const targetId =
-      estimateLevel === "group"
-        ? selected.groupId
-        : estimateLevel === "section"
-        ? selected.sectionId
-        : estimateLevel === "subsection"
-        ? selected.subsectionId
-        : null
-    if (targetId) emit(targetId)
-  }, [selected, estimateLevel, emit])
+    if (!estimateId || !isInitializedRef.current) return
+    
+    let targetId: string | null = null
+    
+    if (estimateLevel === "estimate") {
+      targetId = estimateId
+    } else if (estimateLevel === "group" && selected.groupId) {
+      targetId = selected.groupId
+    } else if (estimateLevel === "section" && selected.sectionId) {
+      targetId = selected.sectionId
+    } else if (estimateLevel === "subsection" && selected.subsectionId) {
+      targetId = selected.subsectionId
+    }
+    
+    if (targetId) {
+      emit(targetId)
+    }
+  }, [selected, estimateLevel, emit, estimateId])
 
   const handleLevelChange = useCallback((value: "estimate" | "group" | "section" | "subsection") => {
     setEstimateLevel(value)
+    
+    // When switching to "estimate" level, clear the selections
+    if (value === "estimate") {
+      setSelected({
+        groupId: "",
+        sectionId: "",
+        subsectionId: "",
+      })
+    }
   }, [])
 
   const handleSelect = useCallback(
@@ -248,6 +372,15 @@ export default function EstimateSelector({ projectId: propProjectId, onChange }:
         </Select>
       </div>
 
+      {/* Show estimate info when level is "estimate" */}
+      {estimateLevel === "estimate" && estimateId && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+          <p className="text-sm text-green-800">
+            <strong>Selected:</strong> Entire Estimate ({estimateId})
+          </p>
+        </div>
+      )}
+
       {/* Group Selector */}
       {(estimateLevel === "group" || estimateLevel === "section" || estimateLevel === "subsection") && (
         <div>
@@ -266,7 +399,7 @@ export default function EstimateSelector({ projectId: propProjectId, onChange }:
       )}
 
       {/* Section Selector */}
-      {estimateLevel !== "group" && filteredSections.length > 0 && (
+      {(estimateLevel === "section" || estimateLevel === "subsection") && filteredSections.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Section</label>
           <Select value={selected.sectionId} onValueChange={(v) => handleSelect("sectionId", v)}>

@@ -1,5 +1,3 @@
-"use client"
-
 import { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useCanGoBack } from "@tanstack/react-router"
@@ -180,24 +178,33 @@ export default function ExpenseForm({ ExpenseId }: { ExpenseId?: string }) {
     },
   })
 
-  const {
-    data: expenseOrder,
-    isLoading: isExpenseOrderLoading,
-    isError: isExpenseOrderError,
-  } = useQuery({
-    queryKey: ["expenses", ExpenseId],
-    enabled: Boolean(ExpenseId),
-    queryFn: async () => {
+const {
+  data: expenseOrder,
+  isLoading: isExpenseOrderLoading,
+  isError: isExpenseOrderError,
+  error: expenseError, // Add this to see the actual error
+} = useQuery({
+  queryKey: ["expenses", ExpenseId],
+  enabled: Boolean(ExpenseId),
+  queryFn: async () => {
+    try {
+      console.log("Fetching expense with ID:", ExpenseId); // Debug log
       const res = await axiosInstance.get(`/api/expenses/${ExpenseId}`)
+      console.log("Expense data received:", res.data); // Debug log
       return res.data
-    },
-    staleTime: 1000 * 60 * 5,
-    retry: 2,
-    onError: (err) => {
-      console.error("Failed to load expense order:", err)
-      setServerError("Failed to load expense order data")
-    },
-  })
+    } catch (error) {
+      console.error("Error fetching expense:", error);
+      throw error;
+    }
+  },
+  staleTime: 1000 * 60 * 5,
+  retry: 2,
+  onError: (err) => {
+    console.error("Failed to load expense order:", err)
+    console.error("Error details:", err.response?.data); // More details
+    setServerError("Failed to load expense order data: " + (err.response?.data?.message || err.message))
+  },
+})
 
   // ------------------- Mutations -------------------
   const createMutation = useMutation({
@@ -226,6 +233,9 @@ export default function ExpenseForm({ ExpenseId }: { ExpenseId?: string }) {
       setSubmitAttempted(true)
     },
   })
+
+  // Add this debug effect
+
 
   const updateMutation = useMutation({
     mutationFn: (payload: FormData) =>
@@ -313,7 +323,7 @@ export default function ExpenseForm({ ExpenseId }: { ExpenseId?: string }) {
     // Handle nested projectId structure
     const projectId = expenseOrder.projectId?._id || expenseOrder.projectId
 
-    const poFormData = {
+    const expFormData = {
       projectId: projectId || "",
       reference: expenseOrder.reference || "",
       company: expenseOrder.company || "",
@@ -342,8 +352,8 @@ export default function ExpenseForm({ ExpenseId }: { ExpenseId?: string }) {
       estimateTargetId: expenseOrder.estimateTargetId || "",
     }
 
-    setForm(poFormData)
-    setInitialSnapshot(JSON.stringify(poFormData))
+    setForm(expFormData)
+    setInitialSnapshot(JSON.stringify(expFormData))
 
     if (Array.isArray(expenseOrder.attachments)) {
       setExistingAttachments(expenseOrder.attachments)

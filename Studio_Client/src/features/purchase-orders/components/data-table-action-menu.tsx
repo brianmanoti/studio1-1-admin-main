@@ -1,5 +1,3 @@
-'use client'
-
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +10,6 @@ import { Eye, Pencil, Check, X, Trash, MoreHorizontal } from 'lucide-react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import type { PurchaseOrder } from '@/features/purchase-orders/components/purchaseOrders-table'
 
-
 type Props = {
   po: PurchaseOrder
   onView?: (po: PurchaseOrder) => void
@@ -22,10 +19,6 @@ type Props = {
   onDelete?: (po: PurchaseOrder, close: () => void) => void
 }
 
-/**
- * Compact & responsive action menu for table rows.
- * Shows inline buttons on md+ screens and a dropdown on mobile.
- */
 export function DataTableActionMenu({
   po,
   onView,
@@ -46,32 +39,9 @@ export function DataTableActionMenu({
     if (dialog.action === 'delete') onDelete?.(po, () => setDialog({ open: false }))
   }
 
-  const ActionButtons = (
-    <div className="hidden md:flex items-center space-x-2">
-      <Button size="icon" variant="ghost" onClick={() => onView?.(po)} aria-label="View">
-        <Eye className="w-4 h-4" />
-      </Button>
-      <Button size="icon" variant="ghost" onClick={() => onEdit?.(po)} aria-label="Edit">
-        <Pencil className="w-4 h-4" />
-      </Button>
-      {po.status !== 'approved' && po.status !== 'declined' && (
-        <>
-          <Button size="icon" variant="outline" onClick={() => setDialog({ open: true, action: 'approve' })} aria-label="Approve">
-            <Check className="w-4 h-4 text-green-600" />
-          </Button>
-          <Button size="icon" variant="outline" onClick={() => setDialog({ open: true, action: 'reject' })} aria-label="Reject">
-            <X className="w-4 h-4 text-red-600" />
-          </Button>
-        </>
-      )}
-      <Button size="icon" variant="destructive" onClick={() => setDialog({ open: true, action: 'delete' })} aria-label="Delete">
-        <Trash className="w-4 h-4" />
-      </Button>
-    </div>
-  )
-
-  const ActionDropdown = (
-    <div className="md:hidden">
+  return (
+    <>
+      {/* Single trigger button for all actions */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="icon" variant="ghost" aria-label="More actions">
@@ -100,13 +70,6 @@ export function DataTableActionMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
-  )
-
-  return (
-    <>
-      {ActionButtons}
-      {ActionDropdown}
 
       <ConfirmDialog
         open={dialog.open}

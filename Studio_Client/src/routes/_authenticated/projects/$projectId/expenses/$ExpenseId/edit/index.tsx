@@ -9,5 +9,5 @@ export const Route = createFileRoute(
 
 function RouteComponent() {
   const { ExpenseId } = Route.useParams()
-  return  <ExpenseForm expenseId={ ExpenseId} />
+  return  <ExpenseForm ExpenseId={ ExpenseId} />
 }
