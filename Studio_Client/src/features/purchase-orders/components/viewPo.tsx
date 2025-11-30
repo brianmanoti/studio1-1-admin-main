@@ -218,8 +218,6 @@ export default function POViewPage() {
 
                     </div>
                   </div>
-
-
                     {/* Company Information */}
                     <div className="mb-6 sm:mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
                       <div>
