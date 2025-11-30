@@ -1,4 +1,3 @@
-
 import * as React from 'react'
 import { ChevronsUpDown, Plus } from 'lucide-react'
 
@@ -18,7 +17,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { useProjectStore } from '@/stores/projectStore'
 
 interface Project {
@@ -42,36 +41,43 @@ export function ProjectsSwitcher({
 }: ProjectsSwitcherProps) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
-  const params = useParams({ strict: false }) as { id?: string }
+
+  const projectId = useProjectStore((s) => s.projectId)
   const setProjectId = useProjectStore((s) => s.setProjectId)
 
   /* -----------------------------------------------------------
-     🎯 COMPUTE ACTIVE PROJECT (NO duplicated state)
+     🎯 ACTIVE PROJECT — STORE IS THE SOURCE OF TRUTH
   ----------------------------------------------------------- */
   const activeProject = React.useMemo(() => {
-    if (projects.length === 0) return null
-    return projects.find((p) => p._id === params.id) || projects[0]
-  }, [projects, params.id])
+    if (!projects.length) return null
+
+    // 1. If store has a valid projectId
+    if (projectId) {
+      const found = projects.find((p) => p._id === projectId)
+      if (found) return found
+    }
+
+    // 2. If store id is invalid OR null → default to first project
+    setProjectId(projects[0]._id)
+    return projects[0]
+  }, [projects, projectId, setProjectId])
 
   /* -----------------------------------------------------------
-     🔄 SYNC GLOBAL STORE WHEN ACTIVE PROJECT CHANGES
+     🟢 FIRST LOAD: Initialize store if empty
   ----------------------------------------------------------- */
   React.useEffect(() => {
-    if (activeProject?._id) {
-      setProjectId(activeProject._id)
+    if (!projectId && projects.length > 0) {
+      setProjectId(projects[0]._id)
     }
-  }, [activeProject, setProjectId])
+  }, [projectId, projects, setProjectId])
 
   /* -----------------------------------------------------------
-     🧭 SELECT PROJECT HANDLER
+     🧭 USER SELECTS A PROJECT
   ----------------------------------------------------------- */
-  const handleSelectProject = React.useCallback(
-    (project: Project) => {
-      setProjectId(project._id)
-      navigate({ to: '/projects/$id', params: { id: project._id } })
-    },
-    [setProjectId, navigate]
-  )
+  const handleSelectProject = (project: Project) => {
+    setProjectId(project._id)
+    navigate({ to: '/projects/' + project._id })
+  }
 
   /* -----------------------------------------------------------
      📦 RENDER: Loading / Error / Empty
@@ -158,6 +164,14 @@ export function ProjectsSwitcher({
             ))}
 
             <DropdownMenuSeparator />
+
+            {/* ALL PROJECTS */}
+            <DropdownMenuItem
+              className="gap-2 p-2 cursor-pointer hover:bg-blue-50 transition"
+              onClick={() => navigate({ to: '/' })}
+            >
+              <span className="text-blue-600 font-medium">All Projects</span>
+            </DropdownMenuItem>
 
             {/* Add New Project */}
             <DropdownMenuItem

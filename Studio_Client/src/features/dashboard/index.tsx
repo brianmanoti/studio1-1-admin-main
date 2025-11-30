@@ -135,19 +135,19 @@ const topNav = [
   },
   {
     title: 'Subcontractors',
-    href: '/projects/$projectId/subcontractors',
+    href: '/subcontractors',
     isActive: false,
     disabled: false,
   },
   {
     title: 'items',
-    href: '/projects/$projectId/items',
+    href: '/items',
     isActive: false,
     disabled: false,
   },
   {
     title: 'Vendors',
-    href: '/projects/$projectId/vendors',
+    href: '/vendors',
     isActive: false,
     disabled: false,
   },

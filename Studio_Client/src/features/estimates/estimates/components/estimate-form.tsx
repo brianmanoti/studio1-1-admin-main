@@ -17,14 +17,9 @@ import {
   ChevronRight, 
   Plus, 
   FileText, 
-  Download,
-  Eye,
-  EyeOff,
   Calculator,
   Building,
   Layers,
-  Search,
-  Filter,
   Table,
   ListTree,
   Grid3X3
@@ -54,6 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useProjectStore } from "@/stores/projectStore"
 
 // --- Updated Interfaces to match the response ---
 interface EstimateData {
@@ -177,7 +173,7 @@ interface ConfirmationState {
 }
 
 export default function EstimateForm() {
-  const [projectId, setProjectId] = useState<string>("")
+  const currentProjectId = useProjectStore((s) => s.projectId)
   const [groups, setGroups] = useState<Group[]>([])
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [creationMode, setCreationMode] = useState<CreationMode>("scratch")
@@ -185,6 +181,17 @@ export default function EstimateForm() {
   const [dataView, setDataView] = useState<DataView>("table")
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [savedEstimates, setSavedEstimates] = useState<EstimateResponse[]>([])
+
+   const [selectedProjectId, setSelectedProjectId] = useState(currentProjectId || "")
+
+   // Add this after your state declarations
+useEffect(() => {
+  // Sync the project store ID with the form when it changes
+  if (currentProjectId) {
+    setSelectedProjectId(currentProjectId)
+  }
+}, [currentProjectId])
+
 
   // Confirmation Dialog State
   const [confirmation, setConfirmation] = useState<ConfirmationState>({
@@ -224,15 +231,14 @@ export default function EstimateForm() {
 
   const { grandTotal, totalItems } = calculateTotals()
 
-  // Fetch projects and saved estimates
-  const { data: projects = [] } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const res = await fetch("/api/projects")
-      if (!res.ok) throw new Error("Failed to fetch projects")
-      return res.json()
-    },
-  })
+const { data: projects = [] } = useQuery({
+  queryKey: ["project"],
+  queryFn: async () => {
+    const res = await axiosInstance.get("/api/projects")
+    return res.data                
+  },
+})
+
 
   const { data: estimates = [], refetch: refetchEstimates } = useQuery({
     queryKey: ["estimates"],
@@ -266,7 +272,7 @@ export default function EstimateForm() {
     setNotes(estimate.notes || "")
     setStatus(estimate.status)
     setDate(estimate.date)
-    setProjectId(estimate.projectId)
+    setSelectedProjectId(estimate.projectId) 
     setGroups(estimate.groups || [])
     setViewMode("form")
     toast.success("Estimate loaded for editing")
@@ -551,7 +557,7 @@ export default function EstimateForm() {
   // --- Submit Handler ---
   const handleSubmit = async () => {
     try {
-      if (!projectId) {
+      if (!selectedProjectId) {
         toast.error("Select a project first")
         return
       }
@@ -612,7 +618,7 @@ export default function EstimateForm() {
       ]
 
       const payload: EstimateData = {
-        projectId,
+        projectId: selectedProjectId,
         name: estimateName.trim(),
         description: description.trim(),
         notes: notes.trim(),
@@ -624,7 +630,7 @@ export default function EstimateForm() {
 
       await mutation.mutateAsync(payload)
     } catch (error: any) {
-      console.error("❌ Error submitting estimate:", error)
+      console.error(" Error submitting estimate:", error)
       toast.error("Failed to save estimate. Please try again.")
     }
   }
@@ -635,7 +641,7 @@ export default function EstimateForm() {
     setEstimateName("")
     setDescription("")
     setNotes("")
-    setProjectId("")
+    setSelectedProjectId(currentProjectId || "") 
     setStatus("Draft")
     setDate(new Date().toISOString().split("T")[0])
     toast.success("Form reset successfully")
@@ -1320,21 +1326,23 @@ export default function EstimateForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Project *</Label>
-                  <Select onValueChange={setProjectId} value={projectId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((p: any) => (
-                        <SelectItem key={p._id} value={p._id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="w-full space-y-2">
+                <Label>Project *</Label>
+                <Select onValueChange={setSelectedProjectId} value={selectedProjectId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Project">
+                      {projects.find((p) => p._id === selectedProjectId)?.name || "Select Project"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="w-full">
+                    {projects.map((p) => (
+                      <SelectItem key={p._id} value={p._id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
                 <div className="space-y-2">
                   <Label>Estimate Name *</Label>
@@ -1491,7 +1499,7 @@ export default function EstimateForm() {
                     <div className="flex justify-between">
                       <span>Project:</span>
                       <span className="font-medium">
-                        {projects.find((p: any) => p._id === projectId)?.name || "Not selected"}
+                        {projects.find((p: any) => p._id === selectedProjectId)?.name || "Not selected"}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -1516,9 +1524,9 @@ export default function EstimateForm() {
                 <div>
                   <h4 className="font-semibold mb-3">Validation</h4>
                   <div className="space-y-2 text-sm">
-                    <div className={`flex items-center gap-2 ${projectId ? 'text-green-600' : 'text-amber-600'}`}>
-                      <div className={`w-2 h-2 rounded-full ${projectId ? 'bg-green-500' : 'bg-amber-500'}`} />
-                      {projectId ? 'Project selected' : 'Project required'}
+                    <div className={`flex items-center gap-2 ${selectedProjectId ? 'text-green-600' : 'text-amber-600'}`}>
+                      <div className={`w-2 h-2 rounded-full ${selectedProjectId ? 'bg-green-500' : 'bg-amber-500'}`} />
+                      {selectedProjectId ? 'Project selected' : 'Project required'}
                     </div>
                     <div className={`flex items-center gap-2 ${estimateName ? 'text-green-600' : 'text-amber-600'}`}>
                       <div className={`w-2 h-2 rounded-full ${estimateName ? 'bg-green-500' : 'bg-amber-500'}`} />
@@ -1535,7 +1543,7 @@ export default function EstimateForm() {
               <div className="flex gap-3">
                 <Button
                   onClick={handleSubmit}
-                  disabled={!projectId || !estimateName || groups.length === 0 || mutation.isPending}
+                  disabled={!selectedProjectId || !estimateName || groups.length === 0 || mutation.isPending}
                   className="flex-1"
                   size="lg"
                 >
