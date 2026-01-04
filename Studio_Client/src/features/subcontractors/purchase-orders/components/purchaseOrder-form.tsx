@@ -11,21 +11,24 @@ import EstimateSelector from "@/features/estimates/estimates/components/estimate
 import { SubcontractorFormModal } from "@/components/subContractors/components/subcontractor-form-modal"
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
 import { useProjectStore } from "@/stores/projectStore"
-import { Trash, Download, Eye } from "lucide-react"
+import { Trash, Download, Eye, Link, Unlink } from "lucide-react"
 
-const SafeEstimateSelector = React.memo(({ onChange }) => {
-  const [localData, setLocalData] = useState({
+// Safe Estimate Selector for each item
+const SafeEstimateSelector = React.memo(({ onChange, value }) => {
+  const [localData, setLocalData] = useState(value || {
     estimateId: "",
     estimateLevel: "estimate",
-    estimateTargetId: ""
+    estimateTargetId: "",
+    reference: ""
   })
   const isInitialRender = useRef(true)
 
-  const handleSafeChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }) => {
+  const handleSafeChange = useCallback(({ estimateId, estimateLevel, estimateTargetId, reference }) => {
     const newData = {
       estimateId: estimateId || "",
       estimateLevel: estimateLevel || "estimate",
-      estimateTargetId: estimateTargetId || ""
+      estimateTargetId: estimateTargetId || "",
+      reference: reference || ""
     }
     setLocalData(newData)
   }, [])
@@ -44,12 +47,22 @@ const SafeEstimateSelector = React.memo(({ onChange }) => {
     return () => clearTimeout(timeoutId)
   }, [localData, onChange])
 
-  return <EstimateSelector onChange={handleSafeChange} />
+  return <EstimateSelector onChange={handleSafeChange} initialValue={value} />
 })
 
 SafeEstimateSelector.displayName = 'SafeEstimateSelector'
 
-const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0 })
+// Empty item with estimate fields
+const emptyItem = () => ({ 
+  description: "", 
+  quantity: 1, 
+  unit: "", 
+  unitPrice: 0,
+  estimateId: "",
+  estimateLevel: "estimate",
+  estimateTargetId: "",
+  reference: ""
+})
 
 function formatDateToInput(d) {
   if (!d) return ""
@@ -74,7 +87,6 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
   const defaultForm = {
     projectId: CurrentProjectId || "",
     subcontractorId: "",
-    reference: "",
     status: "pending",
     date: formatDateToInput(new Date()),
     deliveryDate: formatDateToInput(new Date()),
@@ -89,9 +101,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
     vendorAddress: "",
     items: [emptyItem()],
     amount: 0,
-    estimateId: "",
-    estimateLevel: "estimate",
-    estimateTargetId: "",
+    // REMOVED document-level estimate fields
   }
 
   const [form, setForm] = useState(defaultForm)
@@ -108,13 +118,9 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
   const [activeVendor, setActiveVendor] = useState(false)
   const [attachments, setAttachments] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
-
-  // ------------------ Estimate State ------------------
-  const [estimateData, setEstimateData] = useState({
-    estimateId: "",
-    estimateLevel: "estimate",
-    estimateTargetId: ""
-  })
+  
+  // State for showing estimate selector per item
+  const [showEstimateSelector, setShowEstimateSelector] = useState({})
 
   const debouncedSearch = useDebounce(searchTerm, 400)
   const debouncedSubcontractorSearch = useDebounce(subcontractorSearch, 400)
@@ -198,10 +204,14 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
         date: formatDateToInput(purchase?.date),
         deliveryDate: formatDateToInput(purchase?.deliveryDate),
         items: Array.isArray(purchase?.items) && purchase.items.length ? purchase.items.map(item => ({
-          description: item.name || item.description || "", // Use name as description for form
+          description: item.name || item.description || "",
           quantity: item.quantity || 1,
           unit: item.unit || "",
-          unitPrice: item.unitPrice || 0
+          unitPrice: item.unitPrice || 0,
+          estimateId: item.estimateId || "",
+          estimateLevel: item.estimateLevel || "estimate",
+          estimateTargetId: item.estimateTargetId || "",
+          reference: item.reference || ""
         })) : [emptyItem()],
         subcontractorName: purchase.subcontractorName || "",
         vendorName: purchase.vendorName || "",
@@ -218,15 +228,6 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
       // Set existing attachments
       if (Array.isArray(purchase.attachments)) {
         setExistingAttachments(purchase.attachments)
-      }
-      
-      // Set estimate data if exists
-      if (purchase.estimateId) {
-        setEstimateData({
-          estimateId: purchase.estimateId,
-          estimateLevel: purchase.estimateLevel || "estimate",
-          estimateTargetId: purchase.estimateTargetId || ""
-        })
       }
 
       // Set search terms if exists
@@ -290,27 +291,43 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
 
   const isDirty = useMemo(() => JSON.stringify(form) !== initialSnapshot, [form, initialSnapshot])
 
-  // ------------------- Estimate Change Handler -------------------
-  const onEstimateChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }) => {
-    // Use requestAnimationFrame to defer state update
-    requestAnimationFrame(() => {
-      setEstimateData({ 
-        estimateId: estimateId || "", 
-        estimateLevel: estimateLevel || "estimate", 
-        estimateTargetId: estimateTargetId || "" 
-      })
+  // ------------------- Estimate Change Handler for Items -------------------
+  const onItemEstimateChange = useCallback((index, { estimateId, estimateLevel, estimateTargetId, reference }) => {
+    setForm(f => {
+      const newItems = [...f.items]
+      newItems[index] = {
+        ...newItems[index],
+        estimateId: estimateId || "",
+        estimateLevel: estimateLevel || "estimate",
+        estimateTargetId: estimateTargetId || "",
+        reference: reference || ""
+      }
+      return { ...f, items: newItems }
     })
   }, [])
 
-  // ------------------ Update Form when Estimate Data Changes ------------------
-  useEffect(() => {
-    setForm(f => ({
-      ...f,
-      estimateId: estimateData.estimateId,
-      estimateLevel: estimateData.estimateLevel,
-      estimateTargetId: estimateData.estimateTargetId
+  // ------------------- Toggle Estimate Selector for Item -------------------
+  const toggleEstimateSelector = useCallback((index) => {
+    setShowEstimateSelector(prev => ({
+      ...prev,
+      [index]: !prev[index]
     }))
-  }, [estimateData])
+  }, [])
+
+  // ------------------- Clear Estimate from Item -------------------
+  const clearItemEstimate = useCallback((index) => {
+    setForm(f => {
+      const newItems = [...f.items]
+      newItems[index] = {
+        ...newItems[index],
+        estimateId: "",
+        estimateLevel: "estimate",
+        estimateTargetId: "",
+        reference: ""
+      }
+      return { ...f, items: newItems }
+    })
+  }, [])
 
   // ------------------- Handlers -------------------
   const handleItemSave = useCallback((item: Item) => {
@@ -428,7 +445,10 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
       items: f.items.map((it, idx) => (i === idx ? { ...it, [name]: value } : it)),
     })), [])
   
-  const addItem = useCallback(() => setForm((f) => ({ ...f, items: [...f.items, emptyItem()] })), [])
+  const addItem = useCallback(() => setForm((f) => ({ 
+    ...f, 
+    items: [...f.items, emptyItem()] 
+  })), [])
   
   const removeItem = useCallback((i) =>
     setForm((f) => ({
@@ -482,7 +502,12 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
           description: item.description,
           quantity: Number(item.quantity),
           unit: item.unit,
-          unitPrice: Number(item.unitPrice)
+          unitPrice: Number(item.unitPrice),
+          // Include item-level estimate fields
+          estimateId: item.estimateId || "",
+          estimateLevel: item.estimateLevel || "estimate",
+          estimateTargetId: item.estimateTargetId || "",
+          reference: item.reference || ""
         }))
         formData.append("items", JSON.stringify(apiItems))
       } else {
@@ -568,27 +593,6 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
           </div>
         )}
 
-        {/* Estimate Selector - Fixed with Safe Wrapper */}
-        <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
-          <h3 className="font-medium text-blue-700 mb-2">Link to Estimate</h3>
-          <SafeEstimateSelector onChange={onEstimateChange} />
-          {estimateData.estimateId && (
-            <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 p-3 rounded">
-              <p>
-                <span className="font-medium">Estimate ID:</span> {estimateData.estimateId}
-              </p>
-              <p>
-                <span className="font-medium">Linked Level:</span> {estimateData.estimateLevel}
-              </p>
-              {estimateData.estimateTargetId && (
-                <p>
-                  <span className="font-medium">Target ID:</span> {estimateData.estimateTargetId}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Basic Information */}
         <section className="space-y-4">
           <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
@@ -672,17 +676,6 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
               />
               {errors.deliveryAddress && <p className="text-red-500 text-sm">{errors.deliveryAddress}</p>}
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium">Reference</label>
-            <input
-              className="w-full border p-2 rounded"
-              value={form.reference}
-              onChange={(e) => setField("reference", e.target.value)}
-              disabled={isLocked}
-              placeholder="Optional reference number"
-            />
           </div>
         </section>
 
@@ -900,8 +893,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
           </div>
         </section>
 
-
-        {/* Items Section */}
+        {/* Items Section with Estimate Linking */}
         <section className="space-y-2 relative">
           <h3 className="font-semibold text-gray-700 border-b pb-2">PurchaseItems</h3>
 
@@ -914,132 +906,218 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
                   <th className="p-2 border">Unit *</th>
                   <th className="p-2 border">Unit Price *</th>
                   <th className="p-2 border">Total</th>
+                  <th className="p-2 border">Estimate Link</th>
                   <th className="p-2 border"></th>
                 </tr>
               </thead>
 
               <tbody>
                 {form.items.map((it, idx) => (
-                  <tr key={idx} className="relative">
-                    <td className="p-2 border relative">
-                      <input
-                        className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
-                        value={it.description || ""}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setItemField(idx, "description", val)
-                          setSearchTerm(val)
-                          setActiveRow(idx)
-                        }}
-                        onFocus={() => setActiveRow(idx)}
-                        onBlur={() => setTimeout(() => setActiveRow(null), 200)}
-                        placeholder="Enter description"
-                        disabled={isLocked}
-                        required
-                      />
+                  <React.Fragment key={idx}>
+                    <tr className="relative">
+                      <td className="p-2 border relative">
+                        <input
+                          className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
+                          value={it.description || ""}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setItemField(idx, "description", val)
+                            setSearchTerm(val)
+                            setActiveRow(idx)
+                          }}
+                          onFocus={() => setActiveRow(idx)}
+                          onBlur={() => setTimeout(() => setActiveRow(null), 200)}
+                          placeholder="Enter description"
+                          disabled={isLocked}
+                          required
+                        />
 
-                      {activeRow === idx && searchTerm && (
-                        <div className="fixed left-0 right-0 top-4 z-50 flex justify-center pointer-events-none">
-                          <div className="mt-[calc(100vh/2)] w-full max-w-lg pointer-events-auto bg-white border border-gray-200 rounded-md shadow-lg overflow-auto max-h-60">
-                            {filteredItems.map((item) => (
-                              <div
-                                key={item.id || item._id}
-                                onClick={() => {
-                                  setItemField(idx, "description", item.description || "")
-                                  setItemField(idx, "unit", item.unit || "")
-                                  setItemField(idx, "unitPrice", item.unitPrice || 0)
-                                  setActiveRow(null)
-                                  setSearchTerm("")
-                                }}
-                                className="px-4 py-2 hover:bg-blue-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
-                              >
-                                <span className="font-medium">{item.description}</span>{" "}
-                                <span className="text-gray-500 text-xs">
-                                  ({item.unit}, KES {item.unitPrice?.toLocaleString()})
-                                </span>
-                              </div>
-                            ))}
-
-                            {filteredItems.length === 0 && (
-                              <div className="px-4 py-2 text-gray-400 text-sm italic">
-                                No matches —{" "}
-                                <button
-                                  type="button"
-                                  className="text-blue-600 cursor-pointer hover:underline"
-                                  onClick={() => setFormState({ type: "add-item" })}
+                        {activeRow === idx && searchTerm && (
+                          <div className="fixed left-0 right-0 top-4 z-50 flex justify-center pointer-events-none">
+                            <div className="mt-[calc(100vh/2)] w-full max-w-lg pointer-events-auto bg-white border border-gray-200 rounded-md shadow-lg overflow-auto max-h-60">
+                              {filteredItems.map((item) => (
+                                <div
+                                  key={item.id || item._id}
+                                  onClick={() => {
+                                    setItemField(idx, "description", item.description || "")
+                                    setItemField(idx, "unit", item.unit || "")
+                                    setItemField(idx, "unitPrice", item.unitPrice || 0)
+                                    setActiveRow(null)
+                                    setSearchTerm("")
+                                  }}
+                                  className="px-4 py-2 hover:bg-blue-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
                                 >
-                                  + Add New Item
-                                </button>
+                                  <span className="font-medium">{item.description}</span>{" "}
+                                  <span className="text-gray-500 text-xs">
+                                    ({item.unit}, KES {item.unitPrice?.toLocaleString()})
+                                  </span>
+                                </div>
+                              ))}
+
+                              {filteredItems.length === 0 && (
+                                <div className="px-4 py-2 text-gray-400 text-sm italic">
+                                  No matches —{" "}
+                                  <button
+                                    type="button"
+                                    className="text-blue-600 cursor-pointer hover:underline"
+                                    onClick={() => setFormState({ type: "add-item" })}
+                                  >
+                                    + Add New Item
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {errors[`items.${idx}.description`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.description`]}</p>
+                        )}
+                      </td>
+
+                      <td className="p-2 border">
+                        <input
+                          type="number"
+                          className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
+                          value={it.quantity}
+                          onChange={(e) => setItemField(idx, "quantity", e.target.value)}
+                          disabled={isLocked}
+                          min="1"
+                          step="1"
+                          required
+                        />
+                        {errors[`items.${idx}.quantity`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.quantity`]}</p>
+                        )}
+                      </td>
+
+                      <td className="p-2 border">
+                        <input
+                          className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
+                          value={it.unit}
+                          onChange={(e) => setItemField(idx, "unit", e.target.value)}
+                          disabled={isLocked}
+                          required
+                        />
+                        {errors[`items.${idx}.unit`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.unit`]}</p>
+                        )}
+                      </td>
+
+                      <td className="p-2 border">
+                        <input
+                          type="number"
+                          className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
+                          value={it.unitPrice}
+                          onChange={(e) => setItemField(idx, "unitPrice", e.target.value)}
+                          disabled={isLocked}
+                          min="0"
+                          step="0.01"
+                          required
+                        />
+                        {errors[`items.${idx}.unitPrice`] && (
+                          <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.unitPrice`]}</p>
+                        )}
+                      </td>
+
+                      <td className="p-2 border text-center font-medium">
+                        KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
+                      </td>
+
+                      <td className="p-2 border text-center">
+                        <div className="flex items-center justify-center space-x-1">
+                          {it.estimateId ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => toggleEstimateSelector(idx)}
+                                className="inline-flex items-center justify-center w-8 h-8 text-green-600 rounded hover:bg-green-100 hover:scale-110 transition-transform duration-200"
+                                title="Edit Estimate Link"
+                              >
+                                <Link size={18} color="#16a34a" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => clearItemEstimate(idx)}
+                                className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200"
+                                title="Remove Estimate Link"
+                              >
+                                <Unlink size={18} color="#ea343d" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleEstimateSelector(idx)}
+                              className="inline-flex items-center justify-center px-3 py-1 text-sm text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                              disabled={isLocked}
+                            >
+                              Link Estimate
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="p-2 border text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200 disabled:opacity-50 disabled:hover:bg-transparent"
+                          disabled={isLocked || form.items.length === 1}
+                        >
+                          <Trash size={18} color="#ea343d" />
+                        </button>
+                      </td>
+                    </tr>
+                    
+                    {/* Estimate Selector Row for this item */}
+                    {showEstimateSelector[idx] && (
+                      <tr>
+                        <td colSpan="7" className="p-4 border-t-0 bg-blue-50">
+                          <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+                            <h4 className="font-medium text-blue-700 mb-2">Link Item to Estimate</h4>
+                            <SafeEstimateSelector 
+                              onChange={(data) => onItemEstimateChange(idx, data)}
+                              value={{
+                                estimateId: it.estimateId,
+                                estimateLevel: it.estimateLevel,
+                                estimateTargetId: it.estimateTargetId,
+                                reference: it.reference
+                              }}
+                            />
+                            {it.estimateId && (
+                              <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 p-3 rounded">
+                                <p>
+                                  <span className="font-medium">Estimate ID:</span> {it.estimateId}
+                                </p>
+                                <p>
+                                  <span className="font-medium">Level:</span> {it.estimateLevel}
+                                </p>
+                                {it.estimateTargetId && (
+                                  <p>
+                                    <span className="font-medium">Target ID:</span> {it.estimateTargetId}
+                                  </p>
+                                )}
+                                {it.reference && (
+                                  <p>
+                                    <span className="font-medium">Reference:</span> {it.reference}
+                                  </p>
+                                )}
                               </div>
                             )}
+                            <div className="mt-3 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => toggleEstimateSelector(idx)}
+                                className="text-gray-600 hover:underline text-sm"
+                              >
+                                Close
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {errors[`items.${idx}.description`] && (
-                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.description`]}</p>
-                      )}
-                    </td>
-
-                    <td className="p-2 border">
-                      <input
-                        type="number"
-                        className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
-                        value={it.quantity}
-                        onChange={(e) => setItemField(idx, "quantity", e.target.value)}
-                        disabled={isLocked}
-                        min="1"
-                        step="1"
-                        required
-                      />
-                      {errors[`items.${idx}.quantity`] && (
-                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.quantity`]}</p>
-                      )}
-                    </td>
-
-                    <td className="p-2 border">
-                      <input
-                        className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
-                        value={it.unit}
-                        onChange={(e) => setItemField(idx, "unit", e.target.value)}
-                        disabled={isLocked}
-                        required
-                      />
-                      {errors[`items.${idx}.unit`] && (
-                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.unit`]}</p>
-                      )}
-                    </td>
-
-                    <td className="p-2 border">
-                      <input
-                        type="number"
-                        className="w-full border border-blue-200 p-1 rounded focus:ring-2 focus:ring-blue-300 outline-none"
-                        value={it.unitPrice}
-                        onChange={(e) => setItemField(idx, "unitPrice", e.target.value)}
-                        disabled={isLocked}
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                      {errors[`items.${idx}.unitPrice`] && (
-                        <p className="text-red-500 text-xs mt-1">{errors[`items.${idx}.unitPrice`]}</p>
-                      )}
-                    </td>
-
-                    <td className="p-2 border text-center font-medium">
-                      KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
-                    </td>
-
-                    <td className="p-2 border text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeItem(idx)}
-                        className="inline-flex items-center justify-center w-8 h-8 text-red-600 rounded hover:bg-red-100 hover:scale-110 transition-transform duration-200 disabled:opacity-50 disabled:hover:bg-transparent"
-                        disabled={isLocked || form.items.length === 1}
-                      >
-                        <Trash size={18} color="#ea343d" />
-                      </button>
-                    </td>
-                  </tr>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -1170,7 +1248,7 @@ export default function SubcontractorPoForm({ PurchaseOrderId }) {
               {isSubmitting ? "Saving…" : PurchaseOrderId ? "Save Changes" : "Create PurchaseRecord"}
             </button>
           )}
-z
+
           <button
             type="button"
             onClick={handleBack}

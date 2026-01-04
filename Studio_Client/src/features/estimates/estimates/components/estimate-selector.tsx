@@ -22,12 +22,16 @@ interface EstimateSelectorProps {
     estimateLevel: "estimate" | "group" | "section" | "subsection"
     estimateTargetId: string
   }
+  disabled?: boolean
+  compact?: boolean
 }
 
 export default function EstimateSelector({ 
   projectId: propProjectId, 
   onChange,
-  initialValues 
+  initialValues,
+  disabled = false,
+  compact = false
 }: EstimateSelectorProps) {
   const storeProjectId = useProjectStore((state) => state.projectId)
   const projectId = propProjectId ?? storeProjectId
@@ -36,6 +40,15 @@ export default function EstimateSelector({
   // Refs to track initial setup and prevent infinite loops
   const isInitializedRef = useRef(false)
   const lastEmittedRef = useRef<string | null>(null)
+  
+  // Prevent clicks inside from bubbling
+  const handleContainerClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+  }, [])
+
+  const handleContainerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+  }, [])
 
   // Prefetch estimates
   useEffect(() => {
@@ -342,6 +355,14 @@ export default function EstimateSelector({
     [allSections, allSubsections, transformedData]
   )
 
+  const handleSelectTriggerClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+  }, [])
+
+  const handleSelectContentClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+  }, [])
+
   if (loadingEstimates || isLoading)
     return <div className="text-gray-500 text-sm">Loading estimate…</div>
 
@@ -355,15 +376,26 @@ export default function EstimateSelector({
     return <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded">No estimate structure available.</div>
 
   return (
-    <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-md space-y-3">
+    <div 
+      className={`w-full ${compact ? 'p-2' : 'p-4'} bg-blue-50 border border-blue-200 rounded-md space-y-3`}
+      onClick={handleContainerClick}
+      onMouseDown={handleContainerMouseDown}
+    >
       {/* Level Selector */}
       <div>
         <label className="block text-sm font-medium text-blue-800 mb-1">Estimate Level</label>
-        <Select value={estimateLevel} onValueChange={handleLevelChange}>
-          <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
+        <Select 
+          value={estimateLevel} 
+          onValueChange={handleLevelChange}
+          disabled={disabled}
+        >
+          <SelectTrigger 
+            className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400"
+            onClick={handleSelectTriggerClick}
+          >
             <SelectValue placeholder="Select level" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent onClick={handleSelectContentClick}>
             <SelectItem value="estimate">Estimate (Whole)</SelectItem>
             <SelectItem value="group">Group</SelectItem>
             <SelectItem value="section">Section</SelectItem>
@@ -385,11 +417,18 @@ export default function EstimateSelector({
       {(estimateLevel === "group" || estimateLevel === "section" || estimateLevel === "subsection") && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Group</label>
-          <Select value={selected.groupId} onValueChange={(v) => handleSelect("groupId", v)}>
-            <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
+          <Select 
+            value={selected.groupId} 
+            onValueChange={(v) => handleSelect("groupId", v)}
+            disabled={disabled}
+          >
+            <SelectTrigger 
+              className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400"
+              onClick={handleSelectTriggerClick}
+            >
               <SelectValue placeholder="Select group" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent onClick={handleSelectContentClick}>
               {transformedData.groups.map(g => (
                 <SelectItem key={g.key} value={g.key}>{g.code} - {g.value}</SelectItem>
               ))}
@@ -402,11 +441,18 @@ export default function EstimateSelector({
       {(estimateLevel === "section" || estimateLevel === "subsection") && filteredSections.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Section</label>
-          <Select value={selected.sectionId} onValueChange={(v) => handleSelect("sectionId", v)}>
-            <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
+          <Select 
+            value={selected.sectionId} 
+            onValueChange={(v) => handleSelect("sectionId", v)}
+            disabled={disabled}
+          >
+            <SelectTrigger 
+              className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400"
+              onClick={handleSelectTriggerClick}
+            >
               <SelectValue placeholder="Select section" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent onClick={handleSelectContentClick}>
               {filteredSections.map(s => <SelectItem key={s.key} value={s.key}>{s.code} - {s.value}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -417,11 +463,18 @@ export default function EstimateSelector({
       {estimateLevel === "subsection" && filteredSubsections.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-blue-800 mb-1">Subsection</label>
-          <Select value={selected.subsectionId} onValueChange={(v) => handleSelect("subsectionId", v)}>
-            <SelectTrigger className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400">
+          <Select 
+            value={selected.subsectionId} 
+            onValueChange={(v) => handleSelect("subsectionId", v)}
+            disabled={disabled}
+          >
+            <SelectTrigger 
+              className="w-full border border-blue-300 bg-white text-sm focus:ring-2 focus:ring-blue-400"
+              onClick={handleSelectTriggerClick}
+            >
               <SelectValue placeholder="Select subsection" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent onClick={handleSelectContentClick}>
               {filteredSubsections.map(ss => <SelectItem key={ss.key} value={ss.key}>{ss.code} - {ss.value}</SelectItem>)}
             </SelectContent>
           </Select>

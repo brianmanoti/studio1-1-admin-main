@@ -1,6 +1,5 @@
 "use client"
-
-import { useEffect, useMemo, useState, useRef, useCallback } from "react"
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useCanGoBack } from "@tanstack/react-router"
 import axiosInstance from "@/lib/axios"
@@ -13,7 +12,7 @@ import { ItemFormModal } from "@/components/items/items-form-modal"
 import { VendorFormModal } from "@/components/vendors/vendor-form-modal"
 import EstimateSelector from "@/features/estimates/estimates/components/estimate-selector"
 import { useProjectStore } from "@/stores/projectStore"
-import { Trash2, X, ArrowLeft, FileText, Truck, Building, Package, Paperclip, AlertCircle, File, Image, Download, CheckCircle } from "lucide-react"
+import { Trash2, X, ArrowLeft, FileText, Truck, Building, Package, Paperclip, AlertCircle, File, Image, Download, CheckCircle, Link, Unlink, AlertTriangle } from "lucide-react"
 import ItemAutocomplete from "@/components/items/items-auto-select"
 import {
   Select,
@@ -22,8 +21,94 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
-const emptyItem = () => ({ description: "", quantity: 1, unit: "", unitPrice: 0, name: "" })
+// Safe Estimate Selector Component for Items
+const SafeEstimateSelectorItem = React.memo(({ 
+  onChange, 
+  value, 
+  disabled,
+  required 
+}: { 
+  onChange: (data: { estimateId: string; estimateLevel: string; estimateTargetId: string; reference: string }) => void; 
+  value: { estimateId: string; estimateLevel: string; estimateTargetId: string; reference: string };
+  disabled?: boolean;
+  required?: boolean;
+}) => {
+  const [localData, setLocalData] = useState(value || {
+    estimateId: "",
+    estimateLevel: "estimate",
+    estimateTargetId: "",
+    reference: ""
+  })
+  const isInitialRender = useRef(true)
+
+  const handleSafeChange = useCallback(({ estimateId, estimateLevel, estimateTargetId, reference }) => {
+    const newData = {
+      estimateId: estimateId || "",
+      estimateLevel: estimateLevel || "estimate",
+      estimateTargetId: estimateTargetId || "",
+      reference: reference || ""
+    }
+    setLocalData(newData)
+  }, [])
+
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      onChange(localData)
+    }, 0)
+
+    return () => clearTimeout(timeoutId)
+  }, [localData, onChange])
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-gray-700">
+          Estimate Link {required && <span className="text-red-500">*</span>}
+        </label>
+        {required && !localData.estimateId && (
+          <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+            <AlertTriangle size={10} />
+            Required
+          </span>
+        )}
+      </div>
+      <EstimateSelector 
+        onChange={handleSafeChange} 
+        initialValue={value}
+        disabled={disabled}
+        compact={true}
+      />
+    </div>
+  )
+})
+
+SafeEstimateSelectorItem.displayName = 'SafeEstimateSelectorItem'
+
+// Empty item with estimate fields
+const emptyItem = () => ({ 
+  description: "", 
+  quantity: 1, 
+  unit: "", 
+  unitPrice: 0,
+  name: "",
+  // Item-level estimate fields
+  estimateId: "",
+  estimateLevel: "estimate",
+  estimateTargetId: "",
+  reference: ""
+})
 
 function formatDateToInput(d: string | Date) {
   if (!d) return ""
@@ -78,6 +163,26 @@ const calculateItemTotal = (quantity: number | string, unitPrice: number | strin
   return formatCurrency(qty * price)
 }
 
+// Custom hook for click outside detection
+const useClickOutside = (ref: React.RefObject<HTMLElement>, handler: () => void) => {
+  useEffect(() => {
+    const listener = (event: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) {
+        return;
+      }
+      handler();
+    };
+
+    document.addEventListener('mousedown', listener);
+    document.addEventListener('touchstart', listener);
+
+    return () => {
+      document.removeEventListener('mousedown', listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, handler]);
+};
+
 export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId?: string }) {
   const navigate = useNavigate()
   const canGoBack = useCanGoBack()
@@ -109,9 +214,7 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
     vendorAddress: "",
     items: [emptyItem()],
     amount: 0,
-    estimateId: "",
-    estimateLevel: "group",
-    estimateTargetId: "",
+    // REMOVED document-level estimate fields
   }
 
   const [form, setForm] = useState(defaultForm)
@@ -124,6 +227,12 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
   const [searchTerm, setSearchTerm] = useState("")
   const [vendorSearch, setVendorSearch] = useState("")
   const [activeVendor, setActiveVendor] = useState(false)
+  
+  // State for showing estimate selector per item
+  const [showEstimateSelector, setShowEstimateSelector] = useState<Record<number, boolean>>({})
+  
+  // Ref for the estimate selector container
+  const estimateSelectorRef = useRef<HTMLDivElement>(null)
 
   const debouncedSearch = useDebounce(searchTerm, 400)
   const debouncedVendorSearch = useDebounce(vendorSearch, 400)
@@ -140,26 +249,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
       return res.data
     },
     staleTime: 1000 * 60 * 5,
-  })
-
-  // Fetch estimates for the current project
-  const {
-    data: estimates = [],
-    isLoading: isLoadingEstimates,
-  } = useQuery({
-    queryKey: ["estimatesByProject", CurrentProjectId],
-    queryFn: async () => {
-      if (!CurrentProjectId) return []
-      try {
-        const res = await axiosInstance.get(`/api/estimates/project/${CurrentProjectId}`)
-        return res.data
-      } catch (err) {
-        if (err.response?.status === 404) return []
-        throw err
-      }
-    },
-    enabled: !!CurrentProjectId,
-    staleTime: 5 * 60 * 1000,
   })
 
   const { data: itemList = [] } = useQuery({
@@ -253,7 +342,12 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
             quantity: item.quantity || 1,
             unit: item.unit || "",
             unitPrice: item.unitPrice || 0,
-            name: item.name || ""
+            name: item.name || "",
+            // Item-level estimate fields
+            estimateId: item.estimateId || "",
+            estimateLevel: item.estimateLevel || "estimate",
+            estimateTargetId: item.estimateTargetId || "",
+            reference: item.reference || ""
           })) : [emptyItem()],
         amount: data.amount || 0,
       }
@@ -291,22 +385,7 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
     }
   }, [isProjectsLoading, CurrentProjectId, form.projectId, purchaseOrderId])
 
-  // Auto-select first estimate when estimates load and no estimate is selected
-  useEffect(() => {
-    if (estimates.length > 0 && !form.estimateId && !purchaseOrderId) {
-      const firstEstimate = estimates[0]
-      if (firstEstimate) {
-        setForm(prev => ({
-          ...prev,
-          estimateId: firstEstimate.estimateId || firstEstimate._id,
-          estimateLevel: "estimate",
-          estimateTargetId: firstEstimate.estimateId || firstEstimate._id
-        }))
-      }
-    }
-  }, [estimates, purchaseOrderId])
-
-  // Load purchase order data when editing - FIXED for nested projectId
+  // Load purchase order data when editing
   useEffect(() => {
     if (!purchaseOrder || !purchaseOrderId) return
 
@@ -334,12 +413,14 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
           unit: item.unit || "",
           unitPrice: item.unitPrice || 0,
           name: item.name || "",
+          // Item-level estimate fields
+          estimateId: item.estimateId || "",
+          estimateLevel: item.estimateLevel || "estimate",
+          estimateTargetId: item.estimateTargetId || "",
+          reference: item.reference || "",
           _id: item._id // Preserve item IDs for updates
         })) : [emptyItem()],
       amount: purchaseOrder.amount || 0,
-      estimateId: purchaseOrder.estimateId || "",
-      estimateLevel: purchaseOrder.estimateLevel || "estimate",
-      estimateTargetId: purchaseOrder.estimateTargetId || "",
     }
 
     setForm(poFormData)
@@ -400,6 +481,57 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
       items: f.items.filter((_, idx) => idx !== i).length ? f.items.filter((_, idx) => idx !== i) : [emptyItem()],
     })), [])
 
+  // ------------------- Item Estimate Handlers -------------------
+  const onItemEstimateChange = useCallback((index: number, { estimateId, estimateLevel, estimateTargetId, reference }: { 
+    estimateId: string; 
+    estimateLevel: string; 
+    estimateTargetId: string;
+    reference: string;
+  }) => {
+    setForm(f => {
+      const newItems = [...f.items]
+      newItems[index] = {
+        ...newItems[index],
+        estimateId: estimateId || "",
+        estimateLevel: estimateLevel || "estimate",
+        estimateTargetId: estimateTargetId || "",
+        reference: reference || ""
+      }
+      return { ...f, items: newItems }
+    })
+    
+    // Close the selector after selection
+    closeEstimateSelector(index);
+  }, [])
+
+  const openEstimateSelector = useCallback((index: number) => {
+    setShowEstimateSelector(prev => ({
+      ...prev,
+      [index]: true
+    }));
+  }, [])
+
+  const closeEstimateSelector = useCallback((index: number) => {
+    setShowEstimateSelector(prev => ({
+      ...prev,
+      [index]: false
+    }));
+  }, [])
+
+  const clearItemEstimate = useCallback((index: number) => {
+    setForm(f => {
+      const newItems = [...f.items]
+      newItems[index] = {
+        ...newItems[index],
+        estimateId: "",
+        estimateLevel: "estimate",
+        estimateTargetId: "",
+        reference: ""
+      }
+      return { ...f, items: newItems }
+    })
+  }, [])
+
   const isDirty = useMemo(
     () => JSON.stringify(form) !== initialSnapshot || newAttachments.length > 0 || removeAttachments.length > 0,
     [form, initialSnapshot, newAttachments, removeAttachments],
@@ -432,7 +564,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
   }
 
   const handleDownloadAttachment = (attachment: any) => {
-    // Create download URL from the stored file path
     const fileUrl = attachment.url || `${axiosInstance.defaults.baseURL}/${attachment.path}`
     const link = document.createElement('a')
     link.href = fileUrl
@@ -472,20 +603,6 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
     setField("vendorContact", vendor.vendorContact || "")
   }, [setField])
 
-  const onEstimateChange = useCallback(({ estimateId, estimateLevel, estimateTargetId }: { 
-    estimateId: string; 
-    estimateLevel: string; 
-    estimateTargetId: string 
-  }) => {
-    setForm((f) => ({ ...f, estimateId, estimateLevel, estimateTargetId }))
-  }, [])
-
-  const estimateInitialValues = useMemo(() => ({
-    estimateId: form.estimateId,
-    estimateLevel: form.estimateLevel,
-    estimateTargetId: form.estimateTargetId
-  }), [form.estimateId, form.estimateLevel, form.estimateTargetId])
-
   const validate = () => {
     const e: Record<string, string> = {}
     if (!form.projectId) e.projectId = "Project ID is required"
@@ -503,60 +620,66 @@ export default function PurchaseOrderForm({ purchaseOrderId }: { purchaseOrderId
       if (!it.unit) e[`items.${idx}.unit`] = "Unit required"
       if (!it.quantity || Number(it.quantity) <= 0) e[`items.${idx}.quantity`] = "Quantity > 0 required"
       if (it.unitPrice === "" || Number(it.unitPrice) < 0) e[`items.${idx}.unitPrice`] = "Invalid price"
+      
+      // REQUIRED: Item must have estimate linked
+      if (!it.estimateId) e[`items.${idx}.estimateId`] = "Estimate link is required"
     })
 
     setErrors(e)
     return !Object.keys(e).length
   }
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setSubmitAttempted(true)
-  
-  if (!validate()) {
-    window.scrollTo({ top: 0, behavior: "smooth" })
-    return
-  }
-  
-  setIsSubmitting(true)
-  setServerError(null)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitAttempted(true)
+    
+    if (!validate()) {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+      return
+    }
+    
+    setIsSubmitting(true)
+    setServerError(null)
 
-  try {
-    const formData = new FormData()
+    try {
+      const formData = new FormData()
 
-    // FIXED: Now includes the amount field
-    Object.keys(form).forEach((key) => {
-      if (key === "items") {
-        // Remove _id from items before sending to avoid validation issues
-        const itemsToSend = form.items.map(({ _id, ...item }) => item)
-        formData.append("items", JSON.stringify(itemsToSend))
-      } else if (key !== "_id") {  // ← ONLY exclude _id
-        const value = form[key as keyof typeof form]
-        formData.append(key, value !== undefined && value !== null ? value.toString() : "")
+      // Add all regular fields
+      Object.keys(form).forEach((key) => {
+        if (key === "items") {
+          // Remove _id from items and map description to name
+          const itemsToSend = form.items.map(({ _id, description, ...item }) => ({
+            ...item,
+            name: description // Map description to name for API
+          }))
+          formData.append("items", JSON.stringify(itemsToSend))
+        } else if (key !== "_id") {
+          const value = form[key as keyof typeof form]
+          formData.append(key, value !== undefined && value !== null ? value.toString() : "")
+        }
+      })
+
+      newAttachments.forEach((file) => {
+        formData.append("attachments", file)
+      })
+
+      if (removeAttachments.length > 0) {
+        formData.append("removeAttachments", JSON.stringify(removeAttachments))
       }
-    })
 
-    newAttachments.forEach((file) => {
-      formData.append("attachments", file)
-    })
+      if (forceReplaceAttachments) {
+        formData.append("forceReplaceAttachments", "true")
+      }
 
-    if (removeAttachments.length > 0) {
-      formData.append("removeAttachments", JSON.stringify(removeAttachments))
+      if (purchaseOrderId) {
+        await updateMutation.mutateAsync(formData)
+      } else {
+        await createMutation.mutateAsync(formData)
+      }
+    } catch (error) {
+      console.error("Submission error:", error)
     }
-
-    if (forceReplaceAttachments) {
-      formData.append("forceReplaceAttachments", "true")
-    }
-
-    if (purchaseOrderId) {
-      await updateMutation.mutateAsync(formData)
-    } else {
-      await createMutation.mutateAsync(formData)
-    }
-  } catch (error) {
-    console.error("Submission error:", error)
   }
-}
 
   const handleBack = () => {
     if (isDirty && !confirm("You have unsaved changes. Leave without saving?")) return
@@ -571,21 +694,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   const isLocked = ["approved", "delivered"].includes(form.status)
 
-  // Show loading state when fetching purchase order data
-  if (purchaseOrderId && isPurchaseOrderLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading purchase order...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Check if any items are missing estimate links
+  const itemsMissingEstimate = form.items.filter(item => !item.estimateId).length
 
   // ------------------- Render -------------------
   return (
@@ -609,6 +719,21 @@ const handleSubmit = async (e: React.FormEvent) => {
               </h1>
             </div>
             <div className="flex items-center space-x-3">
+              {itemsMissingEstimate > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        <AlertTriangle size={12} className="mr-1" />
+                        {itemsMissingEstimate} item(s) need estimate
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">All items must be linked to an estimate</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {isDirty && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                   Unsaved Changes
@@ -673,39 +798,24 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Estimate Link Section */}
-          <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center mb-4">
-              <FileText className="h-5 w-5 text-blue-600 mr-2" />
-              <h2 className="text-lg font-semibold text-gray-900">Estimate Link</h2>
-            </div>
-            <EstimateSelector 
-              onChange={onEstimateChange}
-              initialValues={estimateInitialValues}
-            />
-            {form.estimateId && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-blue-900">Estimate ID:</span>
-                    <p className="text-blue-700">{form.estimateId}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-blue-900">Linked Level:</span>
-                    <p className="text-blue-700 capitalize">{form.estimateLevel}</p>
-                  </div>
-                  {form.estimateTargetId && (
-                    <div>
-                      <span className="font-medium text-blue-900">Target ID:</span>
-                      <p className="text-blue-700">{form.estimateTargetId}</p>
-                    </div>
-                  )}
+        {/* Validation Warning for Missing Estimates */}
+        {submitAttempted && itemsMissingEstimate > 0 && (
+          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-amber-800">Estimate Link Required</h3>
+                <div className="mt-1 text-sm text-amber-700">
+                  <p>{itemsMissingEstimate} item(s) are not linked to an estimate. Each item must be linked to an estimate to proceed.</p>
                 </div>
               </div>
-            )}
-          </section>
+            </div>
+          </div>
+        )}
 
+        <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Information Section */}
           <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center mb-6">
@@ -906,134 +1016,316 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
           </section>
 
-          {/* Items Section */}
-          <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          {/* Items Section with Estimate Linking */}
+          <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center">
                 <Package className="h-5 w-5 text-blue-600 mr-2" />
                 <h2 className="text-lg font-semibold text-gray-900">Items</h2>
+                <div className="ml-4">
+                  {itemsMissingEstimate > 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                      <AlertTriangle size={10} className="mr-1" />
+                      {itemsMissingEstimate} item(s) need estimate
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle size={10} className="mr-1" />
+                      All items linked
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="text-lg font-semibold text-gray-900">
                 Total: <span className="text-blue-600">{formatCurrency(form.amount)}</span>
               </div>
             </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-sm">Name</th>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-xs">Description</th>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-sm">Qty</th>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-sm">Unit</th>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-sm">Unit Price</th>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-sm">Total</th>
-                    <th className="px-2 py-1 text-left font-semibold text-gray-700 border-b text-sm"></th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm">Name</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-xs">Description</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm">Qty</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm">Unit</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm">Unit Price</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm">Total</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm">Estimate Link</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-700 border-b text-sm"></th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {form.items.map((it, idx) => (
-                    <tr
-                      key={idx}
-                      className="hover:bg-gray-50 border-b last:border-b-0 align-top"
-                      style={{ verticalAlign: 'top' }}
-                    >
-                      {/* NAME AUTOCOMPLETE */}
-                      <td className="px-2 py-1 relative align-top">
-                        <ItemAutocomplete
-                          value={it.name || ""}
-                          placeholder="Item name"
-                          disabled={isLocked}
-                          items={itemList}
-                          autoFocus={false}
-                          onChange={(val) => setItemField(idx, "name", val)}
-                          onSelect={(item) => {
-                            setItemField(idx, "name", item.name || "");
-                            setItemField(idx, "description", item.description || "");
-                            setItemField(idx, "unit", item.unit || "");
-                            setItemField(idx, "unitPrice", item.unitPrice || 0);
-                          }}
-                        />
-                      </td>
+                    <React.Fragment key={idx}>
+                      <tr
+                        className="hover:bg-gray-50 border-b last:border-b-0 align-top"
+                        style={{ verticalAlign: 'top' }}
+                      >
+                        {/* NAME */}
+                        <td className="px-3 py-3 align-top">
+                          <ItemAutocomplete
+                            value={it.name || ""}
+                            placeholder="Item name"
+                            disabled={isLocked}
+                            items={itemList}
+                            autoFocus={false}
+                            onChange={(val) => setItemField(idx, "name", val)}
+                            onSelect={(item) => {
+                              setItemField(idx, "name", item.name || "");
+                              setItemField(idx, "description", item.description || "");
+                              setItemField(idx, "unit", item.unit || "");
+                              setItemField(idx, "unitPrice", item.unitPrice || 0);
+                            }}
+                          />
+                        </td>
 
-                      {/* DESCRIPTION AUTOCOMPLETE */}
-                      <td className="px-2 py-1 relative align-top text-xs break-words max-w-xs">
-                        <ItemAutocomplete
-                          value={it.description || ""}
-                          placeholder="Item description"
-                          disabled={isLocked}
-                          items={itemList}
-                          autoFocus={false}
-                          onChange={(val) => setItemField(idx, "description", val)}
-                          onSelect={(item) => {
-                            setItemField(idx, "name", item.name || "");
-                            setItemField(idx, "description", item.description || "");
-                            setItemField(idx, "unit", item.unit || "");
-                            setItemField(idx, "unitPrice", item.unitPrice || 0);
-                          }}
-                        />
-                      </td>
+                        {/* DESCRIPTION */}
+                        <td className="px-3 py-3 align-top text-xs break-words max-w-xs">
+                          <ItemAutocomplete
+                            value={it.description || ""}
+                            placeholder="Item description"
+                            disabled={isLocked}
+                            items={itemList}
+                            autoFocus={false}
+                            onChange={(val) => setItemField(idx, "description", val)}
+                            onSelect={(item) => {
+                              setItemField(idx, "name", item.name || "");
+                              setItemField(idx, "description", item.description || "");
+                              setItemField(idx, "unit", item.unit || "");
+                              setItemField(idx, "unitPrice", item.unitPrice || 0);
+                            }}
+                          />
+                        </td>
 
-                      {/* QTY */}
-                      <td className="px-2 py-1 align-top">
-                        <input
-                          type="number"
-                          className="w-16 border border-gray-300 rounded px-1 py-0.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={it.quantity}
-                          onChange={(e) => setItemField(idx, "quantity", e.target.value)}
-                          disabled={isLocked}
-                          min="1"
-                          autoFocus={false}
-                        />
-                      </td>
+                        {/* QTY */}
+                        <td className="px-3 py-3 align-top">
+                          <input
+                            type="number"
+                            className="w-16 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={it.quantity}
+                            onChange={(e) => setItemField(idx, "quantity", e.target.value)}
+                            disabled={isLocked}
+                            min="1"
+                            autoFocus={false}
+                          />
+                          {errors[`items.${idx}.quantity`] && (
+                            <p className="text-red-600 text-xs mt-1">{errors[`items.${idx}.quantity`]}</p>
+                          )}
+                        </td>
 
-                      {/* UNIT */}
-                      <td className="px-2 py-1 align-top">
-                        <input
-                          className="w-16 border border-gray-300 rounded px-1 py-0.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={it.unit}
-                          onChange={(e) => setItemField(idx, "unit", e.target.value)}
-                          disabled={isLocked}
-                          placeholder="Unit"
-                          autoFocus={false}
-                        />
-                      </td>
+                        {/* UNIT */}
+                        <td className="px-3 py-3 align-top">
+                          <input
+                            className="w-16 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={it.unit}
+                            onChange={(e) => setItemField(idx, "unit", e.target.value)}
+                            disabled={isLocked}
+                            placeholder="Unit"
+                            autoFocus={false}
+                          />
+                          {errors[`items.${idx}.unit`] && (
+                            <p className="text-red-600 text-xs mt-1">{errors[`items.${idx}.unit`]}</p>
+                          )}
+                        </td>
 
-                      {/* UNIT PRICE */}
-                      <td className="px-2 py-1 align-top">
-                        <input
-                          type="number"
-                          className="w-20 border border-gray-300 rounded px-1 py-0.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={it.unitPrice}
-                          onChange={(e) => setItemField(idx, "unitPrice", e.target.value)}
-                          disabled={isLocked}
-                          min="0"
-                          step="0.01"
-                          autoFocus={false}
-                        />
-                      </td>
+                        {/* UNIT PRICE */}
+                        <td className="px-3 py-3 align-top">
+                          <input
+                            type="number"
+                            className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={it.unitPrice}
+                            onChange={(e) => setItemField(idx, "unitPrice", e.target.value)}
+                            disabled={isLocked}
+                            min="0"
+                            step="0.01"
+                            autoFocus={false}
+                          />
+                          {errors[`items.${idx}.unitPrice`] && (
+                            <p className="text-red-600 text-xs mt-1">{errors[`items.${idx}.unitPrice`]}</p>
+                          )}
+                        </td>
 
-                      {/* ROW TOTAL */}
-                      <td className="px-2 py-1 font-medium text-gray-900 text-sm align-top">
-                        {calculateItemTotal(it.quantity, it.unitPrice)}
-                      </td>
+                        {/* ROW TOTAL */}
+                        <td className="px-3 py-3 font-medium text-gray-900 text-sm align-top">
+                          {calculateItemTotal(it.quantity, it.unitPrice)}
+                        </td>
 
-                      {/* REMOVE BUTTON */}
-                      <td className="px-2 py-1 align-top">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(idx)}
-                          disabled={isLocked || form.items.length <= 1}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
+                        {/* ESTIMATE LINK */}
+                        <td className="px-3 py-3 align-top">
+                          <div className="space-y-1 min-w-[120px]">
+                            <div className="flex items-center justify-between">
+                              {it.estimateId ? (
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      openEstimateSelector(idx);
+                                    }}
+                                    className="inline-flex items-center justify-center w-7 h-7 text-green-600 rounded hover:bg-green-100 transition-colors"
+                                    title="Edit Estimate Link"
+                                    disabled={isLocked}
+                                  >
+                                    <Link size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      clearItemEstimate(idx);
+                                    }}
+                                    className="inline-flex items-center justify-center w-7 h-7 text-red-600 rounded hover:bg-red-100 transition-colors"
+                                    title="Remove Estimate Link"
+                                    disabled={isLocked}
+                                  >
+                                    <Unlink size={14} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    openEstimateSelector(idx);
+                                  }}
+                                  className="inline-flex items-center justify-center px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                                  disabled={isLocked}
+                                >
+                                  <Link size={12} className="mr-1" />
+                                  Link Estimate
+                                </button>
+                              )}
+                            </div>
+                            
+                            {/* Estimate Status Indicator */}
+                            <div className="text-xs">
+                              {it.estimateId ? (
+                                <div className="truncate max-w-[120px]">
+                                  <div className="text-green-700 font-medium truncate">
+                                    ✓ Linked
+                                  </div>
+                                  <div className="text-gray-500 truncate" title={it.reference || it.estimateTargetId}>
+                                    {it.reference || it.estimateTargetId || "No reference"}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-amber-600 font-medium">
+                                  <span className="flex items-center">
+                                    <AlertTriangle size={10} className="mr-1" />
+                                    Required
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            {errors[`items.${idx}.estimateId`] && (
+                              <p className="text-red-600 text-xs">{errors[`items.${idx}.estimateId`]}</p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* REMOVE BUTTON */}
+                        <td className="px-3 py-3 align-top">
+                          <button
+                            type="button"
+                            onClick={() => removeItem(idx)}
+                            disabled={isLocked || form.items.length <= 1}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                      
+                      {/* Estimate Selector Row for this item */}
+                      {showEstimateSelector[idx] && (
+                        <tr>
+                          <td colSpan="8" className="p-4 border-t-0 bg-blue-50">
+                            <div 
+                              ref={estimateSelectorRef}
+                              className="bg-white p-4 rounded-md border border-blue-200 shadow-sm"
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                              }}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-medium text-blue-700">Link Item to Estimate</h4>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    closeEstimateSelector(idx);
+                                  }}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                              <SafeEstimateSelectorItem
+                                onChange={(data) => onItemEstimateChange(idx, data)}
+                                value={{
+                                  estimateId: it.estimateId,
+                                  estimateLevel: it.estimateLevel,
+                                  estimateTargetId: it.estimateTargetId,
+                                  reference: it.reference
+                                }}
+                                disabled={isLocked}
+                                required={true}
+                              />
+                              {it.estimateId && (
+                                <div className="mt-3 text-xs text-gray-700 bg-gray-50 border border-gray-200 p-2 rounded">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <span className="font-medium">Estimate ID:</span>
+                                      <p className="truncate">{it.estimateId}</p>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Level:</span>
+                                      <p className="capitalize">{it.estimateLevel}</p>
+                                    </div>
+                                    {it.estimateTargetId && (
+                                      <div className="col-span-2">
+                                        <span className="font-medium">Target ID:</span>
+                                        <p className="truncate">{it.estimateTargetId}</p>
+                                      </div>
+                                    )}
+                                    {it.reference && (
+                                      <div className="col-span-2">
+                                        <span className="font-medium">Reference:</span>
+                                        <p className="truncate">{it.reference}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
+            
+            {/* Validation Summary */}
+            {submitAttempted && itemsMissingEstimate > 0 && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <div className="flex items-center">
+                  <AlertTriangle size={14} className="text-amber-600 mr-2" />
+                  <span className="text-sm text-amber-800">
+                    {itemsMissingEstimate} item(s) require estimate linking before submission.
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               <button
                 type="button"
@@ -1265,7 +1557,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium transition-colors shadow-sm flex items-center"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || itemsMissingEstimate > 0}
+                  title={itemsMissingEstimate > 0 ? "All items must be linked to an estimate" : ""}
                 >
                   {isSubmitting ? (
                     <>
