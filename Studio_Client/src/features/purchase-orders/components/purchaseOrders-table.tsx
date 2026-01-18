@@ -214,7 +214,6 @@ function getColumns({
       ),
     },
     { accessorKey: 'poNumber', header: 'PO #' },
-    { accessorKey: 'company', header: 'Company' },
     { accessorKey: 'vendorName', header: 'Vendor' },
     {
       accessorKey: 'status',
